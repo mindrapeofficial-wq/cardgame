@@ -1,0 +1,34 @@
+name: Recover Legacy Text Config
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract legacy text configuration
+        run: |
+          set -euo pipefail
+          rm -rf .tmp-rolplay legacy-config
+          mkdir -p .tmp-rolplay legacy-config
+          unzip -q Rolplay.zip -d .tmp-rolplay
+          cp .tmp-rolplay/Rolplay/version_data_host_chr.txt legacy-config/
+          cp .tmp-rolplay/Rolplay/version_data_hostnochar.txt legacy-config/
+          cp .tmp-rolplay/Rolplay/winsock_host.dat legacy-config/
+          cp .tmp-rolplay/Rolplay/Principal.log legacy-config/
+          cp .tmp-rolplay/Rolplay/Intercambio.log legacy-config/
+          cp .tmp-rolplay/Rolplay/version_leeme.txt legacy-config/
+      - name: Commit recovered configuration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add legacy-config
+          git commit -m "Recover Rolplay legacy text configuration" || exit 0
+          git push
