@@ -1,0 +1,46 @@
+name: Analyze Legacy Client
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inspect Rolplay.zip
+        run: |
+          set -euo pipefail
+          rm -rf .legacy-analysis
+          mkdir -p .legacy-analysis/extracted
+          unzip -q Rolplay.zip -d .legacy-analysis/extracted
+          {
+            echo "ROLPLAY LEGACY CLIENT ANALYSIS"
+            echo
+            echo "== ZIP SUMMARY =="
+            unzip -l Rolplay.zip
+            echo
+            echo "== EXTRACTED FILE TREE =="
+            find .legacy-analysis/extracted -type f -printf '%P\t%s bytes\n' | sort
+            echo
+            echo "== FILE TYPES =="
+            while IFS= read -r -d '' f; do
+              printf '%s\t' "${f#.legacy-analysis/extracted/}"
+              file -b "$f"
+            done < <(find .legacy-analysis/extracted -type f -print0 | sort -z)
+          } > LEGACY_ANALYSIS.txt
+          cp LEGACY_ANALYSIS.txt LEGACY_ANALYSIS.md
+
+      - name: Commit analysis
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add LEGACY_ANALYSIS.txt LEGACY_ANALYSIS.md
+          git commit -m "Analyze original Rolplay legacy client" || exit 0
+          git push
