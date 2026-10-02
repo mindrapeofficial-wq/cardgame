@@ -356,7 +356,7 @@ function renderMatches(list){
 function collectionCards(){
   const q=norm(state.collectionQuery),mode=state.collectionMode,type=state.collectionType;
   return state.catalog.filter(c=>{
-    if(mode==="owned"&&owned(c.id)<=0)return false;
+    if(mode==="owned"&&owned(c.id)<=0&&!isBasicPower(c))return false;
     if(type!=="all"&&cardType(c)!==type)return false;
     if(q&&!norm(c.name).includes(q))return false;
     return true;
@@ -371,20 +371,23 @@ function renderCollection(){
   </div>`;
 }
 function cardTile(c,opt={}){
-  const r=rarity(c),qty=opt.qty||0;
+  const r=rarity(c),basic=isBasicPower(c),qty=basic?Infinity:(opt.qty||0),locked=c.level>playerLevel();
+  const qtyLabel=qty===Infinity?"∞":qty;
+  const canAdd=!locked&&(basic||freeCopies(c.id)>0);
+  const canSell=!basic&&freeCopies(c.id)>0;
   return `<article class="game-card r-${r.key}" data-action="cardDetail" data-id="${c.id}">
-    <div class="card-art" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty">x'+qty+'</span>':""}</div>
-    <div class="card-info"><div class="card-name">${esc(c.name)}</div><div class="card-sub">${cardType(c)} · Nv ${c.level} · ${r.name}</div></div>
+    <div class="card-art" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty '+(basic?'infinity-badge':'')+'">'+(basic?'∞ básico':'x'+qtyLabel)+'</span>':""}${locked?'<div class="level-lock">Requiere<br>Nivel '+c.level+'</div>':""}</div>
+    <div class="card-info"><div class="card-name">${esc(c.name)}</div><div class="card-sub">${cardType(c)} · Nv ${c.level} · ${r.name}${basic?" · Infinito":""}</div></div>
     <div class="card-stats"><span>${c.powerCard?"Poder +"+powerValue(c):"ATQ "+c.atk}</span><span>${c.powerCard?"":"DEF "+c.def}</span></div>
-    ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(freeCopies(c.id)<=0?"disabled":"")+'>Al mazo</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(freeCopies(c.id)<=0?"disabled":"")+'>Vender +'+Math.max(1,Math.floor(cardValue(c)/2))+'</button></div>':""}
+    ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(canAdd?"":"disabled")+'>Al mazo</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(canSell?"":"disabled")+'>'+(basic?'No vendible':'Vender +'+Math.max(1,Math.floor(cardValue(c)/2)))+'</button></div>':""}
   </article>`;
 }
 
 function renderDeck(){
   const target=state.deckTarget,count=state.profile.deck.length,avg=count?state.profile.deck.reduce((n,id)=>n+(card(id)?.cost||0),0)/count:0;
-  const pool=state.catalog.filter(c=>owned(c.id)>deckCount(c.id));
+  const pool=state.catalog.filter(c=>c.level<=playerLevel()&&(isBasicPower(c)||freeCopies(c.id)>0));
   return `<div class="page">
-    ${pageHead("Estrategia","Constructor de mazos","Construye una baraja de 20 a 50 cartas usando únicamente las copias que posees.",
+    ${pageHead("Estrategia","Constructor de mazos","Los Poderes de nivel 1 son un recurso básico infinito. El resto de cartas debe estar en tu colección y no puede superar tu nivel.",
       '<button class="btn" data-action="autoDeck">Auto construir</button><button class="btn danger" data-action="clearDeck">Vaciar</button>')}
     <div class="deck-layout">
       <section class="panel">
@@ -393,62 +396,79 @@ function renderDeck(){
           <div class="grid two"><div class="stat-card"><small>Coste medio</small><strong>${avg.toFixed(1)}</strong></div><div class="stat-card"><small>Poderes</small><strong>${state.profile.deck.filter(id=>card(id)?.powerCard).length}</strong></div></div>
           <div class="field" style="margin:14px 0"><label>Objetivo para autoconstrucción</label><select class="select" id="deckTarget"><option ${target===20?"selected":""}>20</option><option ${target===30?"selected":""}>30</option><option ${target===40?"selected":""}>40</option><option ${target===50?"selected":""}>50</option></select></div>
           <div class="deck-meter"><span style="width:${Math.min(100,count/50*100)}%"></span></div>
+          <p class="muted" style="font-size:11px">Poder básico Nv 1: ∞ · Cartas utilizables: nivel ${playerLevel()} o inferior.</p>
           <div class="deck-list" style="margin-top:12px">${renderDeckRows()}</div>
         </div>
       </section>
-      <section class="panel"><div class="panel-head"><h2>Cartas disponibles</h2><span class="muted">${pool.length} tipos con copias libres</span></div><div class="panel-body"><div class="card-grid">${pool.map(c=>cardTile(c,{qty:freeCopies(c.id),collection:true})).join("")||'<div class="empty">Todas tus copias están ya en el mazo.</div>'}</div></div></section>
+      <section class="panel"><div class="panel-head"><h2>Cartas disponibles</h2><span class="muted">${pool.length} opciones utilizables</span></div><div class="panel-body"><div class="card-grid">${pool.map(c=>cardTile(c,{qty:isBasicPower(c)?Infinity:freeCopies(c.id),collection:true})).join("")||'<div class="empty">Abre sobres en la tienda para conseguir cartas.</div>'}</div></div></section>
     </div>
   </div>`;
 }
 function renderDeckRows(){
-  if(!state.profile.deck.length)return'<div class="empty">Tu mazo está vacío.</div>';
-  return state.profile.deck.map((id,i)=>{const c=card(id);return c?`<div class="deck-row"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level}</small></div><span class="pill">${c.cost}</span><button class="btn small danger" data-action="removeDeck" data-index="${i}">−</button></div>`:""}).join("");
+  if(!state.profile.deck.length)return'<div class="empty">Tu mazo está vacío. Añade Poder básico infinito y cartas obtenidas en sobres.</div>';
+  return state.profile.deck.map((id,i)=>{const c=card(id);return c?`<div class="deck-row"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level}${isBasicPower(c)?" · ∞":""}</small></div><span class="pill">${c.cost}</span><button class="btn small danger" data-action="removeDeck" data-index="${i}">−</button></div>`:""}).join("");
 }
-function autoDeck(){
+async function persistDeck(candidate,successMessage=""){
+  if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
+  const r=await api("save_deck",{deck:candidate},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return false}
+  applyProfile(r.profile);if(successMessage)toast(successMessage,"good");renderView();return true;
+}
+async function autoDeck(){
   const target=state.deckTarget;
-  const available=[];for(const [id,q] of Object.entries(state.profile.collection)){for(let i=0;i<q;i++)available.push(Number(id))}
-  if(available.length<20){toast("Necesitas al menos 20 cartas en la colección.","bad");return}
-  const powers=available.filter(id=>card(id)?.powerCard),others=available.filter(id=>!card(id)?.powerCard);
-  powers.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));others.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));
-  const needP=Math.min(powers.length,Math.ceil(target*.30)),deck=[...powers.slice(0,needP),...others.slice(0,target-needP)];
-  if(deck.length<Math.min(target,available.length)){const used={};for(const id of deck)used[id]=(used[id]||0)+1;for(const id of available){if(deck.length>=target)break;if((used[id]||0)<owned(id)){deck.push(id);used[id]=(used[id]||0)+1}}}
-  state.profile.deck=deck.slice(0,50);saveProfile();playSound("click");renderView();
+  const basics=state.catalog.filter(c=>isBasicPower(c)&&c.level<=playerLevel());
+  const available=[];
+  for(const [id,q] of Object.entries(state.profile.collection)){
+    const c=card(id);if(!c||c.level>playerLevel())continue;
+    for(let i=0;i<Number(q||0);i++)available.push(Number(id));
+  }
+  const nonBasicPowers=available.filter(id=>card(id)?.powerCard&&!isBasicPower(card(id)));
+  const others=available.filter(id=>!card(id)?.powerCard);
+  nonBasicPowers.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));
+  others.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));
+  const deck=[],wantedPower=Math.ceil(target*.30);
+  for(const id of nonBasicPowers){if(deck.length>=wantedPower)break;deck.push(id)}
+  let bi=0;while(deck.length<wantedPower&&basics.length){deck.push(basics[bi++%basics.length].id)}
+  for(const id of others){if(deck.length>=target)break;deck.push(id)}
+  for(const id of nonBasicPowers.slice(deck.filter(id=>card(id)?.powerCard&&!isBasicPower(card(id))).length)){if(deck.length>=target)break;deck.push(id)}
+  bi=0;while(deck.length<target&&basics.length){deck.push(basics[bi++%basics.length].id)}
+  if(deck.length<20){toast("No hay suficientes cartas disponibles para construir un mazo.","bad");return}
+  await persistDeck(deck.slice(0,50),"Mazo construido y guardado.");
 }
-function addDeck(id){
-  if(state.profile.deck.length>=50){toast("El límite moderno es 50 cartas.","bad");return}
-  if(freeCopies(id)<=0)return;
-  state.profile.deck.push(Number(id));saveProfile();renderView();
+async function addDeck(id){
+  const c=card(id);if(!c||c.level>playerLevel())return;
+  if(state.profile.deck.length>=50){toast("El límite es 50 cartas.","bad");return}
+  if(!isBasicPower(c)&&freeCopies(id)<=0)return;
+  await persistDeck([...state.profile.deck,Number(id)]);
 }
-function removeDeck(index){state.profile.deck.splice(Number(index),1);saveProfile();renderView()}
+async function removeDeck(index){
+  const next=state.profile.deck.slice();next.splice(Number(index),1);await persistDeck(next);
+}
+async function clearDeck(){await persistDeck([],"Mazo vaciado.")}
 
 function renderShop(){
   return `<div class="page">
-    ${pageHead("Mercado","Tienda","Invierte tu oro en nuevas cartas. Cada sobre contiene cinco cartas del catálogo original.")}
+    ${pageHead("Mercado","Tienda","Los sobres se generan en el servidor y jamás contienen una carta por encima de tu nivel actual.")}
     <div class="grid two">
-      <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre de la Orda</h2><p class="muted">5 cartas · posibilidad de rarezas altas</p><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
+      <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre de la Orda</h2><p class="muted">5 cartas coleccionables · máximo Nivel ${playerLevel()} · 20 oro</p><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:420px">Los Poderes de nivel 1 no ocupan colección: dispones de copias infinitas desde que creas la cuenta.</p></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
-    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía</h2><span class="muted">Las cartas libres pueden venderse desde Colección.</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas totales</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Duplicados libres</small><strong>${state.catalog.reduce((n,c)=>n+Math.max(0,freeCopies(c.id)-1),0)}</strong></div></div></div></section>
+    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Tu punto de partida</h2><span class="muted">Progresión por nivel</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
   </div>`;
 }
-function weightedCard(){
-  const r=Math.random()*100;let pool;
-  if(r<4)pool=state.catalog.filter(c=>c.rarity>90);
-  else if(r<18)pool=state.catalog.filter(c=>c.rarity>60&&c.rarity<=90);
-  else if(r<48)pool=state.catalog.filter(c=>c.rarity>25&&c.rarity<=60);
-  else pool=state.catalog.filter(c=>c.rarity<=25);
-  return pool[Math.floor(Math.random()*pool.length)]||state.catalog[Math.floor(Math.random()*state.catalog.length)];
-}
-function buyPack(){
+async function buyPack(){
   if(state.profile.coins<20)return;
-  state.profile.coins-=20;state.lastPack=[];
-  for(let i=0;i<5;i++){const c=weightedCard();state.profile.collection[c.id]=(state.profile.collection[c.id]||0)+1;state.lastPack.push(c)}
-  state.profile.packs=(state.profile.packs||0)+1;saveProfile();playSound("draw");toast("Sobre abierto. Cinco cartas añadidas a tu colección.","good");renderView();
+  const r=await api("buy_pack",{},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  state.lastPack=(r.cards||[]).map(x=>card(x.id)).filter(Boolean);
+  playSound("draw");toast("Sobre abierto: todas las cartas son de Nivel "+playerLevel()+" o inferior.","good");renderView();
 }
-function sellCard(id){
-  id=Number(id);if(freeCopies(id)<=0)return;
-  const c=card(id),value=Math.max(1,Math.floor(cardValue(c)/2));
-  state.profile.collection[id]=Math.max(0,owned(id)-1);state.profile.coins+=value;saveProfile();toast(c.name+" vendido por "+value+" oro.","good");renderView();
+async function sellCard(id){
+  const c=card(id);if(!c||isBasicPower(c)||freeCopies(id)<=0)return;
+  const r=await api("sell_card",{cardId:Number(id)},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);toast(c.name+" vendido por "+r.soldFor+" oro.","good");renderView();
 }
 
 function renderTrade(){
