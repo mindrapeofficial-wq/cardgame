@@ -351,6 +351,11 @@ function renderHome(){
       ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
       ${matches>0?'<button class="btn" data-action="nav" data-view="play">Unirse a partida</button>':""}
       <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
+      <button class="btn" data-action="nav" data-view="collection">Colección</button>
+      <button class="btn" data-action="nav" data-view="shop">Tienda</button>
+      <button class="btn" data-action="nav" data-view="trade">Intercambios</button>
+      <button class="btn" data-action="nav" data-view="ranking">Ranking</button>
+      <button class="btn" data-action="nav" data-view="profile">Perfil</button>
     </div>
     <div class="xp-card">
       <div class="xp-row"><div><div class="kicker">Progresión</div><b>Nivel ${playerLevel()}</b></div><div class="muted">${playerLevel()>=50?"Nivel máximo":state.profile.xp+" / "+state.profile.xpRequired+" XP"}</div></div>
