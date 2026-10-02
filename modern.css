@@ -2120,3 +2120,48 @@ a{color:#d8b94f}
   .duel-log-popover{right:7px;bottom:7px}
   .duel-log-window{width:min(330px,calc(100vw - 22px))}
 }
+
+
+/* === MOBILE DUEL LANDSCAPE GUARD === */
+.duel-orientation-guard{display:none}
+.duel-orientation-card{
+  width:min(360px,calc(100vw - 40px));
+  padding:24px 22px;
+  border:1px solid rgba(212,175,55,.48);
+  border-radius:18px;
+  background:linear-gradient(180deg,rgba(18,18,18,.98),rgba(5,5,5,.99));
+  box-shadow:0 24px 80px rgba(0,0,0,.72),inset 0 0 28px rgba(212,175,55,.05);
+  color:#f4efe4;
+  text-align:center
+}
+.duel-orientation-icon{
+  width:64px;height:64px;margin:0 auto 14px;
+  display:grid;place-items:center;
+  border:1px solid rgba(212,175,55,.35);
+  border-radius:16px;
+  color:#d4af37;
+  font-size:38px;
+  line-height:1;
+  transform:rotate(-18deg)
+}
+.duel-orientation-card strong{display:block;font-size:22px;color:#efd87e;margin-bottom:7px}
+.duel-orientation-card span{display:block;color:#b9b09e;font-size:13px;line-height:1.5}
+@media (orientation:portrait) and (max-width:1024px){
+  .shell.duel-mode{height:100dvh;overflow:hidden}
+  .shell.duel-mode .main,
+  .shell.duel-mode #viewRoot{height:100dvh;overflow:hidden}
+  .shell.duel-mode .duel-orientation-guard{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    display:grid;
+    place-items:center;
+    padding:20px;
+    background:
+      radial-gradient(circle at 50% 38%,rgba(212,175,55,.10),transparent 32%),
+      rgba(0,0,0,.96);
+    backdrop-filter:blur(12px);
+    overscroll-behavior:none;
+    touch-action:none
+  }
+}
