@@ -424,7 +424,7 @@ function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
   return Math.max(0, (card?.def || 0) + (inst.defBonus || 0));
 }
-function resolvePendingAttack(game, defenderSide, defenderUid) {
+function resolvePendingAttack(game, defenderSide, defenderUid, passDefense = false) {
   const pending = game.pendingAttack;
   if (!pending) return false;
   const side = pending.side;
@@ -441,7 +441,7 @@ function resolvePendingAttack(game, defenderSide, defenderUid) {
   const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
   let defender = null;
 
-  if (defenders.length) {
+  if (defenders.length && !passDefense) {
     const wanted = cleanText(defenderUid, 100);
     defender = wanted ? defenders.find(inst => inst.uid === wanted) : null;
     if (!defender) return false;
@@ -717,9 +717,10 @@ function handleDuelAction(match, socketId, payload) {
     return;
   }
 
-  if (type === "defend") {
+  if (type === "defend" || type === "passDefense") {
     if (game.phase !== 5 || !game.pendingAttack || side !== sideOther(game.pendingAttack.side)) return;
-    const resolved = resolvePendingAttack(game, side, cleanText(payload && payload.uid, 100));
+    const passDefense = type === "passDefense";
+    const resolved = resolvePendingAttack(game, side, passDefense ? "" : cleanText(payload && payload.uid, 100), passDefense);
     if (!resolved) return;
     if (!checkEnd(game)) advanceAutomaticPhases(game);
     checkEnd(game);
