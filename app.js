@@ -99,6 +99,7 @@ function applyProfile(profile){
   };
   localStorage.setItem(LAST_USER_KEY,state.profile.name||"");
   cacheProfile();
+  if(state.socket&&state.socket.connected)state.socket.emit("profile:refresh");
 }
 function authErrorMessage(code){
   const map={
