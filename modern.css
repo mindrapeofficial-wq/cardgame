@@ -1025,3 +1025,31 @@ body{
   background:#15120c;
   font-variant-numeric:tabular-nums;
 }
+
+/* === NAMED DECK LIBRARY === */
+.deck-library{
+  border-color:rgba(201,163,91,.18);
+}
+.deck-library-controls{
+  display:grid;
+  grid-template-columns:minmax(220px,1fr) minmax(220px,1fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.deck-save-actions{
+  flex-wrap:nowrap;
+  align-items:end;
+}
+.deck-save-status{
+  margin:10px 0 0;
+  font-size:11px;
+}
+@media(max-width:1050px){
+  .deck-library-controls{grid-template-columns:1fr 1fr}
+  .deck-save-actions{grid-column:1/-1}
+}
+@media(max-width:620px){
+  .deck-library-controls{grid-template-columns:1fr}
+  .deck-save-actions{grid-column:auto;flex-wrap:wrap}
+  .deck-save-actions .btn{flex:1 1 auto}
+}
