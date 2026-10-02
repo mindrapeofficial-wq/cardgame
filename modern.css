@@ -1392,3 +1392,25 @@ body{
     min-width:0;
   }
 }
+
+
+/* Navegación global y protección de combate */
+.global-home-btn{flex:0 0 auto}
+.shell.duel-mode{grid-template-columns:1fr}
+.shell.duel-mode .sidebar,
+.shell.duel-mode .mobile-nav,
+.shell.duel-mode .global-home-btn{display:none!important}
+.shell.duel-mode .main{padding-bottom:0}
+.duel-disconnect-warning{
+  max-width:1380px;margin:0 auto 10px;padding:10px 14px;
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  border:1px solid rgba(230,185,92,.48);border-radius:11px;
+  background:rgba(27,20,10,.88);color:#f5dfad;text-align:center;
+  box-shadow:0 8px 24px rgba(0,0,0,.28)
+}
+.duel-disconnect-warning span{color:#d8c8a6}
+.duel-disconnect-warning strong{font-variant-numeric:tabular-nums;color:#fff1c8}
+@media(max-width:850px){
+  .global-home-btn{padding:7px 9px}
+  .shell.duel-mode .topbar{padding-left:14px}
+}
