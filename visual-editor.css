@@ -81,3 +81,42 @@ body.ve-enabled.ve-move-mode .ve-target{touch-action:none}
 body.ve-enabled .ve-target.ve-dragging{outline-style:solid!important;filter:brightness(1.04)}
 
 .ve-css-export{margin-top:7px}
+
+
+/* === EDITOR DOCK + RESIZE CONTROLS 2026-10-02 === */
+body.ve-enabled #ve-root.ve-side-left{left:14px;right:auto}
+body.ve-enabled #ve-root.ve-side-right{right:14px;left:auto}
+.ve-head{padding-right:8px}
+.ve-head small{margin-left:auto}
+.ve-head-actions{display:flex;align-items:center;gap:5px;margin-left:2px}
+.ve-head-btn{
+  width:28px;height:28px;display:grid;place-items:center;padding:0;
+  border:1px solid #343b44;border-radius:7px;background:#11151a;color:#d9d5cc;
+  font:800 14px/1 Inter,system-ui,sans-serif;cursor:pointer
+}
+.ve-head-btn:hover{background:#1b2027;border-color:#6f5c3d;color:#efd399}
+body.ve-enabled #ve-root.ve-minimized{
+  width:min(245px,calc(100vw - 28px));max-height:52px;overflow:hidden;border-radius:12px
+}
+#ve-root.ve-minimized .ve-section{display:none!important}
+#ve-root.ve-minimized .ve-head{border-bottom:0;position:static}
+.ve-fab.ve-fab-left{left:14px;right:auto}
+
+.ve-resize-line{
+  display:grid;gap:5px;margin:8px 0 10px;padding:8px 9px;
+  border:1px solid #272d34;border-radius:9px;background:#0d1014
+}
+.ve-resize-line>div{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ve-resize-line b{font-size:10px;color:#b7bec8}
+.ve-resize-line output{font-variant-numeric:tabular-nums;color:#e0c477;font-weight:800;font-size:10px}
+.ve-resize-line input[type=range]{
+  width:100%;height:18px;margin:0;accent-color:#c7a456;cursor:ew-resize
+}
+.ve-resize-line input[type=range]:disabled{opacity:.35;cursor:not-allowed}
+
+@media(max-width:700px){
+  body.ve-enabled #ve-root.ve-side-left{left:8px;right:auto}
+  body.ve-enabled #ve-root.ve-side-right{right:8px;left:auto}
+  body.ve-enabled #ve-root.ve-minimized{width:min(235px,calc(100vw - 16px));max-height:52px}
+  .ve-fab.ve-fab-left{left:8px;right:auto}
+}
