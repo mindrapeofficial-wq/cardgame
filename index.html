@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rolplay · Prototipo de duelo</title>
+<style>
+:root{
+  --bg:#07101a;--panel:#0d1824;--panel2:#111f2d;--line:#28435d;--text:#dcecff;
+  --muted:#88a3bd;--accent:#7ac7ff;--gold:#e0b85d;--danger:#ff7f7f;--ok:#8fe3ae;
+}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 50% -20%,#172b42 0,#07101a 45%,#040910 100%);
+color:var(--text);font:14px/1.35 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;min-height:100vh}
+button{font:inherit;color:var(--text);background:#0c1722;border:1px solid #31516d;border-radius:6px;padding:8px 12px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent);background:#102236} button:disabled{opacity:.42;cursor:not-allowed}
+.app{max-width:1320px;margin:auto;padding:14px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
+.brand{font-weight:800;letter-spacing:.12em;color:#fff;font-size:18px}.sub{color:var(--muted);font-size:12px;margin-top:2px}
+.stats{display:flex;gap:8px;flex-wrap:wrap}.pill{background:#0b1621;border:1px solid var(--line);padding:6px 9px;border-radius:999px}
+.phases{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0}.phase{padding:8px 6px;text-align:center;border:1px solid #20394f;color:#6f8aa2;background:#09131d;border-radius:5px}
+.phase.active{color:#fff;border-color:var(--accent);box-shadow:0 0 0 1px rgba(122,199,255,.16) inset;background:#11243a}
+.board{display:grid;grid-template-columns:1fr;gap:10px}.zone{background:linear-gradient(180deg,rgba(14,26,39,.94),rgba(8,16,25,.94));border:1px solid var(--line);border-radius:8px;padding:10px}
+.zonehead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.zonehead b{letter-spacing:.04em}.enemy .zonehead{color:#ffb4b4}
+.row{display:flex;gap:8px;overflow-x:auto;min-height:142px;padding:3px 1px 7px}
+.card{width:118px;min-width:118px;height:132px;background:linear-gradient(145deg,#172b3f,#0c1722 70%);border:1px solid #395d78;border-radius:8px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
+.card.playable{cursor:pointer;box-shadow:0 0 0 1px rgba(143,227,174,.25) inset}.card.playable:hover{border-color:var(--ok);transform:translateY(-2px)}
+.card.selected{outline:2px solid var(--gold)}.card.exhausted{opacity:.52;filter:saturate(.6)}.card .name{font-weight:700;font-size:12px;line-height:1.15}.meta{font-size:10px;color:var(--muted)}
+.nums{display:flex;justify-content:space-between;font-size:11px}.atk{color:#ffb26f}.def{color:#84c8ff}.cost{position:absolute;right:6px;top:6px;background:#102d46;border:1px solid #3a789f;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#bce7ff;font-weight:800}
+.placeholder{color:#50677b;display:grid;place-items:center;width:100%;min-height:120px;border:1px dashed #20394f;border-radius:7px}
+.handwrap{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:10px}.panel{background:#09131d;border:1px solid var(--line);border-radius:8px;padding:10px}
+.log{height:145px;overflow:auto;font-size:11px;color:#9eb6ca;white-space:pre-line}.log .bad{color:var(--danger)}.log .good{color:var(--ok)}
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.grow{flex:1}.status{color:#9ab4ca;font-size:12px}
+.error{display:none;margin-top:8px;padding:8px;border:1px solid #803f48;background:#231116;color:#ffb8c0;border-radius:5px}
+.help{font-size:11px;color:#7892a8;margin-top:6px}
+@media(max-width:800px){.handwrap{grid-template-columns:1fr}.phases{grid-template-columns:repeat(3,1fr)}.top{align-items:flex-start;flex-direction:column}.card{width:108px;min-width:108px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div><div class="brand">ROLPLAY · PROTOTIPO WEB</div><div class="sub">Duelo funcional restaurado sobre el catálogo original</div></div>
+    <div class="stats">
+      <span class="pill">Tus PV <b id="php">30</b></span>
+      <span class="pill">Poder <b id="ppow">1/1</b></span>
+      <span class="pill">PV rival <b id="ehp">30</b></span>
+      <span class="pill">Turno <b id="turn">1</b></span>
+    </div>
+  </div>
+
+  <div class="phases" id="phases"></div>
+
+  <div class="board">
+    <section class="zone enemy">
+      <div class="zonehead"><b>CAMPO RIVAL</b><span id="enemyCount"></span></div>
+      <div class="row" id="enemyBoard"></div>
+    </section>
+
+    <section class="zone">
+      <div class="zonehead"><b>TU CAMPO</b><span id="playerCount"></span></div>
+      <div class="row" id="playerBoard"></div>
+    </section>
+
+    <div class="handwrap">
+      <section class="zone">
+        <div class="zonehead"><b>TU MANO</b><span id="deckCount"></span></div>
+        <div class="row" id="hand"></div>
+        <div class="help" id="help"></div>
+      </section>
+
+      <aside class="panel">
+        <b>REGISTRO DE DUELO</b>
+        <div class="log" id="log"></div>
+        <div class="actions">
+          <button id="restart">Reiniciar duelo</button>
+          <span class="grow"></span>
+          <button id="next">Siguiente fase →</button>
+        </div>
+        <div class="error" id="error"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script type="text/plain" id="cards-data">name;rarity;quantity;level
+Poder;1;12;1
+Elfo Bardo;1;12;1
+Duende;1;12;1
+Guerrero Menor;1;12;1
+Dophan;50;12;1
+Gorad Menor;60;12;1
+Mimit;20;12;1
+Mel;1;12;1
+Guerrero Mediano;1;12;2
+Aries Menor;1;12;2
+Ninfa;50;12;2
+Lestat;60;12;2
+Guarda;60;12;2
+Ozk;80;3;2
+Aries Mediano;20;12;3
+Gorad Mediano;20;12;3
+Atia;20;12;3
+Enano Menor;20;12;3
+Chapanhan;70;12;3
+Eio Menor;1;12;3
+Explorador;95;2;3
+Bashi;60;12;4
+Lancero;90;12;4
+Enano Mayor;20;12;4
+Gorad Mayor;40;12;4
+Momia;95;3;4
+Orco;45;5;4
+Golem;20;12;4
+Eio Mayor;70;12;5
+Zoa;40;12;5
+Aries Mayor;10;12;5
+Poder x 3;65;40;5
+Chamad;50;12;5
+Mercenario;10;12;5
+Arlequin Menor;50;12;5
+Celestial;80;12;5
+Arlequin Mayor;20;12;6
+Elfo Negro;60;12;6
+Ave de noche;10;5;6
+Paleo;10;12;6
+Radia;90;12;6
+Rukia;50;12;6
+Umbral;95;12;6
+Minotauro;20;12;6
+Atea;99;3;6
+Fuente de vida;60;12;6
+Escudal;55;12;6
+Poderador;60;40;6
+Gran Guerrero;10;12;7
+Gran Elfo;10;12;7
+Gusold;10;12;7
+Oratio;40;12;7
+Rush;60;2;7
+Mago Blanco;60;12;7
+Blitz Menor;20;12;7
+Cobald;90;2;7
+Ordrihn;30;12;7
+Poder x 4;65;40;7
+Veneno;60;12;7
+Atriad;10;12;8
+Enano de Oro;10;12;8
+Blitz Mediano;20;12;8
+Hidra;90;2;8
+Eretik;1;12;8
+Trasgo Menor;90;12;8
+Mercane;75;12;8
+Ador;55;12;8
+Drenador;55;12;8
+Hada;90;1;8
+Tachi;60;2;9
+Bebe Dragon;90;2;9
+Lancero Menor;80;2;9
+Blitz Mayor;50;2;9
+Moriel;80;2;9
+Oracty;85;2;9
+Mujer Aguila;100;1;9
+Suza;10;2;10
+Dehil;80;2;10
+Poder x 5;70;40;10
+Gran Oso;80;2;10
+Vampiro;20;2;10
+Fureh;60;2;10
+Arpada;80;2;10
+Aguila Gigante;35;2;10
+Veneno x 2;70;2;10
+Trasgo Mayor;80;2;11
+Gran Blitz;10;2;11
+Sombra;60;2;11
+Mole;65;2;11
+Demonio;75;2;11
+Sardo;30;2;11
+Hongo;99;2;11
+Malar;90;2;11
+Lancero Mayor;10;2;12
+Gran Trasgo;60;2;12
+Presenter;95;2;12
+Hombre Lobo;70;2;12
+Fuente de vida x 2;70;2;12
+Escudal x 2;60;2;12
+Elfo Arquero;95;1;12
+Lanzador;10;2;13
+Arcero;10;2;13
+Tumbadil;20;2;13
+Hyel;50;2;13
+Taros;99;2;13
+Inevitables;99;2;13
+Poder x 6;95;40;13
+Poderador x 2;65;2;13
+Poder Mental;99;2;13
+Dragon Rojo;90;2;14
+Ithids Menores;60;2;14
+Azote;40;2;14
+Oscuro;70;2;14
+Morthen;90;2;14
+Korth;100;2;14
+Sirena;10;2;15
+Poder x 7;80;40;15
+Ithids Mayores;50;2;15
+Urgul;99;2;15
+Basilisco;80;2;15
+Thrul;90;2;15
+Escudal x 3;70;2;15
+Barrera Mistica;80;2;15
+Atea Mayor;99;3;15
+Albala;70;10;15
+Poder x 7 Poderal;100;1;15
+Poder x 7 Natural;100;1;15
+Poder x 7 Ametal;100;1;15
+Poder x 7 Domica;100;1;15
+Espinal;50;2;16
+Saga;99;2;16
+Colossus;99;2;16
+Poder Mental x 2;99;2;16
+Kurth Arth;80;2;16
+Esteagol;30;2;17
+Osgo;20;2;17
+Viguil;60;2;17
+Astral;99;2;17
+Drenador x 2;70;2;17
+Muralez;95;2;17
+Elfo Avanzado;75;1;17
+Poder x 8 Mayor;100;1;17
+Alchemia;60;12;18
+Kehanar;80;12;18
+Petioner;40;12;18
+Trigild;10;12;18
+Tutar Amon;30;2;19
+Yogoloth;99;2;19
+Veneno x 3;75;2;19
+Poderador x 3;75;2;19
+Barbaro;85;2;19
+Observador;20;2;20
+Poder x 10;90;40;20
+Manath;40;2;20
+Fuente de vida x 3;75;2;20
+Poder Mental x 3;99;2;20
+Poder Mental x 4;99;2;20
+Argnathor Poderal;100;1;20
+Rebolt;75;1;20
+Urgul Mayor;100;1;20
+Angel Caido;100;1;20
+Poder x 10 Poderal;100;1;20
+Poder x 10 Natural;100;1;20
+Poder x 10 Ametal;100;1;20
+Poder x 10 Domica;100;1;20
+Arienel;20;2;21
+Escudal x 4;70;2;21
+Acrum;100;2;21
+Alendrar;20;2;22
+Drakar;70;2;22
+Barrera Mistica x 2;80;2;22
+Poder Mental x 5;99;2;22
+Kurth Arth x 2;90;2;22
+Elfo Oscuro;80;3;22
+Dragon esqueleto;90;2;22
+Poder x 12 Mayor;100;1;22
+Afal;1;2;23
+Drenador x 3;80;2;23
+Dragor;20;2;24
+Grifo;79;2;24
+Chimera Menor;20;2;25
+Poder x 15;85;40;25
+Enher;100;2;25
+Titan;81;2;25
+Paladin;85;2;25
+Fuente de vida x 4;80;2;25
+Rueda;90;2;25
+Poderador x 4;80;2;25
+Ruinthz;90;2;25
+Argnathor Ametal;100;1;25
+Poder x 15 Domica;100;1;25
+Poder x 15 Ametal;100;1;25
+Poder x 15 Natural;100;1;25
+Poder x 15 Poderal;100;1;25
+Espiritu del mar;90;2;26
+Maderal;85;2;26
+Muralez x 2;99;2;26
+Acrum x 2;100;2;26
+Draconia;100;2;26
+Kraken;75;2;27
+Corrosivo;80;2;27
+Poder Mental x 6;99;2;27
+Poder Mental x 7;99;2;27
+Hermanos Elfo;100;1;27
+Mohrg;95;12;28
+Servidor;99;12;28
+Arcangel;70;2;29
+Demonio rojo;85;2;29
+Veneno x 4;85;2;29
+Flora;100;2;29
+Archer;90;2;30
+Hechizero Negro;85;2;30
+Argnathor Natural;100;1;30
+Caza Dragones;55;5;30
+Hombre Angel;100;1;30
+Poder x 15 Mayor;100;1;30
+HipoGrifo;75;2;31
+Gith;80;2;31
+Solemn;100;2;31
+Chimera Mayor;70;2;32
+Elion;60;2;32
+Poder Mental x 8;99;2;32
+Kurth Arth x 3;95;2;32
+Dragon azul;60;2;33
+Dragon verde;50;2;33
+Escudal x 5;80;2;33
+Dragon Helado;80;2;34
+Gargola;70;2;34
+Acrum x 3;100;2;34
+Ardala;100;2;34
+Gargola de Oro;65;2;35
+Incael;79;2;35
+Fuente de vida x 5;85;2;35
+Rueda x 2;95;2;35
+Barrera Mistica x 3;80;2;35
+Sanal;100;2;35
+Argnathor Domic;100;1;35
+Elfo Brujo;100;1;35
+Sibad;90;2;36
+Remente;50;2;36
+Poderador x 5;95;2;36
+Poder Mental x 9;99;2;36
+Ruinthz x 2;95;2;36
+Agathirmur;85;2;37
+Rataria;70;2;37
+Fase;70;2;38
+Garbol;75;2;38
+Hijo de Keathan;100;2;39
+Krahn;80;2;39
+Veneno x 5;95;2;39
+Drac Blanco Mayor;65;2;40
+Drac Azul Mayor;80;2;40
+Bestia del Caos;100;2;40
+Dragon Marron;50;2;40
+Tormentus;90;1;40
+Athar Zum;95;1;40
+Dragon Dorado;89;2;41
+Drac de Bronce;70;2;41
+Ruinthz x 3;100;2;41
+Dragon Plateado;80;2;42
+Stazhart;75;2;42
+Asxel;60;2;42
+Rueda x 3;100;2;42
+Kurth Arth x 4;100;2;42
+Angrath;100;2;43
+GraDrac;50;2;43
+Volatilh;80;2;44
+Drac Verde Mayor;70;2;44
+Gigante;100;2;45
+Grath;70;2;45
+Poder Mental x 10;99;2;45
+Acrum x 4;100;2;45
+Insignia Solamnica;100;2;45
+Oroth Fezhal;75;2;46
+Imnazthril;100;2;46
+Genios;100;2;46
+Dragon Demonio;80;2;47
+Dragon Negro;70;2;47
+Pesadilla;100;2;48
+Reptenzh;75;2;48
+Dragon Oscuro;99;2;49
+Poder Mental x 11;99;2;49
+Tentaculo;100;2;49
+Keatahn;100;2;50
+Poder x 20;100;2;50
+</script>
+<script>
+(() => {
+  "use strict";
+
+  const PHASES = ["Inicio","Poder","Invocación","Combate","Bloqueo","Daño"];
+  const $ = id => document.getElementById(id);
+  let state;
+
+  function parseCards(){
+    const raw = $("cards-data").textContent.trim();
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    if(lines.length < 2) throw new Error("El catálogo de cartas está vacío.");
+    return lines.slice(1).map((line,idx)=>{
+      const [name,rarity,quantity,level] = line.split(";");
+      const lv = Number(level)||1, rar = Number(rarity)||1;
+      const powerCard = /^Poder\b/i.test(name);
+      return {
+        id: idx + 1, name, rarity: rar, quantity:Number(quantity)||1, level:lv,
+        cost: powerCard ? 0 : Math.max(1,Math.min(10,Math.ceil(lv/5))),
+        atk: powerCard ? 0 : Math.max(1,Math.ceil(lv*.55)+Math.floor(rar/28)),
+        def: powerCard ? 1 : Math.max(1,Math.ceil(lv*.42)+Math.floor((100-rar)/38)),
+        powerCard
+      };
+    });
+  }
+
+  const CATALOG = parseCards();
+
+  function clone(c){ return {...c, uid: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2), exhausted:false, selected:false}; }
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+  function makeDeck(){
+    const pool = [];
+    CATALOG.forEach(c=>{
+      const weight = Math.max(1, Math.min(5, Math.round((101-c.rarity)/25)));
+      for(let i=0;i<weight;i++) pool.push(c);
+    });
+    return shuffle(Array.from({length:36},()=>clone(pool[Math.floor(Math.random()*pool.length)])));
+  }
+
+  function draw(who,n=1){
+    for(let i=0;i<n;i++){
+      if(!state[who+"Deck"].length) continue;
+      state[who+"Hand"].push(state[who+"Deck"].pop());
+    }
+  }
+
+  function log(msg, cls=""){
+    const div=document.createElement("div");
+    if(cls) div.className=cls;
+    div.textContent=msg;
+    $("log").appendChild(div);
+    $("log").scrollTop=$("log").scrollHeight;
+  }
+
+  function reset(){
+    state = {
+      turn:1, phase:0, playerHp:30, enemyHp:30,
+      maxPower:1, power:1, enemyMaxPower:1, enemyPower:1,
+      playerDeck:makeDeck(), enemyDeck:makeDeck(),
+      playerHand:[], enemyHand:[], playerBoard:[], enemyBoard:[],
+      blocks:[], gameOver:false
+    };
+    $("log").innerHTML="";
+    $("error").style.display="none";
+    draw("player",5); draw("enemy",5);
+    log("Duelo iniciado. El catálogo se carga dentro del propio juego, sin peticiones externas.", "good");
+    render();
+  }
+
+  function cardEl(c, zone){
+    const d=document.createElement("div");
+    d.className="card";
+    if(c.exhausted) d.classList.add("exhausted");
+    if(c.selected) d.classList.add("selected");
+
+    const playable = zone==="hand" && state.phase===2 && !state.gameOver && (c.powerCard || c.cost<=state.power);
+    const selectable = zone==="playerBoard" && state.phase===3 && !c.exhausted && !state.gameOver;
+    if(playable || selectable) d.classList.add("playable");
+
+    d.innerHTML = `
+      <div class="cost">${c.cost}</div>
+      <div class="name">${escapeHtml(c.name)}</div>
+      <div class="meta">Nv ${c.level} · Rareza ${c.rarity}</div>
+      <div class="nums"><span class="atk">ATQ ${c.atk}</span><span class="def">DEF ${c.def}</span></div>`;
+
+    if(playable) d.onclick=()=>playCard(c.uid);
+    if(selectable) d.onclick=()=>toggleAttack(c.uid);
+    return d;
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
+
+  function renderRow(elId, cards, zone){
+    const el=$(elId); el.innerHTML="";
+    if(!cards.length){ const p=document.createElement("div"); p.className="placeholder"; p.textContent="Sin cartas"; el.appendChild(p); return; }
+    cards.forEach(c=>el.appendChild(cardEl(c,zone)));
+  }
+
+  function render(){
+    $("php").textContent=Math.max(0,state.playerHp);
+    $("ehp").textContent=Math.max(0,state.enemyHp);
+    $("ppow").textContent=state.power+"/"+state.maxPower;
+    $("turn").textContent=state.turn;
+    $("deckCount").textContent="Mazo: "+state.playerDeck.length+" · Mano: "+state.playerHand.length;
+    $("enemyCount").textContent=state.enemyBoard.length+" en mesa";
+    $("playerCount").textContent=state.playerBoard.length+" en mesa";
+
+    const phases=$("phases"); phases.innerHTML="";
+    PHASES.forEach((p,i)=>{ const x=document.createElement("div"); x.className="phase"+(i===state.phase?" active":""); x.textContent=(i+1)+". "+p; phases.appendChild(x); });
+
+    renderRow("enemyBoard",state.enemyBoard,"enemyBoard");
+    renderRow("playerBoard",state.playerBoard,"playerBoard");
+    renderRow("hand",state.playerHand,"hand");
+
+    const help = [
+      "Inicio: prepara el turno.",
+      "Poder: recuperas y aumentas tu Poder.",
+      "Invocación: pulsa una carta iluminada para jugarla.",
+      "Combate: pulsa tus unidades para marcarlas como atacantes.",
+      "Bloqueo: el rival asigna defensores automáticamente.",
+      "Daño: se resuelve el combate y comienza el turno rival."
+    ][state.phase];
+    $("help").textContent=help;
+    $("next").disabled=state.gameOver;
+    $("next").textContent=state.phase===5?"Resolver daño →":"Siguiente fase →";
+  }
+
+  function playCard(uid){
+    const idx=state.playerHand.findIndex(c=>c.uid===uid); if(idx<0) return;
+    const c=state.playerHand[idx];
+    if(c.powerCard){
+      state.power=Math.min(state.maxPower, state.power+Math.max(1,Math.round(c.level/5)));
+      state.playerHand.splice(idx,1);
+      log("Usas "+c.name+" y recuperas Poder.", "good");
+    } else if(c.cost<=state.power){
+      state.power-=c.cost;
+      state.playerHand.splice(idx,1);
+      state.playerBoard.push(c);
+      log("Invocas "+c.name+" por "+c.cost+" Poder.");
+    }
+    render();
+  }
+
+  function toggleAttack(uid){
+    const c=state.playerBoard.find(x=>x.uid===uid); if(!c) return;
+    c.selected=!c.selected;
+    log((c.selected?"Atacará ":"Retiras del ataque a ")+c.name+".");
+    render();
+  }
+
+  function aiSummon(){
+    let safety=10;
+    while(safety-->0){
+      const options=state.enemyHand.filter(c=>!c.powerCard && c.cost<=state.enemyPower);
+      if(!options.length) break;
+      options.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
+      const c=options[0];
+      state.enemyPower-=c.cost;
+      state.enemyHand=state.enemyHand.filter(x=>x.uid!==c.uid);
+      state.enemyBoard.push(c);
+      log("El rival invoca "+c.name+".");
+    }
+  }
+
+  function prepareBlocks(){
+    state.blocks=[];
+    const attackers=state.playerBoard.filter(c=>c.selected && !c.exhausted);
+    const available=[...state.enemyBoard].sort((a,b)=>b.def-a.def);
+    attackers.forEach((a,i)=>{
+      if(available[i]) state.blocks.push({a:a.uid,b:available[i].uid});
+    });
+    if(attackers.length) log("El rival prepara "+Math.min(attackers.length,available.length)+" bloqueo(s).");
+  }
+
+  function resolvePlayerAttack(){
+    const attackers=state.playerBoard.filter(c=>c.selected && !c.exhausted);
+    for(const a of attackers){
+      const link=state.blocks.find(x=>x.a===a.uid);
+      if(link){
+        const b=state.enemyBoard.find(x=>x.uid===link.b);
+        if(!b) continue;
+        const ad=a.atk-b.def, bd=b.atk-a.def;
+        log(a.name+" choca con "+b.name+".");
+        if(ad>0){ state.enemyBoard=state.enemyBoard.filter(x=>x.uid!==b.uid); log(b.name+" cae.", "good"); }
+        if(bd>0){ state.playerBoard=state.playerBoard.filter(x=>x.uid!==a.uid); log(a.name+" cae.", "bad"); }
+      } else {
+        state.enemyHp-=a.atk;
+        log(a.name+" inflige "+a.atk+" PV al rival.", "good");
+      }
+      const still=state.playerBoard.find(x=>x.uid===a.uid);
+      if(still){ still.exhausted=true; still.selected=false; }
+    }
+  }
+
+  function aiTurn(){
+    if(state.enemyHp<=0 || state.playerHp<=0) return;
+    state.enemyMaxPower=Math.min(10,state.enemyMaxPower+1);
+    state.enemyPower=state.enemyMaxPower;
+    draw("enemy",1);
+    aiSummon();
+
+    const attackers=state.enemyBoard.filter(c=>!c.exhausted);
+    const blockers=[...state.playerBoard].sort((a,b)=>b.def-a.def);
+    attackers.forEach((a,i)=>{
+      const b=blockers[i];
+      if(b){
+        const ad=a.atk-b.def, bd=b.atk-a.def;
+        if(ad>0) state.playerBoard=state.playerBoard.filter(x=>x.uid!==b.uid);
+        if(bd>0) state.enemyBoard=state.enemyBoard.filter(x=>x.uid!==a.uid);
+      } else state.playerHp-=a.atk;
+      const still=state.enemyBoard.find(x=>x.uid===a.uid); if(still) still.exhausted=true;
+    });
+    if(attackers.length) log("El rival ataca con "+attackers.length+" unidad(es).", "bad");
+  }
+
+  function checkEnd(){
+    if(state.enemyHp<=0 || state.playerHp<=0){
+      state.gameOver=true;
+      log(state.enemyHp<=0 ? "VICTORIA. El rival ha caído." : "DERROTA. Tus PV han llegado a cero.", state.enemyHp<=0?"good":"bad");
+    }
+  }
+
+  function nextPhase(){
+    if(state.gameOver) return;
+    if(state.phase===3) prepareBlocks();
+    if(state.phase===5){
+      resolvePlayerAttack(); checkEnd();
+      if(!state.gameOver){ aiTurn(); checkEnd(); }
+      if(!state.gameOver){
+        state.turn++;
+        state.phase=0;
+        state.maxPower=Math.min(10,state.maxPower+1);
+        state.power=state.maxPower;
+        state.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+        state.enemyBoard.forEach(c=>c.exhausted=false);
+        draw("player",1);
+        log("Comienza tu turno "+state.turn+".");
+      }
+      render(); return;
+    }
+    state.phase++;
+    if(state.phase===1) state.power=state.maxPower;
+    render();
+  }
+
+  $("restart").addEventListener("click",reset);
+  $("next").addEventListener("click",nextPhase);
+  reset();
+})();
+</script>
+</body>
+</html>
