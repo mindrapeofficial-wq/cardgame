@@ -1,4 +1,4 @@
-const CACHE="rolplay-reborn-v20";
+const CACHE="rolplay-reborn-v18";
 const CORE=["./","index.html","modern.css","visual-editor.css","app.js","visual-editor.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp","assets/arcanum-card-back.webp"];
 const FRESH=new Set(["/","/index.html","/modern.css","/visual-editor.css","/app.js","/visual-editor.js","/cards.csv","/legacy-assets/image-index.json"]);
 
