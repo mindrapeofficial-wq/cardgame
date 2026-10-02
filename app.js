@@ -485,7 +485,7 @@ function renderManual(){
             <div><b>3. Poder</b><span>Puedes bajar como máximo <b>1 carta de Poder por turno</b>. Los Poderes en campo generan automáticamente sus puntos, hasta un máximo de <b>200</b>.</span></div>
             <div><b>4. Invocación</b><span>Invocas criaturas pagando su coste de Poder.</span></div>
             <div><b>5. Habilidades</b><span>Juegas hechizos o habilidades que puedas pagar.</span></div>
-            <div><b>6. Ataque</b><span>Tocas una criatura para atacar: se gira inmediatamente y declara un único ataque. El rival toca una sola carta para defender y también se gira. Cada combate se resuelve antes de poder declarar el siguiente.</span></div>
+            <div><b>6. Ataque</b><span>Tocas una criatura para atacar: se gira inmediatamente y declara un único ataque. El rival puede tocar una sola criatura para defender o elegir <b>Dejar pasar</b> y recibir el ataque directamente en sus PV. Cada combate se resuelve antes de poder declarar el siguiente.</span></div>
           </div>
           <p>Cuando una fase no contiene ninguna acción posible para el jugador, el juego pasa automáticamente a la siguiente. Esto evita turnos muertos y acelera el ritmo de la partida.</p>
         </div>
@@ -508,7 +508,7 @@ function renderManual(){
         <div class="manual-body">
           <ul>
             <li>Las criaturas no pueden atacar el turno en que son invocadas, salvo las de tipo <b>Berserker</b>.</li>
-            <li>Los ataques se declaran de uno en uno. El atacante toca una criatura preparada y esta se gira inmediatamente. El defensor responde tocando una sola criatura preparada, que también se gira. No pueden acumularse varios atacantes ni varios defensores pendientes al mismo tiempo.</li>
+            <li>Los ataques se declaran de uno en uno. El atacante toca una criatura preparada y esta se gira inmediatamente. El defensor puede responder tocando una sola criatura preparada, que también se gira, o elegir <b>Dejar pasar</b> para no bloquear y recibir el daño directamente en sus PV. No pueden acumularse varios atacantes ni varios defensores pendientes al mismo tiempo.</li>
             <li>Tras resolver ese combate, el jugador atacante puede tocar otra criatura para iniciar un nuevo ataque o pasar directamente su turno. Una criatura normal solo ataca o defiende una vez por turno.</li>
             <li>El combate es <b>simultáneo</b>: se compara el ATQ de cada criatura con la DEF completa de la otra. El combate <b>no desgasta ni reduce</b> ATQ o DEF; una criatura que sobreviva conserva sus estadísticas completas para futuros combates, salvo efectos de cartas que indiquen expresamente una modificación.</li>
             <li>Si el ATQ atacante supera la DEF restante de la defensora, el exceso se descuenta de los PV del jugador defensor.</li>
@@ -1493,7 +1493,7 @@ function renderCombatPrompt(d){
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   const prompt=d.phase===5?renderCombatPrompt(d):"";
-  if(d.defending)return`<div style="width:100%">${prompt}</div>`;
+  if(d.defending)return`<div style="width:100%">${prompt}<div class="actions duel-phase-action-row"><button class="btn" data-action="passDefense">Dejar pasar</button></div></div>`;
   if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}…</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
   if(d.attackDeclared)return`<div style="width:100%">${prompt}</div>`;
@@ -1617,7 +1617,7 @@ function declareLocalAttack(uid){
   c.exhausted=true;c.attacksThisTurn=(c.attacksThisTurn||0)+1;c.selected=false;
   d.log.push(c.name+" declara un ataque.");
   const available=d.enemyBoard.filter(localCanDefend);
-  const defender=chooseAiBlock(c,available,d.enemyHp)||available[0]||null;
+  const defender=chooseAiBlock(c,available,d.enemyHp)||null;
   resolveLocalSingleAttack("player",c,defender);
   if(checkLocalEnd())return renderView();
   advanceLocalAutomaticPhases();
@@ -1648,6 +1648,16 @@ function localDefend(uid){
   if(!defender||!localCanDefend(defender))return;
   const attacker=d.enemyBoard.find(x=>x.uid===d.pendingAttack.attackerUid);
   if(attacker)resolveLocalSingleAttack("enemy",attacker,defender);
+  d.pendingAttack=null;d.defending=false;d.aiActing=true;d.aiMessage="El Guardián continúa su ataque";
+  const resume=d._defenseResolver;d._defenseResolver=null;
+  renderView();
+  if(resume)resume();
+}
+function localPassDefense(){
+  const d=state.duel;
+  if(!d||!d.defending||!d.pendingAttack||d.pendingAttack.side!=="enemy")return;
+  const attacker=d.enemyBoard.find(x=>x.uid===d.pendingAttack.attackerUid);
+  if(attacker)resolveLocalSingleAttack("enemy",attacker,null);
   d.pendingAttack=null;d.defending=false;d.aiActing=true;d.aiMessage="El Guardián continúa su ataque";
   const resume=d._defenseResolver;d._defenseResolver=null;
   renderView();
@@ -1995,6 +2005,12 @@ function nextPhase(){
     if(d.myTurn&&!d.attackDeclared&&!d.pendingAttack)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase"});
   }else if(!d.aiActing&&!d.defending&&!d.pendingAttack)nextLocalPhase();
 }
+function passDefense(){
+  const d=state.duel;if(!d||!d.defending)return;
+  if(d.online){
+    if(state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"passDefense"});
+  }else localPassDefense();
+}
 function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
 function offerDraw(){const d=state.duel;if(d?.online&&state.connected&&!d.gameOver&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"})}
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
@@ -2036,6 +2052,7 @@ document.addEventListener("click",e=>{
   else if(a==="tradeCancel")cancelTrade();
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
+  else if(a==="passDefense")passDefense();
   else if(a==="concede")concede();
   else if(a==="offerDraw")offerDraw();
   else if(a==="acceptDraw")respondDraw(true);
