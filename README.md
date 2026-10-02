@@ -83,9 +83,8 @@ The server owns online duel state so clients do not receive the opponent's priva
 
 ## Legacy source archive
 
-The repository keeps the recovered original material for reference:
+The repository keeps the recovered original material for reference. The two large binaries (`Rolplay.zip` and `rolplay-3.9.0-installer.exe`) live in the [`legacy-archive` release](https://github.com/mindrapeofficial-wq/cardgame/releases/tag/legacy-archive) so the website does not serve them; the legacy workflows download them from there.
 
-- `Rolplay.zip`
 - `Manual 3.2.rtf`
 - `version_leeme.txt`
 - `legacy-assets/`

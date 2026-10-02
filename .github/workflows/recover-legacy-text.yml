@@ -1,11 +1,7 @@
 name: Recover Legacy Assets
 
+# Manual only: the original client lives in the "legacy-archive" release, not in the repo.
 on:
-  push:
-    branches: [main]
-    paths:
-      - Rolplay.zip
-      - .github/workflows/recover-legacy-text.yml
   workflow_dispatch:
 
 permissions:
@@ -13,17 +9,22 @@ permissions:
 
 jobs:
   recover:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download original client from the legacy-archive release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download legacy-archive --pattern Rolplay.zip --dir .tmp-download
+
       - name: Extract legacy configuration and images
         run: |
           set -euo pipefail
-          rm -rf .tmp-rolplay legacy-config legacy-assets
+          # Only replace the extracted folders; legacy-assets/image-index.json is used by the game.
+          rm -rf .tmp-rolplay legacy-config legacy-assets/imagenes
           mkdir -p .tmp-rolplay legacy-config legacy-assets/imagenes
-          unzip -q Rolplay.zip -d .tmp-rolplay
+          unzip -q .tmp-download/Rolplay.zip -d .tmp-rolplay
 
           cp .tmp-rolplay/Rolplay/version_data_host_chr.txt legacy-config/
           cp .tmp-rolplay/Rolplay/version_data_hostnochar.txt legacy-config/

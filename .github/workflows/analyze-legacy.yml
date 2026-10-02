@@ -1,30 +1,35 @@
 name: Analyze Legacy Client
 
+# Manual only: the analysis only changes when the archived client does, so it no longer
+# runs (and commits) on every push to main.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   analyze:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download original client from the legacy-archive release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download legacy-archive --pattern Rolplay.zip --dir .tmp-download
 
       - name: Inspect Rolplay.zip
         run: |
           set -euo pipefail
           rm -rf .legacy-analysis
           mkdir -p .legacy-analysis/extracted
-          unzip -q Rolplay.zip -d .legacy-analysis/extracted
+          unzip -q .tmp-download/Rolplay.zip -d .legacy-analysis/extracted
           {
             echo "ROLPLAY LEGACY CLIENT ANALYSIS"
             echo
             echo "== ZIP SUMMARY =="
-            unzip -l Rolplay.zip
+            unzip -l .tmp-download/Rolplay.zip
             echo
             echo "== EXTRACTED FILE TREE =="
             find .legacy-analysis/extracted -type f -printf '%P\t%s bytes\n' | sort
@@ -34,13 +39,12 @@ jobs:
               printf '%s\t' "${f#.legacy-analysis/extracted/}"
               file -b "$f"
             done < <(find .legacy-analysis/extracted -type f -print0 | sort -z)
-          } > LEGACY_ANALYSIS.txt
-          cp LEGACY_ANALYSIS.txt LEGACY_ANALYSIS.md
+          } > LEGACY_ANALYSIS.md
 
       - name: Commit analysis
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add LEGACY_ANALYSIS.txt LEGACY_ANALYSIS.md
+          git add LEGACY_ANALYSIS.md
           git commit -m "Analyze original Rolplay legacy client" || exit 0
           git push
