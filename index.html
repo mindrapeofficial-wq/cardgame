@@ -5,11 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#050505">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="Rolplay Reborn: restauración moderna y multijugador del clásico juego de cartas Rolplay.net.">
-  <title>Rolplay Reborn</title>
+  <meta name="description" content="ARCANUM TCG: juego de cartas estratégico online.">
+  <title>ARCANUM TCG</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="modern.css">
-  <link rel="stylesheet" href="visual-editor.css">
+  <link rel="stylesheet" href="modern.css?v=20261002-deck-meta-gap-v1">
 </head>
 <body>
   <div class="app-bg"></div>
@@ -17,14 +16,12 @@
   <section id="loginScreen" class="login-screen">
     <div class="login-art">
       <div class="login-art-copy">
-        <div class="kicker">El clásico regresa</div>
-        <h1>ROLPLAY<br>REBORN</h1>
-        <p>El juego de cartas original, reconstruido para la web con sus 285 cartas, arte histórico, economía, colección y multijugador.</p>
+        <img class="login-logo" src="assets/arcanum-logo-oficial.webp" alt="ARCANUM TCG">
       </div>
     </div>
     <div class="login-panel">
       <div class="login-box">
-        <div class="brand"><div class="brand-mark">R</div><div><div class="brand-name">ROLPLAY</div><div class="brand-sub">Reborn Edition</div></div></div>
+        <div class="login-panel-brand"><img class="login-panel-logo" src="assets/arcanum-logo-oficial.webp" alt="ARCANUM TCG"></div>
         <div id="bootLoader">
           <h2>Preparando el juego…</h2>
           <p>Cargando cartas y recursos recuperados.</p>
@@ -51,7 +48,7 @@
 
   <div id="appShell" class="shell hidden">
     <aside class="sidebar">
-      <div class="brand"><div class="brand-mark">R</div><div><div class="brand-name">ROLPLAY</div><div class="brand-sub">Reborn Edition</div></div></div>
+      <div class="brand official-brand"><img class="brand-logo" src="assets/arcanum-logo-oficial.webp" alt="ARCANUM TCG"></div>
       <nav class="nav">
         <button class="nav-btn active" data-action="nav" data-view="home" data-nav="home"><span class="nav-icon">⌂</span><span>Inicio</span></button>
         <button class="nav-btn" data-action="nav" data-view="play" data-nav="play"><span class="nav-icon">⚔</span><span>Jugar</span><span id="onlineBadge" class="nav-badge">0</span></button>
@@ -71,7 +68,7 @@
     <main class="main">
       <header class="topbar">
         <button id="globalHomeBtn" class="btn small global-home-btn" data-action="nav" data-view="home" title="Volver al inicio">⌂ Inicio</button>
-        <div class="topbar-title">Rolplay Reborn</div>
+        <div class="topbar-title">ARCANUM TCG</div>
         <div class="topbar-spacer"></div>
         <div class="pill connection-label"><span id="connectionDot" class="dot"></span><span id="connectionText">Local</span></div>
         <div class="currency">◈ <span id="coins">100</span></div>
@@ -91,14 +88,13 @@
       <div class="duel-orientation-card">
         <div class="duel-orientation-icon" aria-hidden="true">↻</div>
         <strong>Gira el móvil</strong>
-        <span>Las partidas de ARCANUM se juegan con la pantalla en horizontal.</span>
+        <span>Las partidas de ROLPLAY se juegan con la pantalla en horizontal.</span>
       </div>
     </div>
   </div>
 
   <div id="modalRoot"></div>
   <div id="toasts" class="toast-stack"></div>
-  <script src="app.js"></script>
-  <script src="visual-editor.js"></script>
+  <script src="app.js?v=20261002-decks-face-v1"></script>
 </body>
 </html>
