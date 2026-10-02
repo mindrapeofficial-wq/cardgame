@@ -964,6 +964,16 @@ function renderManual(){
   </div>`;
 }
 
+function dedupeLobbyUsers(list){
+  const byUser=new Map();
+  for(const user of Array.isArray(list)?list:[]){
+    if(!user)continue;
+    const key=norm(user.name)||String(user.socketId||"");
+    const current=byUser.get(key);
+    if(!current||(state.socket&&user.socketId===state.socket.id))byUser.set(key,user);
+  }
+  return [...byUser.values()];
+}
 function renderUsers(){
   if(!state.users.length)return'<div class="empty">No hay otros jugadores conectados todavía.</div>';
   return state.users.map(u=>`<div class="online-user"><div class="avatar">${initial(u.name)}</div><div style="min-width:0"><b>${esc(u.name)}</b><div class="muted" style="font-size:11px">Nivel ${u.level||1} · ELO ${u.elo||1000} · ${esc(u.status||"Disponible")}</div></div>${state.socket&&u.socketId===state.socket.id?'<span class="pill">Tú</span>':""}</div>`).join("");
@@ -1587,7 +1597,7 @@ function connectOnline(){
     });
     socket.on("disconnect",()=>{state.connected=false;updateChrome();if(state.view!=="duel")renderView()});
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
-    socket.on("lobby:users",list=>{state.users=Array.isArray(list)?list:[];updateChrome();if(["home","trade"].includes(state.view))renderView()});
+    socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{state.chat.push({from:m.from,text:m.text});if(state.view==="home")renderView()});
     socket.on("chat:system",m=>{state.chat.push({system:true,text:m.text});if(state.view==="home")renderView()});
