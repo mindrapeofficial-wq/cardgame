@@ -65,6 +65,7 @@ const io = new Server(httpServer, {
   transports: ["websocket", "polling"]
 });
 
+const DECK_SIZE = 20;
 const users = new Map();
 const matches = new Map();
 const trades = new Map();
@@ -370,7 +371,8 @@ function resolveDeclaredAttack(game) {
 }
 
 function initDuel(match) {
-  const size = match.deckSize;
+  const size = DECK_SIZE;
+  match.deckSize = DECK_SIZE;
   const game = {
     turn: 1,
     active: match.start === "random" && Math.random() < 0.5 ? "b" : "a",
@@ -695,9 +697,9 @@ io.on("connection", socket => {
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     removeSocketMatches(socket.id);
-    const deckSize = [20, 30, 40, 50].includes(Number(payload && payload.deckSize)) ? Number(payload.deckSize) : 30;
-    if (!Array.isArray(user.deck) || user.deck.length < deckSize) {
-      socket.emit("match:error", { message: "Tu mazo guardado no tiene suficientes cartas." });
+    const deckSize = DECK_SIZE;
+    if (!Array.isArray(user.deck) || user.deck.length !== DECK_SIZE) {
+      socket.emit("match:error", { message: "Tu mazo guardado debe tener exactamente 20 cartas." });
       return;
     }
     const match = {
@@ -710,7 +712,7 @@ io.on("connection", socket => {
       status: "waiting",
       hostSocketId: socket.id,
       guestSocketId: null,
-      hostDeck: user.deck.slice(0, deckSize),
+      hostDeck: user.deck.slice(),
       guestDeck: [],
       hostLevel: user.level,
       guestLevel: 1,
@@ -752,13 +754,17 @@ io.on("connection", socket => {
     user.wins = Math.max(0, Number(fresh.wins) || 0);
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
-    match.status = "playing";
-    if (!Array.isArray(user.deck) || user.deck.length < match.deckSize) {
-      socket.emit("match:error", { message: "Tu mazo guardado no tiene suficientes cartas." });
+    if (match.deckSize !== DECK_SIZE) {
+      socket.emit("match:error", { message: "Ese reto usa un formato de mazo no permitido." });
       return;
     }
+    if (!Array.isArray(user.deck) || user.deck.length !== DECK_SIZE) {
+      socket.emit("match:error", { message: "Tu mazo guardado debe tener exactamente 20 cartas." });
+      return;
+    }
+    match.status = "playing";
     match.guestSocketId = socket.id;
-    match.guestDeck = user.deck.slice(0, match.deckSize);
+    match.guestDeck = user.deck.slice();
     match.guestLevel = user.level;
     match.guestSessionToken = user.sessionToken;
     match.guestAccountId = user.accountId;
