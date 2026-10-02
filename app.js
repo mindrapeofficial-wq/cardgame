@@ -87,6 +87,7 @@ function imageKey(s){
 }
 function cardImage(c){
   if(!c)return CARD_BACK_IMAGE;
+  if(isBasicPower(c))return"assets/arcanum-power-lvl1.png";
   const k=imageKey(c.name);
   if(k==="arpada")return"legacy-assets/imagenes/crt_arpia_g.jpg";
   if(k==="dragonoscuro")return"legacy-assets/imagenes/crt_dragon_sombra_g.jpg";
