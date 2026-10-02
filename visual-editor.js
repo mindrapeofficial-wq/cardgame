@@ -419,8 +419,8 @@ function build(){
     '<div class="ve-head"><strong>ARCANUM · Editor visual</strong><small>LIVE</small></div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Modo</span>'+
-      '<div class="ve-row"><button class="ve-btn active" data-ve-mode="select">Seleccionar</button><button class="ve-btn" data-ve-mode="interact">Interactuar</button></div>'+
-      '<div class="ve-help">Seleccionar bloquea los clics del juego para editar. Interactuar te deja navegar sin cerrar el editor.</div>'+
+      '<div class="ve-row three"><button class="ve-btn active" data-ve-mode="select">Seleccionar</button><button class="ve-btn" data-ve-mode="move">Mover</button><button class="ve-btn" data-ve-mode="interact">Interactuar</button></div>'+
+      '<div class="ve-help">Selecciona un elemento y usa Mover para arrastrarlo directamente por la página. Interactuar devuelve los clics normales al juego.</div>'+
     '</div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Elemento</span>'+
@@ -453,6 +453,8 @@ function build(){
       '<span class="ve-label">Posición fina</span>'+
       '<div class="ve-row"><input class="ve-input" data-ve-prop="left" placeholder="Izq. ej. 10px"><input class="ve-input" data-ve-prop="top" placeholder="Arriba ej. -5px"></div>'+
       '<div class="ve-row"><select class="ve-select" data-ve-prop="position"><option value="">Posición actual</option><option value="relative">relative</option><option value="absolute">absolute</option><option value="sticky">sticky</option><option value="fixed">fixed</option></select><input class="ve-input" data-ve-prop="z-index" placeholder="z-index"></div>'+
+      '<div class="ve-nudge"><button class="ve-btn" data-ve-nudge="0,-10">↑</button><button class="ve-btn" data-ve-nudge="-10,0">←</button><button class="ve-btn" data-ve-nudge="0,10">↓</button><button class="ve-btn" data-ve-nudge="10,0">→</button></div>'+
+      '<div class="ve-help">En modo Mover puedes arrastrar el elemento. Las flechas lo desplazan 10 px; las flechas del teclado, 1 px.</div>'+
     '</div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Guardar / exportar</span>'+
@@ -471,7 +473,17 @@ function build(){
   root.addEventListener("click",function(e){
     e.stopPropagation();
     var m=e.target.closest("[data-ve-mode]");
-    if(m){mode=m.getAttribute("data-ve-mode");updateModeButtons();return}
+    if(m){
+      var next=m.getAttribute("data-ve-mode");
+      if(next==="move"&&!selected){setStatus("Selecciona primero el elemento que quieres mover.","bad");return}
+      mode=next;clearHover();updateModeButtons();return
+    }
+    var nudge=e.target.closest("[data-ve-nudge]");
+    if(nudge){
+      if(!selected){setStatus("Selecciona primero un elemento.","bad");return}
+      var p=nudge.getAttribute("data-ve-nudge").split(",").map(Number);
+      nudgeSelected(p[0]||0,p[1]||0);return
+    }
     if(e.target.closest("[data-ve-save]")){saveRules();applyRules();setStatus("Cambios guardados en este navegador.","good");return}
     if(e.target.closest("[data-ve-upload-image]")){
       var fileInput=root.querySelector("[data-ve-image-file]");
