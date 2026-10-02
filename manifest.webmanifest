@@ -1,0 +1,18 @@
+{
+  "name": "Rolplay Reborn",
+  "short_name": "Rolplay",
+  "description": "El clásico juego de cartas Rolplay.net reconstruido para la web.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0b10",
+  "theme_color": "#0a0b10",
+  "icons": [
+    {
+      "src": "legacy-assets/imagenes/icono.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
