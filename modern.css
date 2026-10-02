@@ -2482,6 +2482,32 @@ body.duel-log-visible .duel-log-keyboard{display:block}
   text-shadow:0 1px 2px #000;
   pointer-events:none;
 }
+.battle-card.defended:not(.attacked){
+  opacity:.90!important;
+  filter:grayscale(.04) brightness(1.05)!important;
+  border-color:rgba(224,224,224,.92)!important;
+  box-shadow:0 0 0 2px rgba(224,224,224,.38),0 0 28px rgba(220,220,220,.22),0 8px 22px rgba(0,0,0,.42)!important;
+  animation:defenseDeclaredPulse .72s ease-out 1;
+}
+.battle-attack-label + .battle-defense-label{top:27px}
+.battle-defense-label{
+  position:absolute;
+  right:7px;
+  top:7px;
+  z-index:4;
+  padding:3px 6px;
+  border-radius:999px;
+  border:1px solid rgba(238,238,238,.82);
+  background:rgba(28,28,28,.92);
+  color:#f2f2f2;
+  box-shadow:0 2px 9px rgba(0,0,0,.45),0 0 14px rgba(235,235,235,.18);
+  font-size:8px;
+  line-height:1;
+  font-weight:950;
+  letter-spacing:.08em;
+  text-shadow:0 1px 2px #000;
+  pointer-events:none;
+}
 @keyframes handPlayablePulse{
   0%,100%{box-shadow:0 0 0 1px rgba(238,197,104,.24),0 0 18px rgba(218,166,63,.20),0 10px 24px rgba(0,0,0,.42)}
   50%{box-shadow:0 0 0 2px rgba(238,197,104,.48),0 0 30px rgba(218,166,63,.38),0 10px 24px rgba(0,0,0,.42)}
@@ -2496,10 +2522,16 @@ body.duel-log-visible .duel-log-keyboard{display:block}
   45%{box-shadow:0 0 0 6px rgba(233,176,78,.26),0 0 34px rgba(194,116,34,.52)}
   100%{box-shadow:0 0 0 2px rgba(214,156,66,.48),0 0 28px rgba(194,116,34,.34)}
 }
+@keyframes defenseDeclaredPulse{
+  0%{box-shadow:0 0 0 0 rgba(245,245,245,.70),0 0 0 rgba(225,225,225,0)}
+  45%{box-shadow:0 0 0 6px rgba(245,245,245,.20),0 0 34px rgba(225,225,225,.34)}
+  100%{box-shadow:0 0 0 2px rgba(224,224,224,.38),0 0 28px rgba(220,220,220,.22)}
+}
 @media (prefers-reduced-motion:reduce){
   .hand-zone .battle-card.hand-playable,
   .hand-zone .battle-card.hand-playable::before,
-  .battle-card.attacked{animation:none!important}
+  .battle-card.attacked,
+  .battle-card.defended{animation:none!important}
 }
 
 
