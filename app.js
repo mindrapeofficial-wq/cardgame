@@ -1509,7 +1509,9 @@ function applyOnlineSnapshot(s){
   removedPlayer.forEach(x=>queueDeathGhost(state.duel,"player",x.c,x.index));
   removedEnemy.forEach(x=>queueDeathGhost(state.duel,"enemy",x.c,x.index));
   pruneDeathGhosts(state.duel);
+  const showDrawOffer=!!s.drawOfferIncoming&&!previous?.drawOfferIncoming;
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
+  if(showDrawOffer)requestAnimationFrame(openDrawResponseModal);
 }
 
 function formatCombatGrace(ms){
@@ -1537,7 +1539,6 @@ function renderDuel(){
     <div class="duel-top duel-turn-strip">
       <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
     </div>
-    ${duelMatchActions(d)}
     <div class="board">
       <section class="board-zone enemy-zone">
         <div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span></div>
@@ -1557,7 +1558,7 @@ function renderDuel(){
               <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div>
             </div>
           </div>
-          <div class="duel-controls">${duelControls(d)}</div>
+          <div class="duel-controls"><div class="duel-controls-left">${duelControls(d)}</div>${duelMatchActions(d)}</div>
         </section>
       </div>
       <aside class="duel-log-keyboard" aria-label="Registro de combate"><div class="duel-log-window-head"><b>Registro de combate</b><span>${phase}</span></div><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></aside>
@@ -1566,19 +1567,20 @@ function renderDuel(){
 }
 function duelMatchActions(d){
   if(!d||d.gameOver)return"";
-  const surrender=`<button class="btn small danger" data-action="concede" aria-label="Rendirse de la partida">Rendirse</button>`;
-  if(!d.online){
-    return `<div class="duel-match-actions">${surrender}<div class="duel-draw-actions"><div class="draw-offer-copy"><b>Tablas</b><span>Solo disponibles en partidas contra otro jugador.</span></div><button class="btn small" disabled title="Las tablas solo están disponibles en partidas online">Pedir tablas</button></div></div>`;
-  }
-  let drawArea="";
-  if(d.drawOfferIncoming){
-    drawArea=`<div class="draw-offer-copy"><b>${esc(d.opponent||"El rival")} pide tablas</b><span>Si aceptas, la partida termina en empate.</span></div><div class="draw-offer-response"><button class="btn small" data-action="rejectDraw">Rechazar</button><button class="btn small primary" data-action="acceptDraw">Aceptar tablas</button></div>`;
-  }else if(d.drawOfferOutgoing){
-    drawArea=`<div class="draw-offer-copy"><b>Tablas solicitadas</b><span>Esperando la respuesta de ${esc(d.opponent||"tu rival")}.</span></div><button class="btn small" disabled>Solicitud pendiente</button>`;
-  }else{
-    drawArea=`<div class="draw-offer-copy"><b>Empate por acuerdo</b><span>Puedes pedir tablas en cualquier momento.</span></div><button class="btn small" data-action="offerDraw" aria-label="Pedir tablas">Pedir tablas</button>`;
-  }
-  return `<div class="duel-match-actions">${surrender}<div class="duel-draw-actions">${drawArea}</div></div>`;
+  const drawDisabled=!d.online||d.drawOfferOutgoing;
+  return `<div class="duel-match-actions" aria-label="Acciones de partida"><button class="btn small danger" data-action="concede">Rendirse</button><button class="btn small" data-action="drawButton" ${drawDisabled?"disabled":""}>Tablas</button></div>`;
+}
+function openDrawResponseModal(){
+  const d=state.duel;
+  if(!d?.online||!d.drawOfferIncoming||d.gameOver)return;
+  const root=$("modalRoot");if(!root)return;
+  root.innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal duel-draw-response-modal" onclick="event.stopPropagation()"><div class="modal-head"><b>¿Aceptar tablas?</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="actions duel-draw-response-buttons"><button class="btn" data-action="rejectDraw">Rechazar</button><button class="btn primary" data-action="acceptDraw">Aceptar</button></div></div></div></div>`;
+}
+function drawButton(){
+  const d=state.duel;if(!d||d.gameOver||!d.online)return;
+  if(d.drawOfferIncoming){openDrawResponseModal();return}
+  if(d.drawOfferOutgoing)return;
+  offerDraw();
 }
 
 function hiddenCardBacks(count){
@@ -2194,7 +2196,7 @@ function offerDraw(){
   if(!d.online){toast("Las tablas solo pueden pedirse en partidas contra otro jugador.");return}
   if(state.connected&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"});
 }
-function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
+function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming){closeModal();state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}}
 function leaveDuel(){state.duel=null;syncDuelFullscreenState(false);go("home")}
 
 document.addEventListener("click",e=>{
@@ -2235,6 +2237,7 @@ document.addEventListener("click",e=>{
   else if(a==="nextPhase")nextPhase();
   else if(a==="passDefense")passDefense();
   else if(a==="concede")concede();
+  else if(a==="drawButton")drawButton();
   else if(a==="offerDraw")offerDraw();
   else if(a==="acceptDraw")respondDraw(true);
   else if(a==="rejectDraw")respondDraw(false);
