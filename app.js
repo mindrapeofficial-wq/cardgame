@@ -16,8 +16,9 @@ const RARITIES=[
   {name:"Poco común",key:"uncommon",min:10},
   {name:"Rara",key:"rare",min:35},
   {name:"Épica",key:"epic",min:70},
-  {name:"Legendaria",key:"legendary",min:100}
+  {name:"Legendaria",key:"legendary",min:Infinity}
 ];
+const LEGENDARY_IDS=new Set([76,115,142,157,158,160,161,176,183,190,191,192,193,194,203,210,213,215,216,229,230,236,237,238,242,248,253,265,269,272,273,279,283,284,285]);
 const $=id=>document.getElementById(id);
 const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
@@ -34,7 +35,13 @@ function uid(){return crypto.randomUUID?crypto.randomUUID():Math.random().toStri
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function clamp(n,a,b){return Math.min(b,Math.max(a,n))}
 function initial(s){return (String(s||"?").trim()[0]||"?").toUpperCase()}
-function rarity(c){let r=RARITIES[0];for(const x of RARITIES)if(c.rarity>=x.min)r=x;return r}
+function rarity(c){
+  if(LEGENDARY_IDS.has(Number(c.id)))return RARITIES[4];
+  if(c.rarity>=70)return RARITIES[3];
+  if(c.rarity>=35)return RARITIES[2];
+  if(c.rarity>=10)return RARITIES[1];
+  return RARITIES[0];
+}
 function cardType(c){return c.powerCard?"Poder":c.abilityCard?"Habilidad":"Criatura"}
 function cardValue(c){return Math.max(1,Math.round(c.level/2)+Math.round(c.rarity/20))}
 function powerValue(c){const m=c&&c.name.match(/^Poder\s+x\s+(\d+)/i);return m?Math.max(1,Number(m[1])||1):1}
@@ -118,7 +125,8 @@ function authErrorMessage(code){
     not_enough_copies:"No posees suficientes copias para ese mazo.",
     no_free_copy:"Esa copia está siendo usada por el mazo.",
     basic_power_is_infinite:"Los Poderes básicos son infinitos y no se venden.",
-    network_error:"No se pudo contactar con el servidor de cuentas."
+    network_error:"No se pudo contactar con el servidor de cuentas.",
+    pack_level_locked:"Ese nivel de sobre todavía está bloqueado."
   };
   return map[code]||"No se pudo completar la operación.";
 }
