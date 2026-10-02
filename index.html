@@ -569,6 +569,8 @@ function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toStr
 function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
 function normalize(s){return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
 function rarityTier(v){v=Number(v)||1;if(v>90)return["Legendaria","legendary"];if(v>60)return["Épica","epic"];if(v>25)return["Rara","rare"];return["Común","common"]}
+function powerValue(c){var m=c&&c.name.match(/^Poder\s+x\s+(\d+)/i);return m?Math.max(1,Number(m[1])||1):1}
+function powerTotal(list){return (list||[]).reduce(function(n,c){return n+powerValue(c)},0)}
 function isPowerName(n){return /^Poder(?:\s+x\s+\d+|\s*$)/i.test(n)}
 function isAbilityName(n){return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(n)}
 function parseCards(){
@@ -880,8 +882,11 @@ function makeTrainingDeck(useProfile,size){
   var arr=[], target=Math.max(20,Number(size)||30);
   if(useProfile&&profile.deck.length>=20)arr=profile.deck.slice(0,target).map(function(id){return cloneCard(cardById(id))});
   else {
-    var low=CATALOG.filter(function(c){return c.level<=10&&!c.abilityCard});
-    for(var i=0;i<target;i++)arr.push(cloneCard(low[Math.floor(Math.random()*low.length)]));
+    var powers=CATALOG.filter(function(c){return c.powerCard&&c.level<=15});
+    var low=CATALOG.filter(function(c){return c.level<=10&&!c.powerCard&&!c.abilityCard});
+    var needPower=Math.ceil(target*.32);
+    for(var p=0;p<needPower;p++)arr.push(cloneCard(powers[Math.floor(Math.random()*powers.length)]));
+    while(arr.length<target)arr.push(cloneCard(low[Math.floor(Math.random()*low.length)]));
   }
   return shuffle(arr);
 }
@@ -897,15 +902,16 @@ function log(msg,cls){
 }
 function startDuel(mode,size){
   var use=mode!=="starter", target=Math.max(20,Number(size)||Math.max(20,profile.deck.length||30));
-  duel={turn:1,phase:0,playerHp:30,enemyHp:30,maxPower:1,power:1,enemyMaxPower:1,enemyPower:1,
-    playerDeck:makeTrainingDeck(use,target),enemyDeck:makeTrainingDeck(false,target),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],blocks:[],
+  duel={turn:1,phase:0,playerHp:30,enemyHp:30,maxPower:0,power:0,enemyMaxPower:0,enemyPower:0,
+    playerDeck:makeTrainingDeck(use,target),enemyDeck:makeTrainingDeck(false,target),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],
+    playerPowers:[],enemyPowers:[],powerPlayedThisTurn:false,enemyPowerPlayedThisTurn:false,blocks:[],
     playerDeckOut:false,enemyDeckOut:false,gameOver:false,deckSize:target};
   $("log").innerHTML="";draw("player",7);draw("enemy",7);log("Duelo iniciado con 7 cartas en mano. Baraja: "+target+".","good");renderDuel();showView("duelo");
 }
 function battleCard(c,zone){
   var d=document.createElement("div");d.className="battlecard";if(c.exhausted)d.classList.add("exhausted");if(c.selected)d.classList.add("selected");
   var canAct=!duel.online||duel.myTurn;
-  var playable=zone==="hand"&&!duel.gameOver&&canAct&&((duel.phase===2&&c.powerCard)||(duel.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=duel.power)||(duel.phase===4&&c.abilityCard&&c.cost<=duel.power));
+  var playable=zone==="hand"&&!duel.gameOver&&canAct&&((duel.phase===2&&c.powerCard&&(!duel.powerPlayedThisTurn||duel.online))||(duel.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=duel.power)||(duel.phase===4&&c.abilityCard&&c.cost<=duel.power));
   var selectable=zone==="playerBoard"&&duel.phase===5&&!c.exhausted&&!duel.gameOver&&canAct;
   if(playable)d.classList.add("playable");if(selectable)d.classList.add("selectable");
   d.innerHTML='<div class="miniart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"></div><div class="n">'+esc(c.name)+'</div><div class="s"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div><span class="cost">'+c.cost+"</span>";
@@ -931,7 +937,7 @@ function renderDuel(){
 function playHand(id){
   if(duel&&duel.online){if(socket&&socket.connected&&duel.myTurn)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"play",uid:id});return}
   var i=duel.playerHand.findIndex(function(c){return c.uid===id});if(i<0)return;var c=duel.playerHand[i];
-  if(c.powerCard&&duel.phase===2){duel.power=Math.min(duel.maxPower,duel.power+Math.max(1,Math.round(c.level/5)));duel.playerHand.splice(i,1);log("Canalizas "+c.name+".","good")}
+  if(c.powerCard&&duel.phase===2&&!duel.powerPlayedThisTurn){duel.playerHand.splice(i,1);duel.playerPowers.push(c);duel.maxPower=powerTotal(duel.playerPowers);duel.power=duel.maxPower;duel.powerPlayedThisTurn=true;log("Conjuras "+c.name+" · Poder total "+duel.maxPower+".","good")}
   else if(c.abilityCard&&duel.phase===4&&c.cost<=duel.power){duel.power-=c.cost;duel.playerHand.splice(i,1);resolveAbility(c,true)}
   else if(!c.powerCard&&!c.abilityCard&&duel.phase===3&&c.cost<=duel.power){duel.power-=c.cost;duel.playerHand.splice(i,1);duel.playerBoard.push(c);log("Invocas "+c.name+" por "+c.cost+" Poder.")}
   renderDuel();
@@ -961,8 +967,8 @@ function resolvePlayerAttack(){
   });
 }
 function aiPlay(){
-  duel.enemyMaxPower=Math.min(10,duel.enemyMaxPower+1);duel.enemyPower=duel.enemyMaxPower;duel.enemyBoard.forEach(function(c){c.exhausted=false});draw("enemy",1);
-  var powers=duel.enemyHand.filter(function(c){return c.powerCard});if(powers[0]){duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==powers[0].uid});duel.enemyPower=Math.min(duel.enemyMaxPower,duel.enemyPower+2)}
+  duel.enemyBoard.forEach(function(c){c.exhausted=false});duel.enemyPowerPlayedThisTurn=false;duel.enemyMaxPower=powerTotal(duel.enemyPowers);duel.enemyPower=duel.enemyMaxPower;draw("enemy",1);
+  var powers=duel.enemyHand.filter(function(c){return c.powerCard});if(powers[0]){duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==powers[0].uid});duel.enemyPowers.push(powers[0]);duel.enemyPowerPlayedThisTurn=true;duel.enemyMaxPower=powerTotal(duel.enemyPowers);duel.enemyPower=duel.enemyMaxPower;log("El rival conjura "+powers[0].name+".","bad")}
   var ability=duel.enemyHand.find(function(c){return c.abilityCard&&c.cost<=duel.enemyPower});if(ability){duel.enemyPower-=ability.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==ability.uid});resolveAbility(ability,false)}
   var safe=12;while(safe--){var opts=duel.enemyHand.filter(function(c){return !c.powerCard&&!c.abilityCard&&c.cost<=duel.enemyPower});if(!opts.length)break;opts.sort(function(a,b){return(b.atk+b.def)-(a.atk+a.def)});var c=opts[0];duel.enemyPower-=c.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==c.uid});duel.enemyBoard.push(c)}
   var attackers=duel.enemyBoard.filter(function(c){return !c.exhausted}),blocks=duel.playerBoard.filter(function(c){return !c.exhausted}).slice().sort(function(a,b){return b.def-a.def});
@@ -975,10 +981,10 @@ function checkEnd(){
 function nextPhase(){
   if(!duel||duel.gameOver)return;
   if(duel.online){if(socket&&socket.connected&&duel.myTurn)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"nextPhase"});return}
-  if(duel.phase===5){resolvePlayerAttack();if(checkEnd()){renderDuel();return}aiPlay();if(checkEnd()){renderDuel();return}duel.turn++;duel.phase=0;duel.playerBoard.forEach(function(c){c.exhausted=false;c.selected=false});duel.power=duel.maxPower;log("Comienza tu turno "+duel.turn+".");renderDuel();return}
+  if(duel.phase===5){resolvePlayerAttack();if(checkEnd()){renderDuel();return}aiPlay();if(checkEnd()){renderDuel();return}duel.turn++;duel.phase=0;duel.playerBoard.forEach(function(c){c.exhausted=false;c.selected=false});duel.powerPlayedThisTurn=false;duel.maxPower=powerTotal(duel.playerPowers);duel.power=duel.maxPower;log("Comienza tu turno "+duel.turn+".");renderDuel();return}
   duel.phase++;
   if(duel.phase===1){draw("player",1);log("Robas una carta.")}
-  if(duel.phase===2){duel.maxPower=Math.min(10,duel.maxPower+1);duel.power=duel.maxPower;log("Tu reserva de Poder sube a "+duel.maxPower+".")}
+  if(duel.phase===2){duel.maxPower=powerTotal(duel.playerPowers);duel.power=duel.maxPower;log("Fase de Poder: "+duel.maxPower+" puntos disponibles.")}
   renderDuel();
 }
 
