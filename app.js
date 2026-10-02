@@ -718,13 +718,21 @@ function renderDefenseControls(d){
 
 function training(){
   const size=Math.max(20,Math.min(30,state.profile.deck.length||30));
-  let playerIds=deckValid(20)?state.profile.deck.slice(0,size):[];
-  if(playerIds.length<20){toast("Tu mazo necesita 20 cartas para entrenar.","bad");go("deck");return}
-  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=15),creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=10);
-  const enemy=[];while(enemy.length<size){enemy.push((enemy.length<Math.ceil(size*.3)?powers:creatures)[Math.floor(Math.random()*(enemy.length<Math.ceil(size*.3)?powers:creatures).length)].id)}
-  state.duel={online:false,opponent:"Guardián",turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
+  const playerIds=deckValid(20)?state.profile.deck.slice(0,size):[];
+  if(playerIds.length<20){toast("Tu mazo necesita al menos 20 cartas válidas para entrenar.","bad");go("deck");return}
+  const lvl=playerLevel();
+  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl);
+  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl);
+  const abilities=state.catalog.filter(c=>c.abilityCard&&c.level<=lvl);
+  const enemy=[],powerTarget=Math.ceil(size*.30);
+  while(enemy.length<size){
+    let pool=enemy.length<powerTarget?powers:(creatures.length?creatures:abilities);
+    if(!pool.length)pool=powers;
+    enemy.push(pool[Math.floor(Math.random()*pool.length)].id);
+  }
+  state.duel={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,gameOver:false,won:null,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
+    playerPowerPlayed:false,enemyPowerPlayed:false,gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
   drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");renderView();
 }
 function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false}:null}
@@ -741,8 +749,8 @@ function localPlay(uid){
 function resolveLocalAbility(c,side){
   const d=state.duel,foe=side==="player"?"enemy":"player",n=norm(c.name);
   if(n.startsWith("fuente de vida")){d[side+"Hp"]+=3;d.log.push(c.name+": +3 PV.")}
-  else if(n.startsWith("veneno")){d[foe+"Hp"]-=3;d.log.push(c.name+": 3 PV de daño.")}
-  else if(n.startsWith("drenador")){d[foe+"Hp"]-=2;d[side+"Hp"]+=2;d.log.push(c.name+": drena 2 PV.")}
+  else if(n.startsWith("veneno")){d[foe+"Hp"]-=3;if(side==="player")d.damageDealt+=3;d.log.push(c.name+": 3 PV de daño.")}
+  else if(n.startsWith("drenador")){d[foe+"Hp"]-=2;if(side==="player")d.damageDealt+=2;d[side+"Hp"]+=2;d.log.push(c.name+": drena 2 PV.")}
   else if(n.startsWith("poder mental")){drawLocal(side,1);d.log.push(c.name+": carta adicional.")}
   else if(n.startsWith("poderador")){d[side==="player"?"power":"enemyPower"]=Math.min(d[side==="player"?"maxPower":"enemyMaxPower"],d[side==="player"?"power":"enemyPower"]+2)}
   else{drawLocal(side,1);d.log.push(c.name+" se resuelve.")}
@@ -752,13 +760,13 @@ function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===u
 function nextLocalPhase(){
   const d=state.duel;if(d.gameOver)return;
   if(d.phase===5){resolveLocalAttack();if(checkLocalEnd())return renderView();enemyTurn();if(checkLocalEnd())return renderView();d.turn++;d.phase=0;d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});d.playerPowerPlayed=false;d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.log.push("Comienza tu turno "+d.turn+".");playSound("turn");renderView();return}
-  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw")}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}renderView();
+  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}renderView();
 }
 function resolveLocalAttack(){
   const d=state.duel,atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted),blocks=d.enemyBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
   atk.forEach((a,i)=>{const b=blocks[i];if(b&&d.enemyBoard.includes(b)){const adies=b.atk>=a.def,bdies=a.atk>=b.def;d.log.push(a.name+" combate contra "+b.name+".");if(bdies)d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==b.uid);if(adies)d.playerBoard=d.playerBoard.filter(x=>x.uid!==a.uid)}
-    else{d.enemyHp-=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit")}
-    const s=d.playerBoard.find(x=>x.uid===a.uid);if(s){s.exhausted=true;s.selected=false}});
+    else{d.enemyHp-=a.atk;d.damageDealt+=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit")}
+    const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor){survivor.exhausted=true;survivor.selected=false}});
 }
 function enemyTurn(){
   const d=state.duel;d.enemyBoard.forEach(c=>c.exhausted=false);d.enemyPowerPlayed=false;drawLocal("enemy",1);if(d.gameOver)return;
@@ -768,12 +776,31 @@ function enemyTurn(){
   let safe=20;while(safe--){const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);if(!opts.length)break;opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));const c=opts[0];d.enemyPower-=c.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==c.uid);d.enemyBoard.push(c)}
   const attackers=d.enemyBoard.filter(c=>!c.exhausted),blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
   attackers.forEach((a,i)=>{const b=blocks[i];if(b&&d.playerBoard.includes(b)){const adies=b.atk>=a.def,bdies=a.atk>=b.def;if(bdies)d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);if(adies)d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid)}
-    else d.playerHp-=a.atk;const s=d.enemyBoard.find(x=>x.uid===a.uid);if(s)s.exhausted=true});
+    else d.playerHp-=a.atk;const survivor=d.enemyBoard.find(x=>x.uid===a.uid);if(survivor)survivor.exhausted=true});
   if(attackers.length)d.log.push("El Guardián ataca con "+attackers.length+" criatura(s).");
 }
-function checkLocalEnd(){
-  const d=state.duel;if(d.enemyHp<=0||d.playerHp<=0||d.gameOver){if(!d.gameOver){d.gameOver=true;d.won=d.enemyHp<=0;d.log.push(d.won?"Victoria.":"Derrota.")}if(!d.resultApplied){d.resultApplied=true;if(d.won){state.profile.wins++;state.profile.coins+=10;playSound("win")}else state.profile.losses++;saveProfile()}return true}return false
+async function awardTraining(d){
+  const payload={rewardKey:d.rewardKey,win:!!d.won,damage:Math.min(30,Math.max(0,d.damageDealt||0)),mode:"training"};
+  const oldLevel=playerLevel(),r=await api("award_result",payload,true);
+  if(!r.ok){
+    if(r.network){queueReward(payload);toast("La recompensa de XP se sincronizará cuando vuelva la conexión.","bad")}
+    else toast(authErrorMessage(r.error),"bad");
+    return;
+  }
+  applyProfile(r.profile);updateChrome();
+  if(playerLevel()>oldLevel){playSound("win");toast("¡Subes a Nivel "+playerLevel()+"! Tus próximos sobres ya pueden incluir cartas de ese nivel.","good")}
+  else toast("+"+r.xpAwarded+" XP"+(r.goldAwarded?" · +"+r.goldAwarded+" oro":""),"good");
+  if(state.view==="duel")renderView();
 }
+function checkLocalEnd(){
+  const d=state.duel;if(d.enemyHp<=0||d.playerHp<=0||d.gameOver){
+    if(!d.gameOver){d.gameOver=true;d.won=d.enemyHp<=0;d.log.push(d.won?"Victoria.":"Derrota.")}
+    if(!d.resultApplied){d.resultApplied=true;if(d.won)playSound("win");void awardTraining(d)}
+    return true
+  }
+  return false
+}
+
 function duelCard(zone,uid){
   const d=state.duel;if(d.online){if(!d.myTurn)return;if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});return}
   if(zone==="hand")localPlay(uid);else if(zone==="player")toggleLocalAttack(uid);
