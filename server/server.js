@@ -248,6 +248,48 @@ function beginTurn(game, side) {
   game.powers[side].forEach(c => { c.exhausted = false; });
   game.availablePower[side] = 0;
 }
+function phaseHasAction(game, side) {
+  if (!game || game.gameOver || game.pendingAttack) return false;
+  if (game.phase === 2) {
+    const canPlayPower = !game.powerPlayed[side] && game.hand[side].some(inst => BY_ID.get(inst.cardId)?.powerCard);
+    const canTapPower = game.powers[side].some(inst => !inst.exhausted);
+    return canPlayPower || canTapPower;
+  }
+  if (game.phase === 3) {
+    return game.hand[side].some(inst => {
+      const card = BY_ID.get(inst.cardId);
+      return card && !card.powerCard && !card.abilityCard && card.cost <= game.availablePower[side];
+    });
+  }
+  if (game.phase === 4) {
+    return game.hand[side].some(inst => {
+      const card = BY_ID.get(inst.cardId);
+      return card && card.abilityCard && card.cost <= game.availablePower[side];
+    });
+  }
+  if (game.phase === 5) return game.board[side].some(inst => !inst.exhausted);
+  return false;
+}
+function advanceAutomaticPhases(game) {
+  let guard = 0;
+  while (game && !game.gameOver && !game.pendingAttack && guard++ < 128) {
+    const side = game.active;
+    if (phaseHasAction(game, side)) return;
+
+    if (game.phase >= 5) {
+      game.turn += 1;
+      beginTurn(game, sideOther(side));
+      continue;
+    }
+
+    game.phase += 1;
+    if (game.phase === 1) {
+      draw(game, side, 1);
+      if (checkEnd(game)) return;
+    }
+    if (game.phase === 2) game.availablePower[side] = 0;
+  }
+}
 function checkEnd(game) {
   if (game.gameOver) return true;
   const aLost = game.hp.a <= 0 || game.deckOut.a;
@@ -409,6 +451,7 @@ function initDuel(match) {
   draw(game, "a", 7);
   draw(game, "b", 7);
   beginTurn(game, game.active);
+  advanceAutomaticPhases(game);
   gameLog(game, "Duelo online iniciado con 7 cartas por jugador.");
   match.duel = game;
 }
@@ -555,6 +598,7 @@ function handleDuelAction(match, socketId, payload) {
       if (!checkEnd(game)) {
         game.turn += 1;
         beginTurn(game, sideOther(game.active));
+        advanceAutomaticPhases(game);
       }
       emitDuel(match);
       return;
@@ -566,6 +610,7 @@ function handleDuelAction(match, socketId, payload) {
 
   if (type === "play") {
     playCard(match, side, cleanText(payload && payload.uid, 100));
+    advanceAutomaticPhases(game);
   } else if (type === "tapPower" && game.phase === 2) {
     const power = game.powers[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
     if (power && !power.exhausted) {
@@ -574,6 +619,7 @@ function handleDuelAction(match, socketId, payload) {
       game.availablePower[side] += value;
       gameLog(game, "Se gira una carta de Poder y genera +" + value + " Poder.");
     }
+    advanceAutomaticPhases(game);
   } else if (type === "toggleAttack" && game.phase === 5) {
     const unit = game.board[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
     if (unit && !unit.exhausted) unit.selected = !unit.selected;
@@ -583,6 +629,7 @@ function handleDuelAction(match, socketId, payload) {
       if (!declared) {
         game.turn += 1;
         beginTurn(game, sideOther(side));
+        advanceAutomaticPhases(game);
       } else {
         const foe = sideOther(side);
         const defenders = game.board[foe].filter(c => !c.exhausted);
@@ -591,6 +638,7 @@ function handleDuelAction(match, socketId, payload) {
           if (!checkEnd(game)) {
             game.turn += 1;
             beginTurn(game, foe);
+            advanceAutomaticPhases(game);
           }
         }
       }
@@ -603,6 +651,7 @@ function handleDuelAction(match, socketId, payload) {
       if (game.phase === 2) {
         game.availablePower[side] = 0;
       }
+      advanceAutomaticPhases(game);
     }
   }
   checkEnd(game);
