@@ -374,7 +374,6 @@ function go(view){
   }
   closeModal();
   state.view=view;updateChrome();renderView();
-  if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
   if(view==="deck")void loadDecks();
   if(view==="ranking")void loadRanking();
   if(view==="trade")void loadMarketListings();
@@ -988,11 +987,10 @@ function renderShop(){
   const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
     <div class="grid two">
-      <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
+      <section class="panel pack-hero"><div><div class="pack-card" aria-hidden="true"></div><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
-    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Probabilidades · Sobre Nivel ${lvl}</h2><span class="pill">por hueco del sobre</span></div><div class="panel-body">${renderPackOdds()}</div></section>
   </div>`;
 }
 async function buyPack(){
@@ -1004,7 +1002,6 @@ async function buyPack(){
   state.packLevel=lvl;
   state.lastPack=(r.cards||[]).map(x=>card(x.id)).filter(Boolean);
   playSound("draw");toast("Sobre Nivel "+lvl+" abierto.","good");renderView();
-  void loadPackOdds(lvl);
 }
 
 async function sellCard(id){
@@ -2075,7 +2072,7 @@ document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
-  else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
+  else if(e.target.id==="packLevelSelect"){state.packLevel=clamp(Number(e.target.value)||1,1,playerLevel());renderView()}
   else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
 });
