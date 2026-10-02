@@ -700,9 +700,13 @@ function connectOnline(){
     socket.on("profile:update",m=>{
       if(!m?.profile)return;
       const oldLevel=playerLevel();applyProfile(m.profile);
-      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! Ya pueden aparecer cartas de Nivel "+playerLevel()+" en tus sobres.","good")}
-      else if(m.xpAwarded)toast("+"+m.xpAwarded+" XP"+(m.goldAwarded?" · +"+m.goldAwarded+" oro":""),"good");
-      updateChrome();if(["home","profile"].includes(state.view))renderView();
+      const xp=Number(m.xpAwarded)||0,gold=Number(m.goldAwarded)||0;
+      const xpText=(xp>0?"+":"")+xp+" XP";
+      const goldText=gold?(" · +"+gold+" oro"):"";
+      const resultText=m.matchResult==="win"?"Victoria":m.matchResult==="draw"?"Empate":m.matchResult==="loss"?"Derrota":"Recompensa";
+      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! "+resultText+": "+xpText+goldText,"good")}
+      else toast(resultText+": "+xpText+goldText,xp<0?"bad":"good");
+      updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
     socket.on("trade:invited",m=>{
       state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";go("trade");
@@ -744,7 +748,7 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard:(s.playerBoard||[]).map(wireInstance).filter(Boolean),enemyBoard:(s.enemyBoard||[]).map(wireInstance).filter(Boolean),
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},
+    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
   };
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
@@ -786,7 +790,7 @@ function duelCardClickable(c,zone){
   return false;
 }
 function duelControls(d){
-  if(d.gameOver)return`<div class="turn-wait">${d.won===false?"Derrota":"Victoria"} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`;
+  if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   if(d.online&&d.defending)return renderDefenseControls(d);
   if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
