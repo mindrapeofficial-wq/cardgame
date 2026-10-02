@@ -68,7 +68,7 @@ function rarity(c){
   if(c.rarity>=10)return RARITIES[1];
   return RARITIES[0];
 }
-function cardType(c){return c.powerCard?"Poder":c.abilityCard?"Habilidad":"Criatura"}
+function cardType(c){return c.powerCard?"Poder":c.abilityCard?"Amuleto":"Criatura"}
 function cardValue(c){return Math.max(1,Math.round(c.level/2)+Math.round(c.rarity/20))}
 function powerTotal(list){return Math.min(MAX_POWER_POINTS,(list||[]).reduce((n,c)=>n+powerValue(c),0))}
 function owned(id){return Number(state.profile?.collection?.[id]||0)}
@@ -1030,7 +1030,7 @@ function collectionCards(){
 function renderCollection(){
   const list=collectionCards();
   return `<div class="page">
-    <div class="toolbar"><input class="input" id="collectionSearch" value="${esc(state.collectionQuery)}" placeholder="Buscar carta…"><select class="select" id="collectionMode"><option value="owned" ${state.collectionMode==="owned"?"selected":""}>Mi colección</option><option value="all" ${state.collectionMode==="all"?"selected":""}>Catálogo completo</option></select><select class="select" id="collectionType"><option value="all">Todos los tipos</option><option ${state.collectionType==="Criatura"?"selected":""}>Criatura</option><option ${state.collectionType==="Poder"?"selected":""}>Poder</option><option ${state.collectionType==="Habilidad"?"selected":""}>Habilidad</option></select><span class="toolbar-spacer"></span><span class="muted">${list.length} resultados</span></div>
+    <div class="toolbar"><input class="input" id="collectionSearch" value="${esc(state.collectionQuery)}" placeholder="Buscar carta…"><select class="select" id="collectionMode"><option value="owned" ${state.collectionMode==="owned"?"selected":""}>Mi colección</option><option value="all" ${state.collectionMode==="all"?"selected":""}>Catálogo completo</option></select><select class="select" id="collectionType"><option value="all">Todos los tipos</option><option ${state.collectionType==="Criatura"?"selected":""}>Criatura</option><option ${state.collectionType==="Poder"?"selected":""}>Poder</option><option ${state.collectionType==="Amuleto"?"selected":""}>Amuleto</option></select><span class="toolbar-spacer"></span><span class="muted">${list.length} resultados</span></div>
     <div class="card-grid">${list.map(c=>cardTile(c,{qty:owned(c.id),collection:true})).join("")||'<div class="empty">No hay cartas que coincidan.</div>'}</div>
   </div>`;
 }
@@ -1043,7 +1043,7 @@ function cardTile(c,opt={}){
   return `<article class="game-card r-${r.key}" data-action="cardDetail" data-id="${c.id}">
     <div class="card-art${hasFullCardArt(c)?" full-card":""}" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty '+(basic?'infinity-badge':'')+'">'+(basic?'∞ básico':'x'+qtyLabel)+'</span>':""}${locked?'<div class="level-lock">Requiere<br>Nivel '+c.level+'</div>':""}</div>
     <div class="card-info"><div class="card-name">${esc(c.name)}</div><div class="card-sub">${cardType(c)} · Nv ${c.level} · ${r.name}${basic?" · Infinito":""}</div></div>
-    <div class="card-stats"><span>${c.powerCard?"Poder +"+powerValue(c):"ATQ "+c.atk}</span><span>${c.powerCard?"":"DEF "+c.def}</span></div>
+    <div class="card-stats">${c.abilityCard?'<span>'+esc(c.effect||"Amuleto")+'</span>':'<span>'+(c.powerCard?"Poder +"+powerValue(c):"ATQ "+c.atk)+'</span><span>'+(c.powerCard?"":"DEF "+c.def)+'</span>'}</div>
     ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(canAdd?"":"disabled")+'>'+addLabel+'</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(canSell?"":"disabled")+'>'+(basic?'No vendible':'Vender +'+Math.max(1,Math.floor(cardValue(c)/2)))+'</button></div>':""}
   </article>`;
 }

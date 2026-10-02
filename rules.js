@@ -31,26 +31,12 @@
     return BASE_HP + levelHpBonus(level);
   }
 
-  // Level 1 creatures have hand-balanced stats and costs; every other card uses the formulas below.
-  const LEVEL1_COMBAT_STATS = Object.freeze({
-    "Duende": { atk: 1, def: 1 },
-    "Elfo Bardo": { atk: 0, def: 2 },
-    "Guerrero Menor": { atk: 1, def: 1 },
-    "Dophan": { atk: 2, def: 1 },
-    "Gorad Menor": { atk: 1, def: 2 },
-    "Mimit": { atk: 0, def: 3 },
-    "Mel": { atk: 1, def: 1 }
-  });
-  const LEVEL1_POWER_COSTS = Object.freeze({
-    "Duende": 1,
-    "Elfo Bardo": 2,
-    "Guerrero Menor": 2,
-    "Mel": 2,
-    "Dophan": 3,
-    "Gorad Menor": 3,
-    "Mimit": 3
-  });
-
+  // Card data comes from cards.csv, transcribed from the original 2013 card art:
+  //   name;rarity;quantity;level;type;atk;def;cost;activation;power;abilities;effect
+  // type is creature | power | amulet; abilities are tags from the card icons
+  // (defensora, mistica, defensa_multiple=N, ataque_defensa_multiple=N, berserker, defensa_negativa);
+  // effect is the printed effect text (e.g. "+3PV", "-2PV.Opp", "12⚡ +2D").
+  // Rows without those columns fall back to name detection and the old provisional formula.
   function isPowerName(name) {
     return /^Poder(?:\s+x\s+\d+|\s*$)/i.test(name);
   }
@@ -58,34 +44,58 @@
     return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(name);
   }
   function powerValue(card) {
+    if (card && Number(card.power) > 0) return Number(card.power);
     const m = card && card.name.match(/^Poder\s+x\s+(\d+)/i);
     return m ? Math.max(1, Number(m[1]) || 1) : 1;
   }
   function summonCost(name, level, powerCard) {
     if (powerCard) return 0;
-    const fixed = Number(level) === 1 ? LEVEL1_POWER_COSTS[name] : undefined;
-    return Number.isFinite(fixed) ? fixed : Math.max(1, Math.min(10, Math.ceil((Number(level) || 1) / 5)));
+    return Math.max(1, Math.min(10, Math.ceil((Number(level) || 1) / 5)));
   }
+  function parseTags(text) {
+    const tags = {};
+    for (const raw of String(text || "").split(",")) {
+      const [key, value] = raw.trim().split("=");
+      if (key) tags[key] = value === undefined ? true : Number(value);
+    }
+    return tags;
+  }
+  const num = (value, fallback) => (value === undefined || value === "" ? fallback : Number(value));
   // Card ids are the 1-based row numbers of cards.csv (after the header); the database uses the same ids.
   function parseCatalog(csvText) {
     return String(csvText).trim().split(/\r?\n/).slice(1).map((line, index) => {
-      const [name, rarity, quantity, level] = line.split(";");
+      const [name, rarity, quantity, level, type, atk, def, cost, activation, power, abilities, effect] = line.split(";");
       const lv = Number(level) || 1;
       const rar = Number(rarity) || 1;
-      const powerCard = isPowerName(name);
-      const abilityCard = isAbilityName(name);
-      const fixedStats = lv === 1 ? LEVEL1_COMBAT_STATS[name] : undefined;
+      const powerCard = type ? type === "power" : isPowerName(name);
+      const abilityCard = type ? type === "amulet" : isAbilityName(name);
+      const tags = parseTags(abilities);
+      const fallbackAtk = Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30));
+      const fallbackDef = Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40));
+      const multi = Number(tags.ataque_defensa_multiple) || 0;
       return {
         id: index + 1,
         name,
         rarity: rar,
         quantity: Number(quantity) || 1,
         level: lv,
+        type: type || (powerCard ? "power" : abilityCard ? "amulet" : "creature"),
         powerCard,
         abilityCard,
-        cost: summonCost(name, lv, powerCard),
-        atk: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.atk : Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30))),
-        def: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.def : Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40)))
+        // Amulets were summoned and then activated with extra Power; the engine plays and resolves
+        // them in one step, so their playable cost is both amounts together.
+        cost: num(cost, summonCost(name, lv, powerCard)) + (abilityCard ? num(activation, 0) : 0),
+        summonCost: num(cost, summonCost(name, lv, powerCard)),
+        activation: num(activation, 0),
+        power: num(power, 0),
+        atk: (powerCard || abilityCard) ? 0 : num(atk, fallbackAtk),
+        def: (powerCard || abilityCard) ? 0 : num(def, fallbackDef),
+        tags,
+        effect: effect || "",
+        // Engine flags already supported by the combat code.
+        defender: !!tags.defensora,
+        multiDefense: Number(tags.defensa_multiple) || multi || 0,
+        multiAttack: multi
       };
     });
   }
@@ -94,7 +104,6 @@
     DECK_MIN, DECK_MAX, MIN_POWER_CARDS, MAX_POWER_CARDS, MAX_POWER_POINTS,
     MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS,
     BASE_HP, LEVEL_POWER_REWARDS, levelHpBonus, startingHp,
-    LEVEL1_COMBAT_STATS, LEVEL1_POWER_COSTS,
     isPowerName, isAbilityName, powerValue, summonCost, parseCatalog
   });
 });
