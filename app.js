@@ -1691,23 +1691,22 @@ function chooseAiBlock(attacker,defenders,hp){
   return null;
 }
 function resolveLocalAttack(){
+  // Compatibilidad con el resolvedor antiguo: cada combate usa exactamente
+  // la misma regla simultánea que resolveLocalSingleAttack.
   const d=state.duel;
-  const atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted);
-  const available=d.enemyBoard.filter(c=>!c.exhausted);
-  atk.forEach(a=>{
-    a.exhausted=true;
-    const b=chooseAiBlock(a,available,d.enemyHp);
-    if(b){
-      const bi=available.findIndex(x=>x.uid===b.uid);if(bi>=0)available.splice(bi,1);
-      b.exhausted=true;
-      d.log.push("El Guardián bloquea a "+a.name+" ("+a.atk+" ATQ) con "+b.name+" ("+b.def+" DEF).");
-      if(a.atk>=b.def){d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==b.uid);d.log.push(b.name+" es destruida.")}
-      else{d.playerBoard=d.playerBoard.filter(x=>x.uid!==a.uid);d.log.push(a.name+" no supera la DEF y es destruida.")}
-    }else{
-      d.enemyHp-=a.atk;d.damageDealt+=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit");
-    }
-    const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor)survivor.selected=false;
-  });
+  if(!d)return;
+  const attackers=d.playerBoard.filter(c=>c.selected&&!c.exhausted);
+  for(const attacker of attackers){
+    const live=d.playerBoard.find(c=>c.uid===attacker.uid);
+    if(!live||!localCanAttack(d,live))continue;
+    live.exhausted=true;
+    live.attacksThisTurn=(live.attacksThisTurn||0)+1;
+    live.selected=false;
+    const available=d.enemyBoard.filter(localCanDefend);
+    const defender=chooseAiBlock(live,available,d.enemyHp)||available[0]||null;
+    resolveLocalSingleAttack("player",live,defender);
+    if(checkLocalEnd())break;
+  }
 }
 function aiPause(ms){return new Promise(resolve=>window.setTimeout(resolve,ms))}
 function aiStillActive(d){return state.duel===d&&!d.gameOver}
