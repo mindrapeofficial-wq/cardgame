@@ -102,3 +102,20 @@ XP required to advance from a level follows:
 `100 + 35 × (level - 1) + 5 × (level - 1)²`
 
 Examples: 100 XP from Level 1→2, 140 from 2→3, 190 from 3→4, 250 from 4→5, and 320 from 5→6.
+
+
+## Level 1 pack balance
+
+Level 1 pack slots use explicit server-side probabilities based on historical rarity plus current combat efficiency:
+
+- Elfo Bardo — Common — 20%
+- Duende — Common — 20%
+- Guerrero Menor — Common — 20%
+- Mel — Common — 20%
+- Mimit — Uncommon — 15%
+- Dophan — Rare — 3.5%
+- Gorad Menor — Rare — 1.5%
+
+This gives a per-slot category distribution of 80% Common, 15% Uncommon and 5% Rare. Basic Level 1 Power has a 0% pack drop rate because it is infinite by rule.
+
+For Level 1, all collectible creatures currently cost 1 Power. The four common creatures are 1 ATK / 3 DEF, Mimit shares that stat line but preserves its higher historical rarity signal, Dophan is 2 ATK / 2 DEF, and Gorad Menor is 3 ATK / 2 DEF. Gorad therefore receives the lowest drop chance within the tier because it is the strongest offensive efficiency at this level.
