@@ -307,7 +307,7 @@ async function boot(){
   }catch(e){
     console.error(e);$("bootError")?.classList.remove("hidden");return;
   }
-  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261002-mobile-lobby-v2",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
   if(sessionToken){
     const result=await api("me",{},true);
     if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
