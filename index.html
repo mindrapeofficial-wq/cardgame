@@ -595,18 +595,22 @@ function cardImage(c){
   return "legacy-assets/imagenes/crt_"+slug+".jpg";
 }
 function loadLegacyImageIndex(){
-  fetch("legacy-config/version_data_host_chr.txt").then(function(r){if(!r.ok)throw new Error("manifest");return r.text()}).then(function(t){
-    var files=t.split(/\r?\n/).map(function(x){return x.split(",")[0]}).filter(function(x){return /^imagenes\/crt_.*\.(jpg|gif)$/i.test(x)});
-    files.forEach(function(path){
-      var file=path.split("/").pop(),stem=file.replace(/\.(jpg|gif)$/i,""),isG=/_g$/i.test(stem),isH=/_h$/i.test(stem);
+  function applyFiles(files){
+    (files||[]).forEach(function(file){
+      var stem=file.replace(/\.(jpg|gif)$/i,""),isG=/_g$/i.test(stem),isH=/_h$/i.test(stem);
       stem=stem.replace(/^crt_/i,"").replace(/_(g|h)$/i,"");
       var k=imageKey(stem.replace(/_/g," "));
-      var full="legacy-assets/"+path;
+      var full="legacy-assets/imagenes/"+file;
       if(!IMAGE_MAP[k]||isG)IMAGE_MAP[k]=full;
       if(isH&&IMAGE_MAP[k]&&/_g\./i.test(IMAGE_MAP[k]))return;
     });
     if(profile){renderCollection();renderDeck();if(duel)renderDuel()}
-  }).catch(function(){});
+  }
+  fetch("legacy-assets/image-index.json").then(function(r){if(!r.ok)throw new Error("index");return r.json()}).then(function(j){applyFiles(j.files)}).catch(function(){
+    fetch("legacy-config/version_data_host_chr.txt").then(function(r){return r.text()}).then(function(t){
+      applyFiles(t.split(/\r?\n/).map(function(x){return x.split(",")[0].split("/").pop()}).filter(function(x){return /^crt_.*\.(jpg|gif)$/i.test(x)}));
+    }).catch(function(){});
+  });
 }
 function defaultProfile(name){
   return {name:name||"Invitado",coins:100,wins:0,losses:0,collection:{},deck:[]};
