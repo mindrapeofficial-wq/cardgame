@@ -25,6 +25,7 @@ const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
   socket:null,connected:false,connecting:false,users:[],matches:[],chat:[],
   collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:30,
+  savedDecks:[],activeDeckId:null,deckName:"",decksLoading:false,
   duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
   authMode:"login",authBusy:false,offlineSession:false
 };
@@ -128,7 +129,11 @@ function authErrorMessage(code){
     no_free_copy:"Esa copia está siendo usada por el mazo.",
     basic_power_is_infinite:"Los Poderes básicos son infinitos y no se venden.",
     network_error:"No se pudo contactar con el servidor de cuentas.",
-    pack_level_locked:"Ese nivel de sobre todavía está bloqueado."
+    pack_level_locked:"Ese nivel de sobre todavía está bloqueado.",
+    deck_name_invalid:"Ponle un nombre al mazo.",
+    deck_name_taken:"Ya tienes un mazo con ese nombre.",
+    deck_limit_reached:"Has alcanzado el límite de 12 mazos guardados.",
+    deck_not_found:"Ese mazo ya no existe."
   };
   return map[code]||"No se pudo completar la operación.";
 }
@@ -280,6 +285,7 @@ function go(view){
   closeModal();
   state.view=view;updateChrome();renderView();
   if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
+  if(view==="deck")void loadDecks();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function renderView(){
@@ -421,12 +427,95 @@ function cardTile(c,opt={}){
   </article>`;
 }
 
+function currentSavedDeck(){
+  return state.savedDecks.find(d=>d.id===state.activeDeckId)||state.savedDecks.find(d=>d.isActive)||null;
+}
+async function loadDecks(){
+  if(state.decksLoading||!sessionToken)return;
+  state.decksLoading=true;
+  const r=await api("list_decks",{},true);
+  state.decksLoading=false;
+  if(!r.ok){if(state.view==="deck")toast(authErrorMessage(r.error),"bad");return}
+  state.savedDecks=Array.isArray(r.decks)?r.decks:[];
+  const active=state.savedDecks.find(d=>d.isActive)||null;
+  state.activeDeckId=active?.id||null;
+  state.deckName=active?.name||"";
+  if(state.view==="deck")renderView();
+}
+async function saveNamedDeck(copy=false){
+  const input=$("deckNameInput");
+  const name=String(input?.value||state.deckName||"").trim();
+  if(!name){toast("Ponle un nombre al mazo.","bad");input?.focus();return}
+  const r=await api("save_named_deck",{
+    deckId:copy?null:state.activeDeckId,
+    name,
+    cards:state.profile.deck.slice()
+  },true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  state.savedDecks=Array.isArray(r.decks)?r.decks:[];
+  state.activeDeckId=r.deck?.id||state.savedDecks.find(d=>d.isActive)?.id||null;
+  state.deckName=r.deck?.name||name;
+  toast(copy?"Copia del mazo guardada.":"Mazo guardado.","good");
+  renderView();
+}
+async function activateSavedDeck(id){
+  if(!id)return;
+  const r=await api("activate_deck",{deckId:id},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  state.savedDecks=Array.isArray(r.decks)?r.decks:[];
+  const active=state.savedDecks.find(d=>d.isActive)||null;
+  state.activeDeckId=active?.id||null;
+  state.deckName=active?.name||"";
+  toast("Mazo activo: "+(active?.name||"seleccionado")+".","good");
+  renderView();
+}
+async function newDeckDraft(){
+  const r=await api("new_deck_draft",{},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  state.savedDecks=Array.isArray(r.decks)?r.decks:[];
+  state.activeDeckId=null;
+  state.deckName="";
+  toast("Nuevo mazo listo. Añade cartas y ponle un nombre.");
+  renderView();
+}
+async function deleteSavedDeck(){
+  if(!state.activeDeckId)return;
+  const active=currentSavedDeck();
+  if(!confirm("¿Eliminar el mazo "+(active?.name||"seleccionado")+"?"))return;
+  const r=await api("delete_deck",{deckId:state.activeDeckId},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  state.savedDecks=Array.isArray(r.decks)?r.decks:[];
+  state.activeDeckId=null;
+  state.deckName="";
+  toast("Mazo eliminado.");
+  renderView();
+}
+
 function renderDeck(){
   const target=state.deckTarget,count=state.profile.deck.length,avg=count?state.profile.deck.reduce((n,id)=>n+(card(id)?.cost||0),0)/count:0;
   const pool=state.catalog.filter(c=>c.level<=playerLevel()&&(isBasicPower(c)||freeCopies(c.id)>0));
+  const active=currentSavedDeck();
+  const deckOptions=state.savedDecks.map(d=>`<option value="${d.id}" ${d.id===state.activeDeckId?"selected":""}>${esc(d.name)} · ${d.cards?.length||0} cartas</option>`).join("");
   return `<div class="page">
-    ${pageHead("Estrategia","Constructor de mazos","Los Poderes de nivel 1 son un recurso básico infinito. El resto de cartas debe estar en tu colección y no puede superar tu nivel.",
-      '<button class="btn" data-action="autoDeck">Auto construir</button><button class="btn danger" data-action="clearDeck">Vaciar</button>')}
+    ${pageHead("Estrategia","Constructor de mazos","Guarda varios mazos con nombre y elige cuál quieres usar para jugar.",
+      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir</button><button class="btn danger" data-action="clearDeck">Vaciar</button>')}
+    <section class="panel deck-library" style="margin-bottom:12px">
+      <div class="panel-head"><h2>Mis mazos</h2><span class="pill">${state.savedDecks.length}/12 guardados</span></div>
+      <div class="panel-body">
+        <div class="deck-library-controls">
+          <div class="field"><label>Mazo guardado</label><select class="select" id="savedDeckSelect"><option value="">${state.savedDecks.length?"Selecciona un mazo…":"Todavía no tienes mazos guardados"}</option>${deckOptions}</select></div>
+          <div class="field"><label>Nombre del mazo</label><input class="input" id="deckNameInput" maxlength="30" value="${esc(state.deckName)}" placeholder="Ej. Guardia de mármol"></div>
+          <div class="actions deck-save-actions">
+            <button class="btn primary" data-action="saveNamedDeck">${active?"Guardar cambios":"Guardar mazo"}</button>
+            ${active?'<button class="btn" data-action="saveDeckCopy">Guardar como nuevo</button><button class="btn danger" data-action="deleteDeck">Eliminar</button>':""}
+          </div>
+        </div>
+        <p class="muted deck-save-status">${active?'Mazo activo: <b>'+esc(active.name)+'</b>. Los cambios de cartas se sincronizan automáticamente.':"Este es un mazo nuevo sin guardar. Ponle un nombre cuando quieras conservarlo."}</p>
+      </div>
+    </section>
     <div class="deck-layout">
       <section class="panel">
         <div class="panel-head"><h2>Mazo activo</h2><span class="pill ${count>=20?"good":"bad"}">${count} cartas</span></div>
@@ -499,6 +588,10 @@ async function persistDeck(candidate,successMessage=""){
     // Una respuesta antigua nunca debe pisar un clic posterior.
     if(version===deckWriteVersion){
       applyProfile(r.profile);
+      if(state.activeDeckId){
+        const saved=state.savedDecks.find(d=>d.id===state.activeDeckId);
+        if(saved){saved.cards=candidate.slice();saved.updatedAt=new Date().toISOString()}
+      }
       if(successMessage)toast(successMessage,"good");
       renderView();
     }
@@ -964,6 +1057,10 @@ document.addEventListener("click",e=>{
   else if(a==="sellCard"){e.stopPropagation();sellCard(Number(el.dataset.id));closeModal()}
   else if(a==="removeDeck")removeDeck(Number(el.dataset.index));
   else if(a==="removeDeckCard")removeDeckCard(Number(el.dataset.id));
+  else if(a==="newDeck")newDeckDraft();
+  else if(a==="saveNamedDeck")saveNamedDeck(false);
+  else if(a==="saveDeckCopy")saveNamedDeck(true);
+  else if(a==="deleteDeck")deleteSavedDeck();
   else if(a==="autoDeck")autoDeck();
   else if(a==="clearDeck")clearDeck()
   else if(a==="buyPack")buyPack();
@@ -985,12 +1082,15 @@ document.addEventListener("input",e=>{
     const pos=e.target.selectionStart||e.target.value.length;
     state.collectionQuery=e.target.value;renderView();
     requestAnimationFrame(()=>{const n=$("collectionSearch");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch{}}});
+  } else if(e.target.id==="deckNameInput"){
+    state.deckName=e.target.value;
   }
 });
 document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="deckTarget"){state.deckTarget=Number(e.target.value)||30}
+  else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
   else if(e.target.matches("[data-block-attacker]")){
