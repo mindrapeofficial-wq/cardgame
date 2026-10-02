@@ -1322,3 +1322,42 @@ body{
   .power-mini{flex-basis:40px;width:40px}
   .battle-empty{min-height:120px}
 }
+
+
+/* Manual ARCANUM TCG */
+.manual-page{padding-bottom:44px}
+.manual-hero{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.9fr);gap:18px;padding:22px;margin-bottom:14px}
+.manual-hero-copy h2{margin:5px 0 8px;font-size:clamp(22px,3vw,34px)}
+.manual-hero-copy p{margin:0;line-height:1.7}
+.manual-fast-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.manual-index{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px;margin-bottom:14px;position:sticky;top:70px;z-index:4;background:rgba(8,8,9,.94);backdrop-filter:blur(14px)}
+.manual-index a{display:flex;align-items:center;min-height:38px;padding:8px 10px;border:1px solid rgba(212,175,55,.22);border-radius:9px;color:var(--text,#f2f2f2);text-decoration:none;font-size:12px;background:rgba(255,255,255,.018)}
+.manual-index a:hover{border-color:rgba(212,175,55,.55);background:rgba(212,175,55,.07)}
+.manual-sections{display:grid;gap:10px}
+.manual-section{overflow:hidden;scroll-margin-top:140px}
+.manual-section>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;padding:16px 18px;user-select:none}
+.manual-section>summary::-webkit-details-marker{display:none}
+.manual-section>summary:after{content:"＋";font-size:20px;color:#d4af37}
+.manual-section[open]>summary:after{content:"−"}
+.manual-section>summary span{display:flex;flex-direction:column;gap:3px}
+.manual-section>summary small{font-size:11px;color:var(--muted,#999);font-weight:400}
+.manual-body{border-top:1px solid rgba(255,255,255,.07);padding:18px;line-height:1.65}
+.manual-body p:first-child{margin-top:0}
+.manual-body p:last-child{margin-bottom:0}
+.manual-body ul{margin:0 0 14px;padding-left:20px}
+.manual-body li{margin:6px 0}
+.manual-phase-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:15px}
+.manual-phase-grid>div,.manual-rule,.manual-note,.manual-example,.manual-formula{border:1px solid rgba(212,175,55,.18);border-radius:10px;background:rgba(255,255,255,.018);padding:13px}
+.manual-phase-grid>div{display:flex;flex-direction:column;gap:5px}
+.manual-phase-grid span,.manual-rule p{color:var(--muted,#a8a8a8);font-size:12px}
+.manual-rule p{margin:6px 0 0}
+.manual-note{border-left:3px solid #d4af37}
+.manual-example{margin:12px 0;background:rgba(212,175,55,.055)}
+.manual-formula{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;text-align:center;font-weight:700;margin:10px 0}
+.manual-table-wrap{overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:10px}
+.manual-table{width:100%;border-collapse:collapse;min-width:520px}
+.manual-table th,.manual-table td{padding:11px 13px;text-align:left;border-bottom:1px solid rgba(255,255,255,.07)}
+.manual-table th{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#d4af37;background:rgba(212,175,55,.04)}
+.manual-table tr:last-child td{border-bottom:0}
+@media(max-width:1100px){.manual-index{grid-template-columns:repeat(3,minmax(0,1fr))}.manual-phase-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.manual-hero{grid-template-columns:1fr;padding:15px}.manual-index{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}.manual-phase-grid{grid-template-columns:1fr}.manual-section>summary{padding:14px}.manual-body{padding:14px}}
