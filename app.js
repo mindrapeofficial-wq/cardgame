@@ -22,6 +22,11 @@ let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
 let duelOrientationLockActive=false;
+let duelFullscreenEnteredOnce=false;
+let duelFullscreenDeadlineAt=0;
+let duelFullscreenForfeitHandled=false;
+let duelFullscreenMatchKey="";
+let duelFullscreenAutoRequested=false;
 const RARITIES=[
   {name:"Común",key:"common",min:0},
   {name:"Poco común",key:"uncommon",min:10},
@@ -321,6 +326,129 @@ function syncDuelOrientation(active){
   }
 }
 
+function duelPresentationKey(d=state.duel){
+  if(!d)return"";
+  return d.online?"online:"+(d.matchId||"unknown"):"local:"+(d.rewardKey||"training");
+}
+function fullscreenElement(){
+  return document.fullscreenElement||document.webkitFullscreenElement||null;
+}
+function fullscreenApiAvailable(){
+  const target=$("appShell")||document.documentElement;
+  return !!(target&&(target.requestFullscreen||target.webkitRequestFullscreen));
+}
+function resetDuelFullscreenState(){
+  duelFullscreenEnteredOnce=false;
+  duelFullscreenDeadlineAt=0;
+  duelFullscreenForfeitHandled=false;
+  duelFullscreenMatchKey="";
+  duelFullscreenAutoRequested=false;
+}
+function syncDuelFullscreenState(active){
+  if(!active){
+    resetDuelFullscreenState();
+    const exit=document.exitFullscreen||document.webkitExitFullscreen;
+    if(fullscreenElement()&&exit){
+      try{
+        const result=exit.call(document);
+        if(result&&typeof result.catch==="function")result.catch(()=>{});
+      }catch{}
+    }
+    return;
+  }
+  const key=duelPresentationKey();
+  if(key&&key!==duelFullscreenMatchKey){
+    duelFullscreenEnteredOnce=!!fullscreenElement();
+    duelFullscreenDeadlineAt=0;
+    duelFullscreenForfeitHandled=false;
+    duelFullscreenMatchKey=key;
+    duelFullscreenAutoRequested=false;
+  }
+  if(fullscreenElement()){
+    duelFullscreenEnteredOnce=true;
+    duelFullscreenDeadlineAt=0;
+    duelFullscreenForfeitHandled=false;
+  }
+}
+async function requestDuelFullscreen(silent=false){
+  const d=state.duel;
+  if(state.view!=="duel"||!d||d.gameOver)return false;
+  const target=$("appShell")||document.documentElement;
+  if(fullscreenElement()){
+    duelFullscreenEnteredOnce=true;
+    duelFullscreenDeadlineAt=0;
+    duelFullscreenForfeitHandled=false;
+    renderView();
+    return true;
+  }
+  const request=target&&(target.requestFullscreen||target.webkitRequestFullscreen);
+  if(!request){
+    duelFullscreenEnteredOnce=true;
+    duelFullscreenDeadlineAt=0;
+    duelFullscreenForfeitHandled=false;
+    return true;
+  }
+  try{
+    let result;
+    if(target.requestFullscreen)result=target.requestFullscreen({navigationUI:"hide"});
+    else result=target.webkitRequestFullscreen();
+    if(result&&typeof result.then==="function")await result;
+    duelFullscreenEnteredOnce=true;
+    duelFullscreenDeadlineAt=0;
+    duelFullscreenForfeitHandled=false;
+    syncDuelOrientation(true);
+    renderView();
+    return true;
+  }catch{
+    if(!silent)toast("La partida debe jugarse a pantalla completa. Pulsa «Entrar en pantalla completa».","bad");
+    renderView();
+    return false;
+  }
+}
+function startDuelAwayCountdown(reason="fullscreen"){
+  const d=state.duel;
+  if(state.view!=="duel"||!d||d.gameOver)return;
+  if(!duelFullscreenDeadlineAt){
+    duelFullscreenDeadlineAt=Date.now()+COMBAT_LEAVE_GRACE_MS;
+    duelFullscreenForfeitHandled=false;
+    const msg=reason==="hidden"
+      ?"Has salido de la pantalla de combate. Vuelve antes de 120 segundos o perderás la partida."
+      :"Has cerrado la pantalla completa. Vuelve antes de 120 segundos o perderás la partida.";
+    toast(msg,"bad");
+    renderView();
+  }
+}
+function clearDuelAwayCountdown(){
+  if(!duelFullscreenDeadlineAt&&!duelFullscreenForfeitHandled)return;
+  duelFullscreenDeadlineAt=0;
+  duelFullscreenForfeitHandled=false;
+  if(state.view==="duel"&&state.duel&&!state.duel.gameOver)renderView();
+}
+function forfeitDuelForLeavingScreen(){
+  const d=state.duel;
+  if(!d||d.gameOver||duelFullscreenForfeitHandled)return;
+  duelFullscreenForfeitHandled=true;
+  duelFullscreenDeadlineAt=0;
+  if(d.online){
+    if(state.connected&&state.socket)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"});
+    else toast("Se agotó el tiempo para volver. La derrota se confirmará al reconectar.","bad");
+  }else{
+    finalizeLocalResult(d,"loss","Has permanecido fuera de la pantalla de combate durante 120 segundos.");
+    checkLocalEnd();
+    renderView();
+  }
+}
+function updateDuelFullscreenCountdown(){
+  const el=document.querySelector("[data-duel-fullscreen-countdown]");
+  if(!duelFullscreenDeadlineAt){
+    if(el)el.textContent="";
+    return;
+  }
+  const left=Math.max(0,duelFullscreenDeadlineAt-Date.now());
+  if(el)el.textContent=formatCombatGrace(left);
+  if(left<=0)forfeitDuelForLeavingScreen();
+}
+
 function updateChrome(){
   if(!state.profile)return;
   $("playerName").textContent=state.profile.name;$("playerAvatar").textContent=initial(state.profile.name);
@@ -336,6 +464,11 @@ function updateChrome(){
   document.body.classList.toggle("duel-viewport-lock",inCombat);
   if(!inCombat)document.body.classList.remove("duel-log-visible");
   syncDuelOrientation(inCombat);
+  syncDuelFullscreenState(inCombat);
+  if(inCombat&&!duelFullscreenAutoRequested){
+    duelFullscreenAutoRequested=true;
+    requestAnimationFrame(()=>{void requestDuelFullscreen(true)});
+  }
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
 }
@@ -1395,8 +1528,12 @@ function renderDuel(){
   const phase=PHASES[d.phase]||PHASES[0];
   const disconnectLeft=Math.max(0,(Number(d.opponentDisconnectDeadlineAt)||0)-Date.now());
   const disconnectWarning=disconnectLeft>0?`<div class="duel-disconnect-warning"><b>Rival desconectado</b><span>Tiene <strong data-combat-grace-countdown>${formatCombatGrace(disconnectLeft)}</strong> para volver. Si no regresa, pierde la partida.</span></div>`:"";
+  const awayLeft=Math.max(0,duelFullscreenDeadlineAt-Date.now());
+  const fullscreenMissing=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver;
+  const fullscreenGate=fullscreenMissing?`<div class="duel-fullscreen-gate ${awayLeft>0?"danger":""}" role="alertdialog" aria-modal="true"><div class="duel-fullscreen-card"><b>${awayLeft>0?"Vuelve a la partida":"Pantalla completa obligatoria"}</b><span>${awayLeft>0?`Has salido de la pantalla de combate. Perderás la partida en <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong> si no vuelves.`:"El combate ocupa toda la pantalla para evitar recortes y barras de desplazamiento."}</span><button class="btn primary" data-action="enterDuelFullscreen">Entrar en pantalla completa</button></div></div>`:"";
   return `<div class="duel-page">
     ${disconnectWarning}
+    ${fullscreenGate}
     <div class="duel-top duel-turn-strip">
       <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
     </div>
@@ -1407,12 +1544,21 @@ function renderDuel(){
         <div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}</div>
         ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
         <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
-        <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
       </section>
       <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
-      <section class="board-zone player-zone">${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div><div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div></section>
+      <section class="board-zone player-zone">${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
-        <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div><div class="duel-controls">${duelControls(d)}</div></section>
+        <section class="board-zone hand-zone">
+          <div class="zone-title"><span>Tu mano</span></div>
+          <div class="player-hand-layout">
+            <div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div>
+            <div class="duel-decks-corner" aria-label="Mazos de la partida">
+              <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
+              <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div>
+            </div>
+          </div>
+          <div class="duel-controls">${duelControls(d)}</div>
+        </section>
       </div>
       <aside class="duel-log-keyboard" aria-label="Registro de combate"><div class="duel-log-window-head"><b>Registro de combate</b><span>${phase}</span></div><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></aside>
     </div>
@@ -2049,7 +2195,7 @@ function offerDraw(){
   if(state.connected&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"});
 }
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
-function leaveDuel(){state.duel=null;go("home")}
+function leaveDuel(){state.duel=null;syncDuelFullscreenState(false);go("home")}
 
 document.addEventListener("click",e=>{
   const authTab=e.target.closest("[data-auth-mode]");
@@ -2092,6 +2238,7 @@ document.addEventListener("click",e=>{
   else if(a==="offerDraw")offerDraw();
   else if(a==="acceptDraw")respondDraw(true);
   else if(a==="rejectDraw")respondDraw(false);
+  else if(a==="enterDuelFullscreen")void requestDuelFullscreen(false);
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
   else if(a==="refreshRanking")void loadRanking();
@@ -2135,6 +2282,40 @@ document.addEventListener("keydown",e=>{
   document.body.classList.toggle("duel-log-visible");
 });
 
-window.setInterval(updateCombatGraceCountdown,1000);
+document.addEventListener("fullscreenchange",()=>{
+  if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
+  if(fullscreenElement()){
+    duelFullscreenEnteredOnce=true;
+    clearDuelAwayCountdown();
+    syncDuelOrientation(true);
+  }else if(duelFullscreenEnteredOnce){
+    startDuelAwayCountdown("fullscreen");
+  }
+});
+document.addEventListener("webkitfullscreenchange",()=>{
+  if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
+  if(fullscreenElement()){
+    duelFullscreenEnteredOnce=true;
+    clearDuelAwayCountdown();
+    syncDuelOrientation(true);
+  }else if(duelFullscreenEnteredOnce){
+    startDuelAwayCountdown("fullscreen");
+  }
+});
+document.addEventListener("visibilitychange",()=>{
+  if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
+  if(document.hidden)startDuelAwayCountdown("hidden");
+  else if(fullscreenElement()||!fullscreenApiAvailable())clearDuelAwayCountdown();
+});
+window.addEventListener("beforeunload",e=>{
+  if(state.view==="duel"&&state.duel&&!state.duel.gameOver){
+    e.preventDefault();
+    e.returnValue="";
+  }
+});
+window.setInterval(()=>{
+  updateCombatGraceCountdown();
+  updateDuelFullscreenCountdown();
+},1000);
 boot();
 })();
