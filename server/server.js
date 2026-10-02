@@ -84,6 +84,7 @@ const MAX_POWER_POINTS = 200;
 const INITIAL_HAND = 7;
 const SECOND_PLAYER_BONUS = 1;
 const MATCH_LIMIT_MS = 40 * 60 * 1000;
+const COMBAT_LEAVE_GRACE_MS = 2 * 60 * 1000;
 const users = new Map();
 const matches = new Map();
 const trades = new Map();
@@ -246,6 +247,20 @@ function sideFor(match, socketId) {
   if (match.hostSocketId === socketId) return "a";
   if (match.guestSocketId === socketId) return "b";
   return null;
+}
+function sideForAccount(match, accountId) {
+  const value = String(accountId || "");
+  if (!value) return null;
+  if (String(match.hostAccountId || "") === value) return "a";
+  if (String(match.guestAccountId || "") === value) return "b";
+  return null;
+}
+function socketForSide(match, side) {
+  return side === "a" ? match.hostSocketId : match.guestSocketId;
+}
+function setSocketForSide(match, side, socketId) {
+  if (side === "a") match.hostSocketId = socketId;
+  else match.guestSocketId = socketId;
 }
 function totalPower(game, side) {
   return Math.min(MAX_POWER_POINTS, game.powers[side].reduce((sum, inst) => sum + powerValue(BY_ID.get(inst.cardId)), 0));
@@ -541,6 +556,8 @@ function snapshotFor(match, socketId) {
   const foe = sideOther(side);
   const opponentSocket = side === "a" ? match.guestSocketId : match.hostSocketId;
   const opponent = users.get(opponentSocket);
+  const opponentName = side === "a" ? (match.guestName || "Rival") : (match.player || "Rival");
+  const opponentDisconnectDeadlineAt = Number(match.disconnectDeadlineAt && match.disconnectDeadlineAt[foe]) || 0;
   const pending = game.pendingAttack;
   const pendingAttacker = pending ? game.board[pending.side].find(c => c.uid === pending.attackerUid) : null;
   const pendingCard = pendingAttacker ? BY_ID.get(pendingAttacker.cardId) : null;
@@ -575,7 +592,9 @@ function snapshotFor(match, socketId) {
     drawOfferOutgoing: game.drawOfferBy === side,
     blockAssignments: {},
     damageDealt: game.damage[side],
-    opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
+    opponent: opponent ? publicUser(opponentSocket, opponent) : { name: opponentName },
+    opponentDisconnectDeadlineAt,
+    serverNow: Date.now(),
     log: game.log.slice(-35)
   };
 }
@@ -735,22 +754,87 @@ function handleDuelAction(match, socketId, payload) {
   emitDuel(match);
 }
 
-function removeSocketMatches(socketId) {
+function finishDisconnectGrace(matchId, side, deadline) {
+  const match = matches.get(matchId);
+  if (!match || !match.duel || match.duel.gameOver) return;
+  const activeDeadline = Number(match.disconnectDeadlineAt && match.disconnectDeadlineAt[side]) || 0;
+  if (!activeDeadline || activeDeadline !== deadline || Date.now() < activeDeadline) return;
+  match.disconnectDeadlineAt[side] = 0;
+  match.duel.gameOver = true;
+  match.duel.winner = sideOther(side);
+  match.status = "finished";
+  gameLog(match.duel, "El jugador desconectado no regresó en 2 minutos y pierde la partida.");
+  emitDuel(match);
+  emitMatches();
+}
+
+function removeSocketMatches(socketId, useGrace = false) {
   let changed = false;
   for (const [mid, match] of matches.entries()) {
-    if (match.hostSocketId === socketId || match.guestSocketId === socketId) {
-      const otherId = match.hostSocketId === socketId ? match.guestSocketId : match.hostSocketId;
-      if (otherId && match.duel && !match.duel.gameOver) {
-        match.duel.gameOver = true;
-        match.duel.winner = sideFor(match, otherId);
-        gameLog(match.duel, "El adversario se ha desconectado.");
-        emitDuel(match);
+    if (match.hostSocketId !== socketId && match.guestSocketId !== socketId) continue;
+
+    if (useGrace && match.status === "playing" && match.duel && !match.duel.gameOver) {
+      const side = sideFor(match, socketId);
+      if (!side) continue;
+      match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
+      let deadline = Number(match.disconnectDeadlineAt[side]) || 0;
+      if (!deadline || deadline <= Date.now()) {
+        deadline = Date.now() + COMBAT_LEAVE_GRACE_MS;
+        match.disconnectDeadlineAt[side] = deadline;
+        const disconnectedUser = users.get(socketId);
+        const name = disconnectedUser ? disconnectedUser.name : (side === "a" ? match.player : (match.guestName || "El rival"));
+        gameLog(match.duel, name + " ha salido del combate. Tiene 2 minutos para regresar.");
+        setTimeout(() => finishDisconnectGrace(mid, side, deadline), COMBAT_LEAVE_GRACE_MS + 75);
       }
-      matches.delete(mid);
+      emitDuel(match);
       changed = true;
+      continue;
     }
+
+    const otherId = match.hostSocketId === socketId ? match.guestSocketId : match.hostSocketId;
+    if (otherId && match.duel && !match.duel.gameOver) {
+      match.duel.gameOver = true;
+      match.duel.winner = sideFor(match, otherId);
+      gameLog(match.duel, "El adversario ha abandonado la partida.");
+      emitDuel(match);
+    }
+    matches.delete(mid);
+    changed = true;
   }
   if (changed) emitMatches();
+}
+
+function resumeCombatForUser(socket, user) {
+  for (const match of matches.values()) {
+    if (match.status !== "playing" || !match.duel || match.duel.gameOver) continue;
+    const side = sideForAccount(match, user.accountId);
+    if (!side) continue;
+
+    match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
+    const deadline = Number(match.disconnectDeadlineAt[side]) || 0;
+    if (deadline && deadline <= Date.now()) {
+      finishDisconnectGrace(match.id, side, deadline);
+      return null;
+    }
+
+    const oldSocketId = socketForSide(match, side);
+    setSocketForSide(match, side, socket.id);
+    match.disconnectDeadlineAt[side] = 0;
+    if (side === "a") match.player = user.name;
+    else match.guestName = user.name;
+    user.status = "En combate";
+    socket.join(match.id);
+
+    if (oldSocketId && oldSocketId !== socket.id) {
+      users.delete(oldSocketId);
+      const oldSocket = io.sockets.sockets.get(oldSocketId);
+      if (oldSocket) oldSocket.disconnect(true);
+    }
+
+    gameLog(match.duel, user.name + " ha regresado al combate.");
+    return match;
+  }
+  return null;
 }
 
 app.get("/", (_req, res) => {
@@ -758,7 +842,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.6.0"
+    version: "0.7.0"
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -787,9 +871,14 @@ io.on("connection", socket => {
       status: "Disponible"
     };
     users.set(socket.id, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.6.0", cards: CATALOG.length });
+    const resumedMatch = resumeCombatForUser(socket, user);
+    socket.emit("server:ready", { socketId: socket.id, version: "0.7.0", cards: CATALOG.length });
     emitUsers();
     emitMatches();
+    if (resumedMatch) {
+      socket.emit("match:ready", { id: resumedMatch.id, resumed: true });
+      emitDuel(resumedMatch);
+    }
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
   });
 
@@ -858,6 +947,8 @@ io.on("connection", socket => {
       guestSessionToken: "",
       hostAccountId: user.accountId,
       guestAccountId: "",
+      guestName: "",
+      disconnectDeadlineAt: { a: 0, b: 0 },
       duel: null,
       createdAt: Date.now()
     };
@@ -903,6 +994,8 @@ io.on("connection", socket => {
     match.guestLevel = user.level;
     match.guestSessionToken = user.sessionToken;
     match.guestAccountId = user.accountId;
+    match.guestName = user.name;
+    match.disconnectDeadlineAt = { a: 0, b: 0 };
     socket.join(mid);
     initDuel(match);
 
@@ -1002,7 +1095,7 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     const user = users.get(socket.id);
-    removeSocketMatches(socket.id);
+    removeSocketMatches(socket.id, true);
     users.delete(socket.id);
     for (const [tid, trade] of trades.entries()) {
       if (trade.a === socket.id || trade.b === socket.id) {
