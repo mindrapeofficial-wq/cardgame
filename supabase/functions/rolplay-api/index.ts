@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-rolplay-session",
+  "Access-Control-Allow-Headers": "content-type, x-rolplay-session, x-rolplay-server-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
@@ -430,6 +430,60 @@ Deno.serve(async (req: Request) => {
       await db.from("rolplay_auth_attempts").delete().eq("kind", "login_fail_user").eq("subject", key);
       const token = await createSession(account.id);
       return json({ ok: true, token, profile: publicProfile(account) });
+    }
+
+    if (action === "synthetic_provision") {
+      if (!(await isTrustedServer(req))) return fail("server_key_invalid", 403);
+      const username = normalizeUsername(body.username);
+      if (!validateUsername(username)) return fail("username_invalid");
+      const key = usernameKey(username);
+
+      const { data: existing, error: existingError } = await db
+        .from("rolplay_accounts")
+        .select("*")
+        .eq("username_key", key)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      if (existing) {
+        if (!existing.is_synthetic) return fail("username_reserved", 409);
+        const token = await createSession(existing.id);
+        return json({ ok: true, token, profile: publicProfile(existing), existing: true });
+      }
+
+      const salt = randomBytes(16);
+      const generatedPassword = tokenString(randomBytes(48));
+      const hash = await derivePassword(generatedPassword, salt);
+      const { data: account, error } = await db
+        .from("rolplay_accounts")
+        .insert({
+          username,
+          username_key: key,
+          password_hash: hash,
+          password_salt: b64(salt),
+          level: 1,
+          xp: 0,
+          total_xp: 0,
+          gold: 100,
+          wins: 0,
+          losses: 0,
+          draws: 0,
+          elo: 1000,
+          ranked_matches: 0,
+          elo_ever_2400: false,
+          collection: {},
+          deck: [],
+          packs: 0,
+          is_synthetic: true,
+        })
+        .select("*")
+        .single();
+      if (error) {
+        if ((error as any).code === "23505") return fail("username_taken", 409);
+        throw error;
+      }
+      const token = await createSession(account.id);
+      return json({ ok: true, token, profile: publicProfile(account), existing: false }, 201);
     }
 
     if (action === "settle_match") {
