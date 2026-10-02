@@ -2547,11 +2547,6 @@ document.addEventListener("submit",e=>{
   }
 });
 
-// Floating player card (desktop): name and experience; clicking it opens the profile.
-document.querySelector(".player-chip")?.addEventListener("click",()=>go("profile"));
-document.querySelector(".player-chip")?.addEventListener("keydown",e=>{
-  if((e.key==="Enter"||e.key===" ")&&e.target===e.currentTarget){e.preventDefault();go("profile")}
-});
 
 document.addEventListener("keydown",e=>{
   if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;

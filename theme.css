@@ -92,29 +92,9 @@
     font-family:var(--arc-body);font-size:10px;letter-spacing:0;
     background:var(--arc-blood)!important;color:#fff!important;border:0!important;
   }
-  /* Player card: a small pill in the bottom-left corner with the name and experience.
-     Translucent until hovered; clicking it opens the profile (app.js). */
-  .shell:not(.duel-mode) .sidebar-bottom{
-    position:fixed!important;left:18px;bottom:18px;z-index:65;
-    right:auto!important;top:auto!important;width:auto!important;max-width:220px;
-    margin:0!important;padding:0!important;border:0!important;background:none!important;
-  }
-  .shell:not(.duel-mode) .player-chip{
-    display:block;min-width:0;padding:6px 11px 7px!important;cursor:pointer;user-select:none;
-    border:1px solid var(--arc-line)!important;border-radius:8px!important;
-    background:rgba(8,7,6,.82)!important;
-    box-shadow:0 8px 22px rgba(0,0,0,.45)!important;
-    opacity:.6;transition:opacity .2s ease,border-color .2s ease;
-  }
-  .shell:not(.duel-mode) .player-chip:hover,
-  .shell:not(.duel-mode) .player-chip:focus-visible{opacity:1;border-color:var(--arc-gold)!important;outline:none}
-  .shell:not(.duel-mode) .player-chip .avatar{display:none!important}
-  .shell:not(.duel-mode) .player-chip-info{min-width:0}
-  .shell:not(.duel-mode) .player-chip b{display:block;font-family:var(--arc-display);font-size:12px;letter-spacing:.04em;color:var(--arc-gold-hi);line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .shell:not(.duel-mode) .player-chip small{display:block;font-size:10px;color:var(--arc-muted);line-height:1.3;white-space:nowrap}
-  .shell:not(.duel-mode) .player-chip .mini-xp{width:100%;min-width:96px;height:3px!important;margin-top:4px}
-  /* Leave room so the card never covers the end of a page. */
-  .shell:not(.duel-mode) > .main{padding-bottom:110px!important}
+  /* The player block is not shown on desktop (name, level and logout live in Perfil).
+     Its markup stays because updateChrome still writes to it. */
+  .shell:not(.duel-mode) .sidebar-bottom{display:none!important}
   /* Text-only nav keeps all nine sections on one line at common desktop widths. */
   .shell:not(.duel-mode) .sidebar .nav-icon{display:none!important}
   .shell:not(.duel-mode) .sidebar .nav-btn{padding:0 11px!important;font-size:12px;letter-spacing:.07em}
