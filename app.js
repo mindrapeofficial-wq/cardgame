@@ -36,7 +36,8 @@ const state={
   collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:30,
   savedDecks:[],activeDeckId:null,deckName:"",decksLoading:false,
   duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
-  authMode:"login",authBusy:false,offlineSession:false
+  authMode:"login",authBusy:false,offlineSession:false,
+  ranking:[],rankingLoading:false,myRank:null
 };
 
 function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
@@ -120,6 +121,8 @@ function applyProfile(profile){
     wins:Math.max(0,Number(profile.wins)||0),
     draws:Math.max(0,Number(profile.draws)||0),
     losses:Math.max(0,Number(profile.losses)||0),
+    elo:Number.isFinite(Number(profile.elo))?Number(profile.elo):1000,
+    rankedMatches:Math.max(0,Number(profile.rankedMatches)||0),
     collection:profile.collection&&typeof profile.collection==="object"?profile.collection:{},
     deck:Array.isArray(profile.deck)?profile.deck.map(Number):[],
     packs:Math.max(0,Number(profile.packs)||0)
@@ -300,11 +303,12 @@ function go(view){
   state.view=view;updateChrome();renderView();
   if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
   if(view==="deck")void loadDecks();
+  if(view==="ranking")void loadRanking();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
-  const renderers={home:renderHome,play:renderPlay,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,profile:renderProfile,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,profile:renderProfile,duel:renderDuel};
   root.innerHTML=(renderers[state.view]||renderHome)();
 }
 
@@ -346,7 +350,7 @@ function renderHome(){
 
 function renderUsers(){
   if(!state.users.length)return'<div class="empty">No hay otros jugadores conectados todavía.</div>';
-  return state.users.map(u=>`<div class="online-user"><div class="avatar">${initial(u.name)}</div><div style="min-width:0"><b>${esc(u.name)}</b><div class="muted" style="font-size:11px">Nivel ${u.level||1} · ${esc(u.status||"Disponible")}</div></div>${state.socket&&u.socketId===state.socket.id?'<span class="pill">Tú</span>':""}</div>`).join("");
+  return state.users.map(u=>`<div class="online-user"><div class="avatar">${initial(u.name)}</div><div style="min-width:0"><b>${esc(u.name)}</b><div class="muted" style="font-size:11px">Nivel ${u.level||1} · ELO ${u.elo||1000} · ${esc(u.status||"Disponible")}</div></div>${state.socket&&u.socketId===state.socket.id?'<span class="pill">Tú</span>':""}</div>`).join("");
 }
 function renderChat(){
   if(!state.chat.length)return'<div class="empty">El salón está tranquilo. Rompe el hielo.</div>';
@@ -772,10 +776,52 @@ function cancelTrade(){
 }
 function resetTrade(){state.trade=freshTrade()}
 
+async function loadRanking(){
+  if(!sessionToken||state.rankingLoading)return;
+  state.rankingLoading=true;
+  if(state.view==="ranking")renderView();
+  const r=await api("ranking",{limit:50},true);
+  state.rankingLoading=false;
+  if(!r.ok){
+    if(state.view==="ranking"){toast("No se pudo cargar el ranking.","bad");renderView()}
+    return;
+  }
+  state.ranking=Array.isArray(r.ranking)?r.ranking:[];
+  state.myRank=Number(r.myRank)||null;
+  if(state.view==="ranking")renderView();
+}
+function renderRanking(){
+  const rows=state.ranking||[];
+  const myElo=Number(state.profile?.elo)||1000;
+  const myRank=state.myRank||rows.find(x=>x.id===state.profile?.id)?.position||"—";
+  const body=rows.map(p=>{
+    const total=(Number(p.wins)||0)+(Number(p.draws)||0)+(Number(p.losses)||0);
+    const wr=total?Math.round((Number(p.wins)||0)/total*100):0;
+    const mine=p.id===state.profile?.id;
+    return `<div class="ranking-row ${mine?"me":""}"><div class="rank-pos">#${p.position}</div><div class="rank-player"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b><small>Nivel ${Number(p.level)||1}${mine?" · Tú":""}</small></div></div><div class="rank-elo">${Number(p.elo)||1000}</div><div class="rank-record">${Number(p.wins)||0}-${Number(p.draws)||0}-${Number(p.losses)||0}<small>${wr}% victorias</small></div><div class="rank-games">${Number(p.rankedMatches)||0}</div></div>`;
+  }).join("");
+  return `<div class="page">
+    ${pageHead("Competición","Ranking","Clasificación PvP por ELO. Todos empiezan en 1000 y cada duelo online modifica la puntuación según la fuerza relativa de ambos jugadores.",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
+    <div class="grid three ranking-summary">
+      <div class="stat-card"><small>Tu ELO</small><strong>${myElo}</strong><span class="muted">K = 32</span></div>
+      <div class="stat-card"><small>Tu posición</small><strong>#${myRank}</strong><span class="muted">clasificación global</span></div>
+      <div class="stat-card"><small>Partidas puntuadas</small><strong>${state.profile?.rankedMatches||0}</strong><span class="muted">solo PvP online</span></div>
+    </div>
+    <section class="panel" style="margin-top:14px">
+      <div class="panel-head"><h2>Top 50</h2><span class="pill">${state.rankingLoading?"Actualizando…":rows.length+" jugadores"}</span></div>
+      <div class="panel-body ranking-wrap">
+        <div class="ranking-row ranking-head"><div>Pos.</div><div>Jugador</div><div>ELO</div><div>V-E-D</div><div>PvP</div></div>
+        ${body||(state.rankingLoading?'<div class="empty">Cargando clasificación…</div>':'<div class="empty">Todavía no hay jugadores clasificados.</div>')}
+      </div>
+    </section>
+    <div class="reward-rules" style="margin-top:14px"><b>Cómo cambia el ELO</b><p>La puntuación usa la fórmula Elo estándar con K=32. Una victoria contra un rival con mayor ELO vale más; perder contra un rival muy superior resta menos. Los empates también ajustan la puntuación según la diferencia previa.</p></div>
+  </div>`;
+}
+
 function renderProfile(){
   const total=state.profile.wins+state.profile.draws+state.profile.losses;
   return `<div class="page">
-    <section class="panel profile-banner"><div><div class="kicker">Aprendiz</div><h1>${esc(state.profile.name)}</h1><p class="muted">Nivel ${playerLevel()} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
+    <section class="panel profile-banner"><div><div class="kicker">Aprendiz</div><h1>${esc(state.profile.name)}</h1><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP ganada durante la carrera: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Las victorias y empates suben la barra. Las derrotas PvP pueden bajarla, pero nunca reducen un nivel ya alcanzado.</p></div>
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
@@ -794,6 +840,7 @@ function openMobileMenu(){
   $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" style="max-width:420px" onclick="event.stopPropagation()"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
     <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
   </div></div></div></div>`;
 }
@@ -832,12 +879,13 @@ function connectOnline(){
     socket.on("profile:update",m=>{
       if(!m?.profile)return;
       const oldLevel=playerLevel();applyProfile(m.profile);
-      const xp=Number(m.xpAwarded)||0,gold=Number(m.goldAwarded)||0;
+      const xp=Number(m.xpAwarded)||0,gold=Number(m.goldAwarded)||0,elo=Number(m.eloDelta)||0;
       const xpText=(xp>0?"+":"")+xp+" XP";
       const goldText=gold?(" · +"+gold+" oro"):"";
+      const eloText=elo?(" · "+(elo>0?"+":"")+elo+" ELO"):" · 0 ELO";
       const resultText=m.matchResult==="win"?"Victoria":m.matchResult==="draw"?"Empate":m.matchResult==="loss"?"Derrota":"Recompensa";
-      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! "+resultText+": "+xpText+goldText,"good")}
-      else toast(resultText+": "+xpText+goldText,xp<0?"bad":"good");
+      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! "+resultText+": "+xpText+goldText+eloText,"good")}
+      else toast(resultText+": "+xpText+goldText+eloText,(xp<0||elo<0)?"bad":"good");
       updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
     socket.on("trade:invited",m=>{
@@ -1080,6 +1128,7 @@ document.addEventListener("click",e=>{
   else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"})}
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
+  else if(a==="refreshRanking")void loadRanking();
   else if(a==="logout")logout();
 });
 document.addEventListener("input",e=>{
