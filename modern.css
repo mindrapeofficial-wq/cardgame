@@ -124,7 +124,7 @@ img{max-width:100%}
 .card-sub{font-size:11px;color:var(--muted);margin-top:2px}
 .card-stats{display:flex;justify-content:space-between;gap:8px;padding:8px 10px;border-top:1px solid #2d3440;font-size:11px;color:#cbd1dc}
 .card-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 9px 9px}
-.r-common{border-color:#49515f}.r-rare{border-color:#49729c}.r-epic{border-color:#725aa6}.r-legendary{border-color:#a97b2d}
+.r-common{border-color:#49515f}.r-uncommon{border-color:#527e64}.r-rare{border-color:#49729c}.r-epic{border-color:#725aa6}.r-legendary{border-color:#a97b2d}
 .deck-layout{display:grid;grid-template-columns:minmax(300px,370px) minmax(0,1fr);gap:14px}
 .deck-list{display:grid;gap:5px;max-height:calc(100vh - 280px);overflow:auto;padding-right:4px}
 .deck-row{display:grid;grid-template-columns:35px 1fr auto auto;gap:8px;align-items:center;padding:7px;border:1px solid #2a303b;background:#11141b;border-radius:10px}
@@ -245,3 +245,9 @@ img{max-width:100%}
 .xp-bar span{display:block;height:100%;background:linear-gradient(90deg,#8c6327,#e8bb60);transition:width .3s ease}
 .level-lock{position:absolute;inset:0;display:grid;place-items:center;background:rgba(6,8,12,.72);backdrop-filter:blur(1px);z-index:4;font-weight:900;color:#e2d2ad;text-align:center;padding:14px}
 .infinity-badge{font-size:15px;letter-spacing:.03em}
+
+.odds-list{display:grid;gap:7px}
+.odds-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:#11151c}
+.odds-row span{min-width:0}
+.odds-row small{display:block;margin-top:2px;font-size:11px}
+.odds-row strong{font-variant-numeric:tabular-nums;color:#e8c77a}
