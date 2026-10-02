@@ -747,7 +747,6 @@ function renderTrade(){
   const wanted=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()).slice(0,285);
   const marketKind=state.marketKind==="trade"?"trade":"gold";
   return `<div class="page">
-    ${pageHead("Comercio","Intercambios","Publica una carta a cambio de oro o anuncia el intercambio que buscas. Los anuncios quedan guardados y pueden aceptarse aunque el otro jugador no esté conectado.",'<button class="btn" data-action="marketRefresh">Actualizar anuncios</button>')}
     <div class="grid two">
       <section class="panel">
         <div class="panel-head"><h2>Publicar anuncio</h2><span class="muted">${publishable.length} cartas libres</span></div>
