@@ -2,9 +2,13 @@
 
 (function(){
 const SERVER_URL="https://cardgame-server-erng.onrender.com";
+const AUTH_API="https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
 const PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
-const PROFILE_KEY="rolplay.modern.profiles.v1";
-const LAST_KEY="rolplay.modern.lastPlayer";
+const SESSION_KEY="rolplay.session.v1";
+const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
+const LAST_USER_KEY="rolplay.last.username";
+const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
+let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 const RARITIES=[
   {name:"Común",key:"common",min:0},
   {name:"Rara",key:"rare",min:26},
@@ -16,7 +20,8 @@ const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
   socket:null,connected:false,connecting:false,users:[],matches:[],chat:[],
   collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:30,
-  duel:null,trade:freshTrade(),lastPack:[],sound:true
+  duel:null,trade:freshTrade(),lastPack:[],sound:localStorage.getItem("rolplay.sound")!=="off",
+  authMode:"login",authBusy:false,offlineSession:false
 };
 
 function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
@@ -33,7 +38,8 @@ function powerValue(c){const m=c&&c.name.match(/^Poder\s+x\s+(\d+)/i);return m?M
 function powerTotal(list){return(list||[]).reduce((n,c)=>n+powerValue(c),0)}
 function owned(id){return Number(state.profile?.collection?.[id]||0)}
 function deckCount(id){return state.profile?.deck?.filter(x=>Number(x)===Number(id)).length||0}
-function freeCopies(id){return Math.max(0,owned(id)-deckCount(id))}
+function isBasicPower(c){return !!(c&&c.powerCard&&c.level===1)}
+function freeCopies(id){const c=card(id);return isBasicPower(c)?Infinity:Math.max(0,owned(id)-deckCount(id))}
 function card(id){return state.byId.get(Number(id))}
 function isPowerName(n){return /^Poder(?:\s+x\s+\d+|\s*$)/i.test(n)}
 function isAbilityName(n){return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(n)}
@@ -69,38 +75,124 @@ function applyImageIndex(j){
   }
 }
 
-function loadProfiles(){try{return JSON.parse(localStorage.getItem(PROFILE_KEY)||"{}")}catch{return{}}}
-function saveProfiles(map){localStorage.setItem(PROFILE_KEY,JSON.stringify(map))}
-function createStarter(name){
-  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=10).slice(0,9);
-  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=8).slice(0,21);
-  const deck=[...powers,...creatures].map(c=>c.id).slice(0,30);
-  const collection={};
-  for(const id of deck)collection[id]=(collection[id]||0)+1;
-  return{name,coins:100,wins:0,losses:0,collection,deck,sound:true,createdAt:Date.now(),packs:0};
+function cacheProfile(){
+  if(!state.profile)return;
+  try{localStorage.setItem(PROFILE_CACHE_KEY,JSON.stringify(state.profile))}catch{}
 }
-function loadProfile(name){
-  const map=loadProfiles();
-  if(!map[name])map[name]=createStarter(name);
-  state.profile=map[name];
-  if(!state.profile.collection)state.profile.collection={};
-  if(!Array.isArray(state.profile.deck))state.profile.deck=[];
-  if(typeof state.profile.coins!=="number")state.profile.coins=100;
-  if(typeof state.profile.wins!=="number")state.profile.wins=0;
-  if(typeof state.profile.losses!=="number")state.profile.losses=0;
-  state.sound=state.profile.sound!==false;
-  map[name]=state.profile;saveProfiles(map);localStorage.setItem(LAST_KEY,name);
+function cachedProfile(){
+  try{return JSON.parse(localStorage.getItem(PROFILE_CACHE_KEY)||"null")}catch{return null}
+}
+function applyProfile(profile){
+  if(!profile)return;
+  state.profile={
+    ...profile,
+    level:clamp(Number(profile.level)||1,1,50),
+    xp:Math.max(0,Number(profile.xp)||0),
+    xpRequired:Math.max(0,Number(profile.xpRequired)||0),
+    totalXp:Math.max(0,Number(profile.totalXp)||0),
+    coins:Math.max(0,Number(profile.coins)||0),
+    wins:Math.max(0,Number(profile.wins)||0),
+    losses:Math.max(0,Number(profile.losses)||0),
+    collection:profile.collection&&typeof profile.collection==="object"?profile.collection:{},
+    deck:Array.isArray(profile.deck)?profile.deck.map(Number):[],
+    packs:Math.max(0,Number(profile.packs)||0)
+  };
+  localStorage.setItem(LAST_USER_KEY,state.profile.name||"");
+  cacheProfile();
+}
+function authErrorMessage(code){
+  const map={
+    username_invalid:"El usuario debe tener entre 3 y 20 caracteres y usar letras, números, _ o -.",
+    password_invalid:"La contraseña debe tener al menos 8 caracteres.",
+    username_taken:"Ese nombre de usuario ya está registrado.",
+    invalid_credentials:"Usuario o contraseña incorrectos.",
+    unauthorized:"La sesión ha caducado. Vuelve a iniciar sesión.",
+    not_enough_gold:"No tienes oro suficiente.",
+    no_cards_for_level:"No hay cartas disponibles para tu nivel.",
+    card_above_player_level:"Tu nivel todavía no permite usar una de esas cartas.",
+    not_enough_copies:"No posees suficientes copias para ese mazo.",
+    no_free_copy:"Esa copia está siendo usada por el mazo.",
+    basic_power_is_infinite:"Los Poderes básicos son infinitos y no se venden.",
+    network_error:"No se pudo contactar con el servidor de cuentas."
+  };
+  return map[code]||"No se pudo completar la operación.";
+}
+async function api(action,payload={},auth=true){
+  const headers={"content-type":"application/json"};
+  if(auth&&sessionToken)headers["x-rolplay-session"]=sessionToken;
+  try{
+    const res=await fetch(AUTH_API,{method:"POST",headers,body:JSON.stringify({action,...payload})});
+    let data={};try{data=await res.json()}catch{}
+    if(!res.ok||!data.ok)return{ok:false,error:data.error||"server_error",status:res.status};
+    return data;
+  }catch(e){
+    return{ok:false,error:"network_error",network:true};
+  }
+}
+function setAuthMode(mode){
+  state.authMode=mode==="register"?"register":"login";
+  document.querySelectorAll("[data-auth-mode]").forEach(b=>b.classList.toggle("active",b.dataset.authMode===state.authMode));
+  const title=$("authTitle"),desc=$("authDesc"),submit=$("authSubmit"),confirm=$("confirmField");
+  if(title)title.textContent=state.authMode==="register"?"Crear cuenta":"Entrar al salón";
+  if(desc)desc.textContent=state.authMode==="register"
+    ?"Empiezas en nivel 1, sin cartas coleccionables, con Poder básico infinito y 100 de oro para abrir tus primeros sobres."
+    :"Entra con tu usuario y contraseña para recuperar tu progreso.";
+  if(submit)submit.textContent=state.authMode==="register"?"Crear usuario":"Iniciar sesión";
+  if(confirm)confirm.classList.toggle("hidden",state.authMode!=="register");
+}
+function showAuth(){
+  $("appShell")?.classList.add("hidden");$("loginScreen")?.classList.remove("hidden");
+  $("bootLoader")?.classList.add("hidden");$("loginForm")?.classList.remove("hidden");
+  const last=localStorage.getItem(LAST_USER_KEY)||"";
+  if($("loginName")&&!$("loginName").value)$("loginName").value=last;
+  setAuthMode(state.authMode);
+}
+async function authenticateForm(){
+  if(state.authBusy)return;
+  const username=String($("loginName")?.value||"").trim();
+  const password=String($("loginPassword")?.value||"");
+  const confirm=String($("loginConfirm")?.value||"");
+  if(state.authMode==="register"&&password!==confirm){toast("Las contraseñas no coinciden.","bad");return}
+  state.authBusy=true;if($("authSubmit"))$("authSubmit").disabled=true;
+  const result=await api(state.authMode==="register"?"register":"login",{username,password},false);
+  state.authBusy=false;if($("authSubmit"))$("authSubmit").disabled=false;
+  if(!result.ok){toast(authErrorMessage(result.error),"bad");return}
+  sessionToken=result.token||"";localStorage.setItem(SESSION_KEY,sessionToken);
+  applyProfile(result.profile);enterGame();
+}
+function enterGame(){
+  if(!state.profile)return;
+  $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
+  updateChrome();connectOnline();go("home");void syncPendingRewards();
+}
+async function logout(){
+  if(sessionToken)void api("logout",{},true);
+  if(state.socket){state.socket.disconnect();state.socket=null}
+  state.connected=false;state.duel=null;state.trade=freshTrade();state.profile=null;
+  sessionToken="";localStorage.removeItem(SESSION_KEY);localStorage.removeItem(PROFILE_CACHE_KEY);
+  showAuth();
 }
 function saveProfile(){
-  if(!state.profile)return;
-  state.profile.sound=state.sound;
-  const map=loadProfiles();map[state.profile.name]=state.profile;saveProfiles(map);
-  updateChrome();
+  cacheProfile();updateChrome();
 }
-function resetProfile(){
-  if(!state.profile)return;
-  const name=state.profile.name,map=loadProfiles();map[name]=createStarter(name);saveProfiles(map);loadProfile(name);
-  toast("Progreso local reiniciado.","good");go("home");
+function queueReward(payload){
+  try{
+    const q=JSON.parse(localStorage.getItem(PENDING_REWARDS_KEY)||"[]");
+    if(!q.some(x=>x.rewardKey===payload.rewardKey))q.push(payload);
+    localStorage.setItem(PENDING_REWARDS_KEY,JSON.stringify(q.slice(-30)));
+  }catch{}
+}
+async function syncPendingRewards(){
+  if(!sessionToken)return;
+  let q=[];try{q=JSON.parse(localStorage.getItem(PENDING_REWARDS_KEY)||"[]")}catch{}
+  if(!Array.isArray(q)||!q.length)return;
+  const remaining=[];
+  for(const reward of q){
+    const r=await api("award_result",reward,true);
+    if(r.ok&&r.profile)applyProfile(r.profile);else remaining.push(reward);
+  }
+  localStorage.setItem(PENDING_REWARDS_KEY,JSON.stringify(remaining));
+  updateChrome();if(state.view==="profile"||state.view==="home")renderView();
 }
 
 function playSound(name){
