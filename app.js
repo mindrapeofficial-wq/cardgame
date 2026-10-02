@@ -14,16 +14,16 @@ let deckWriteVersion=0;
 const RARITIES=[
   {name:"Común",key:"common",min:0},
   {name:"Poco común",key:"uncommon",min:10},
-  {name:"Rara",key:"rare",min:40},
+  {name:"Rara",key:"rare",min:35},
   {name:"Épica",key:"epic",min:70},
-  {name:"Legendaria",key:"legendary",min:90}
+  {name:"Legendaria",key:"legendary",min:100}
 ];
 const $=id=>document.getElementById(id);
 const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
   socket:null,connected:false,connecting:false,users:[],matches:[],chat:[],
   collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:30,
-  duel:null,trade:freshTrade(),lastPack:[],sound:localStorage.getItem("rolplay.sound")!=="off",
+  duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
   authMode:"login",authBusy:false,offlineSession:false
 };
 
@@ -100,6 +100,7 @@ function applyProfile(profile){
     deck:Array.isArray(profile.deck)?profile.deck.map(Number):[],
     packs:Math.max(0,Number(profile.packs)||0)
   };
+  if(state.packLevel==null||state.packLevel>state.profile.level)state.packLevel=state.profile.level;
   localStorage.setItem(LAST_USER_KEY,state.profile.name||"");
   cacheProfile();
   if(state.socket&&state.socket.connected)state.socket.emit("profile:refresh");
@@ -268,6 +269,7 @@ function go(view){
   if(view==="duel"&&!state.duel)return;
   closeModal();
   state.view=view;updateChrome();renderView();
+  if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function renderView(){
@@ -484,49 +486,65 @@ async function removeDeck(index){
 }
 async function clearDeck(){await persistDeck([],"Mazo vaciado.")}
 
-function levelOneOdds(){
-  return[
-    {id:2,chance:20,tier:"Común"},
-    {id:3,chance:20,tier:"Común"},
-    {id:4,chance:20,tier:"Común"},
-    {id:8,chance:20,tier:"Común"},
-    {id:7,chance:15,tier:"Poco común"},
-    {id:5,chance:3.5,tier:"Rara"},
-    {id:6,chance:1.5,tier:"Rara"}
-  ];
+function tierName(key){
+  return key==="common"?"Común":key==="uncommon"?"Poco común":key==="rare"?"Rara":key==="epic"?"Épica":key==="legendary"?"Legendaria":key;
 }
-function renderLevelOneOdds(){
-  if(playerLevel()!==1)return"";
-  const rows=levelOneOdds().map(o=>{
+async function loadPackOdds(level){
+  level=clamp(Number(level)||1,1,playerLevel());
+  state.packLevel=level;
+  state.packOddsLoading=true;
+  if(state.view==="shop")renderView();
+  const r=await api("pack_odds",{packLevel:level},true);
+  state.packOddsLoading=false;
+  if(!r.ok){state.packOdds=[];if(state.view==="shop")renderView();return}
+  state.packOdds=Array.isArray(r.odds)?r.odds:[];
+  if(state.view==="shop"&&state.packLevel===level)renderView();
+}
+function packTierSummary(){
+  const sums={common:0,uncommon:0,rare:0,epic:0,legendary:0};
+  for(const o of state.packOdds)sums[o.tier]=(sums[o.tier]||0)+Number(o.chance||0);
+  return sums;
+}
+function renderPackOdds(){
+  if(state.packOddsLoading)return'<div class="empty">Calculando probabilidades del sobre…</div>';
+  if(!state.packOdds.length)return'<div class="empty">Selecciona un nivel de sobre para ver sus probabilidades.</div>';
+  const sums=packTierSummary();
+  const ordered=["common","uncommon","rare","epic","legendary"];
+  const summary=ordered.map(t=>`<div class="stat-card"><small>${tierName(t)}</small><strong>${sums[t]<0.01&&sums[t]>0?sums[t].toFixed(3):sums[t].toFixed(1)}%</strong></div>`).join("");
+  const rows=state.packOdds.map(o=>{
     const c=card(o.id);if(!c)return"";
-    return`<div class="odds-row"><span><b>${esc(c.name)}</b><small class="muted">${o.tier} · ATQ ${c.atk} · DEF ${c.def} · coste ${c.cost}</small></span><strong>${String(o.chance).replace(".",",")}%</strong></div>`;
+    const chance=Number(o.chance)||0;
+    const label=chance<0.01?chance.toFixed(4):chance<0.1?chance.toFixed(3):chance.toFixed(2);
+    return`<div class="odds-row"><span><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · ${tierName(o.tier)} · ATQ ${c.atk} · DEF ${c.def} · coste ${c.cost}</small></span><strong>${label}%</strong></div>`;
   }).join("");
-  return`<section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Probabilidades · Nivel 1</h2><span class="pill">por hueco del sobre</span></div><div class="panel-body">
-    <div class="grid three" style="margin-bottom:12px"><div class="stat-card"><small>Común</small><strong>80%</strong></div><div class="stat-card"><small>Poco común</small><strong>15%</strong></div><div class="stat-card"><small>Rara</small><strong>5%</strong></div></div>
-    <div class="odds-list">${rows}</div>
-    <p class="muted" style="margin:10px 0 0">El Poder de Nivel 1 no aparece en sobres: tienes copias infinitas. Dentro de las raras, Gorad Menor tiene menor frecuencia porque ofrece la mejor presión ofensiva del nivel.</p>
-  </div></section>`;
+  return`<div class="grid five odds-summary">${summary}</div><div class="odds-list pack-odds-scroll" style="margin-top:12px">${rows}</div>
+    <p class="muted" style="margin:10px 0 0">Las cartas cercanas al nivel del sobre tienen más peso. Dentro de una misma rareza, una carta más eficiente por ataque, defensa, utilidad o coste recibe ligeramente menos probabilidad. La masa legendaria total es solo del 0,2% por carta extraída cuando el sobre ya puede contener legendarias.</p>`;
 }
 function renderShop(){
+  const lvl=state.packLevel||playerLevel();
+  const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
-    ${pageHead("Mercado","Tienda","Los sobres se generan en el servidor y jamás contienen una carta por encima de tu nivel actual.")}
+    ${pageHead("Mercado","Tienda","Cada sobre tiene nivel propio. Solo puedes comprar niveles ya desbloqueados y nunca puede salir una carta por encima del nivel del sobre.")}
     <div class="grid two">
-      <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre de la Orda</h2><p class="muted">5 cartas coleccionables · máximo Nivel ${playerLevel()} · 20 oro</p><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:420px">Los Poderes de nivel 1 no ocupan colección: dispones de copias infinitas desde que creas la cuenta.</p></div></section>
+      <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
-    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Tu punto de partida</h2><span class="muted">Progresión por nivel</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
-    ${renderLevelOneOdds()}
+    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
+    <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Probabilidades · Sobre Nivel ${lvl}</h2><span class="pill">por hueco del sobre</span></div><div class="panel-body">${renderPackOdds()}</div></section>
   </div>`;
 }
-
 async function buyPack(){
   if(state.profile.coins<20)return;
-  const r=await api("buy_pack",{},true);
+  const lvl=clamp(Number(state.packLevel)||1,1,playerLevel());
+  const r=await api("buy_pack",{packLevel:lvl},true);
   if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
   applyProfile(r.profile);
+  state.packLevel=lvl;
   state.lastPack=(r.cards||[]).map(x=>card(x.id)).filter(Boolean);
-  playSound("draw");toast("Sobre abierto: todas las cartas son de Nivel "+playerLevel()+" o inferior.","good");renderView();
+  playSound("draw");toast("Sobre Nivel "+lvl+" abierto.","good");renderView();
+  void loadPackOdds(lvl);
 }
+
 async function sellCard(id){
   const c=card(id);if(!c||isBasicPower(c)||freeCopies(id)<=0)return;
   const r=await api("sell_card",{cardId:Number(id)},true);
@@ -896,6 +914,7 @@ document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="deckTarget"){state.deckTarget=Number(e.target.value)||30}
+  else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
   else if(e.target.matches("[data-block-attacker]")){
     const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid:e.target.dataset.blockAttacker,defenderUid:e.target.value||""});
