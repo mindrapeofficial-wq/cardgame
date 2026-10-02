@@ -21,6 +21,7 @@ const CARD_DEATH_ANIMATION_MS=900;
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
+let duelOrientationLockActive=false;
 const RARITIES=[
   {name:"Común",key:"common",min:0},
   {name:"Poco común",key:"uncommon",min:10},
@@ -303,6 +304,23 @@ async function boot(){
   showAuth();
 }
 
+function syncDuelOrientation(active){
+  const mobileViewport=(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches)||navigator.maxTouchPoints>0||Math.min(window.innerWidth,window.innerHeight)<=900;
+  if(active&&mobileViewport){
+    if(duelOrientationLockActive)return;
+    duelOrientationLockActive=true;
+    try{
+      const result=screen.orientation?.lock?.("landscape");
+      if(result&&typeof result.catch==="function")result.catch(()=>{});
+    }catch{}
+    return;
+  }
+  if(!active&&duelOrientationLockActive){
+    duelOrientationLockActive=false;
+    try{screen.orientation?.unlock?.()}catch{}
+  }
+}
+
 function updateChrome(){
   if(!state.profile)return;
   $("playerName").textContent=state.profile.name;$("playerAvatar").textContent=initial(state.profile.name);
@@ -314,6 +332,7 @@ function updateChrome(){
   $("onlineBadge").textContent=state.users.length||0;
   const inCombat=state.view==="duel"&&!!state.duel;
   const shell=$("appShell");if(shell)shell.classList.toggle("duel-mode",inCombat);
+  syncDuelOrientation(inCombat);
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
 }
