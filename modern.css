@@ -1414,3 +1414,187 @@ body{
   .global-home-btn{padding:7px 9px}
   .shell.duel-mode .topbar{padding-left:14px}
 }
+
+/* === ARCANUM BLACK & GOLD THEME 2026-10-02 === */
+:root{
+  --bg:#050505;
+  --bg2:#090909;
+  --panel:#0d0d0d;
+  --panel2:#121212;
+  --panel3:#181818;
+  --line:#2b2417;
+  --line2:#4a3a1e;
+  --text:#f4efe4;
+  --muted:#aaa18e;
+  --faint:#70695d;
+  --gold:#d4af37;
+  --gold2:#8f6d18;
+  --cyan:#d4af37;
+  --green:#d4af37;
+  --red:#d4af37;
+  --violet:#d4af37;
+  --shadow:0 24px 80px rgba(0,0,0,.58);
+}
+html,body{
+  background:
+    radial-gradient(circle at 18% -10%,rgba(212,175,55,.12),transparent 34%),
+    radial-gradient(circle at 88% 4%,rgba(143,109,24,.07),transparent 28%),
+    linear-gradient(180deg,#030303,#080808 48%,#030303);
+  color:var(--text);
+}
+::selection{background:#d4af37;color:#050505}
+*{scrollbar-color:#70571a #080808}
+a{color:#d8b94f}
+.app-bg:before{background:#d4af37;opacity:.10}
+.app-bg:after{background:#8f6d18;opacity:.07}
+.kicker,.gold,.currency{color:#d8b94f}
+.good,.bad{color:#d8b94f}
+
+.btn{
+  border-color:#3a301e;
+  background:linear-gradient(180deg,#171717,#0b0b0b);
+  color:#eee8dc;
+  box-shadow:0 7px 20px rgba(0,0,0,.28);
+}
+.btn:hover:not(:disabled){
+  border-color:#8f742b;
+  background:linear-gradient(180deg,#211d13,#0e0d0a);
+  color:#fff8e8;
+  box-shadow:0 9px 24px rgba(212,175,55,.08);
+}
+.btn.primary{
+  background:linear-gradient(135deg,#e2c45e,#a77e1d);
+  border-color:#f0d775;
+  color:#110f09;
+  text-shadow:none;
+  box-shadow:0 8px 24px rgba(212,175,55,.15);
+}
+.btn.primary:hover:not(:disabled){
+  background:linear-gradient(135deg,#efd36c,#ba9028);
+  box-shadow:0 10px 30px rgba(212,175,55,.24);
+}
+.btn.ghost{background:transparent;border-color:#3b321f;color:#d8cfbd}
+.btn.danger{
+  background:linear-gradient(180deg,#17130c,#090909);
+  border-color:#8a6b20;
+  color:#e8cd77;
+}
+.btn.danger:hover:not(:disabled){border-color:#d4af37;color:#fff0bb}
+.input,.select{
+  background:#080808;
+  border-color:#3a301e;
+  color:#f1eadc;
+}
+.input:focus,.select:focus{
+  border-color:#d4af37;
+  box-shadow:0 0 0 3px rgba(212,175,55,.10);
+}
+.field label{color:#c9c1b1}
+.pill,.player-chip,.quick-row,.online-user,.match-row,.deck-row,.trade-item{
+  background:#0b0b0b;
+  border-color:#2f281b;
+}
+.dot,.dot.online,.dot.warn{background:#d4af37;box-shadow:0 0 12px rgba(212,175,55,.35)}
+.avatar{
+  background:linear-gradient(135deg,#2a2110,#0b0b0b);
+  color:#e2c461;
+  border:1px solid rgba(212,175,55,.16);
+}
+.sidebar,.topbar{
+  background:rgba(5,5,5,.88);
+  border-color:rgba(212,175,55,.10);
+}
+.nav-btn{color:#a9a294}
+.nav-btn:hover{background:#10100e;color:#f2ead9}
+.nav-btn.active{
+  background:linear-gradient(90deg,rgba(212,175,55,.14),rgba(212,175,55,.025));
+  border-color:rgba(212,175,55,.28);
+  color:#edd98f;
+}
+.nav-badge{background:#17140d;color:#d6c18a;border:1px solid rgba(212,175,55,.14)}
+
+.panel,.stat-card,.xp-card{
+  border-color:#2e281c;
+  background:linear-gradient(180deg,rgba(17,17,17,.97),rgba(8,8,8,.98));
+  box-shadow:0 15px 44px rgba(0,0,0,.32);
+}
+.panel-head,.chat-send,.modal-head{border-color:#2e281c}
+.quick-icon{background:#15120c;color:#d6b84d}
+.chat-msg{
+  background:#090909;
+  border-color:#282216;
+}
+.chat-msg b{color:#e0c268}
+.chat-msg.system{background:#0c0b08;color:#bdb49f}
+.empty{background:#090909;border-color:#3a3222;color:#8f887a}
+
+.game-card{
+  border-color:#30291b;
+  background:linear-gradient(180deg,#15130e,#080808);
+}
+.game-card:hover{border-color:#8d7330;box-shadow:0 18px 34px rgba(0,0,0,.42),0 0 18px rgba(212,175,55,.05)}
+.game-card.selected{outline-color:#d4af37}
+.card-cost{
+  background:#0a0a0a;
+  border-color:#a4832e;
+  color:#efd87e;
+}
+.card-qty{background:rgba(5,5,5,.9);border-color:#554624;color:#e5ddcb}
+.card-stats{border-color:#272116;color:#bcb39f}
+.r-common{border-color:#3a3429}
+.r-uncommon,.r-rare,.r-epic{border-color:#665425}
+.r-legendary{border-color:#b48c28}
+
+.deck-meter,.xp-bar{background:#050505;border-color:#2f281b}
+.deck-meter span,.xp-bar span,.mini-xp span{background:linear-gradient(90deg,#806117,#d4af37)}
+.reward-card,.reward-rules,.odds-row{background:#0b0b0b;border-color:#2e281c}
+
+.duel-top,.duel-match-actions{
+  background:rgba(5,5,5,.84);
+  border-color:rgba(212,175,55,.22);
+}
+.hpbar{background:#19140b}
+.hpbar span{background:linear-gradient(90deg,#8f6d18,#e1c35b)}
+.phase-step{background:rgba(7,7,7,.88);border-color:#2b2519;color:#777064}
+.phase-step.active{
+  border-color:#9f7f2b;
+  background:#17130b;
+  color:#efd985;
+  box-shadow:0 0 20px rgba(212,175,55,.08);
+}
+.board-zone{background:linear-gradient(180deg,rgba(8,8,8,.50),rgba(3,3,3,.40))}
+.turn-wait{
+  border-color:#5d4a20;
+  background:#100e09;
+  color:#d7c490;
+}
+.duel-log div{background:#080808}
+.duel-log-drawer{background:rgba(5,5,5,.78);border-color:rgba(212,175,55,.19)}
+.hidden-card-back,.duel-deck-back,.power-mini{border-color:rgba(212,175,55,.58)}
+.power-mini.clickable{box-shadow:0 0 0 1px rgba(212,175,55,.32),0 4px 10px rgba(0,0,0,.38)}
+.battle-card.clickable{box-shadow:0 12px 26px rgba(0,0,0,.48),0 0 0 1px rgba(212,175,55,.34)}
+
+.login-screen{background:#030303}
+.login-panel{
+  background:linear-gradient(180deg,rgba(9,9,9,.99),rgba(4,4,4,1));
+  border-color:rgba(212,175,55,.10);
+}
+.auth-tabs{background:#070707;border-color:#2c261a}
+.auth-tab.active{
+  background:linear-gradient(180deg,#19150d,#0e0d09);
+  color:#e3c86f;
+  box-shadow:inset 0 0 0 1px rgba(212,175,55,.18);
+}
+
+.modal-backdrop{background:rgba(0,0,0,.86)}
+.modal,.toast{
+  background:#0a0a0a;
+  border-color:#44371d;
+  color:#eee7d9;
+}
+.mobile-nav{
+  background:rgba(4,4,4,.98);
+  border-top-color:#2c2619;
+}
+.mobile-nav button{color:#847d70}
+.mobile-nav button.active{color:#d9bb58}
