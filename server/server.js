@@ -11,6 +11,16 @@ const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
 const ROLPLAY_API_URL = process.env.ROLPLAY_API_URL || "https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
 
+const LEVEL1_COMBAT_STATS = Object.freeze({
+  "Duende": { atk: 1, def: 1 },
+  "Elfo Bardo": { atk: 0, def: 2 },
+  "Guerrero Menor": { atk: 1, def: 1 },
+  "Dophan": { atk: 2, def: 1 },
+  "Gorad Menor": { atk: 1, def: 2 },
+  "Mimit": { atk: 0, def: 3 },
+  "Mel": { atk: 1, def: 1 }
+});
+
 const LEVEL1_POWER_COSTS = Object.freeze({
   "Duende": 1,
   "Elfo Bardo": 2,
@@ -34,6 +44,7 @@ function parseCatalog() {
     const rar = Number(rarity) || 1;
     const powerCard = /^Poder(?:\s+x\s+\d+|\s*$)/i.test(name);
     const abilityCard = /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(name);
+    const fixedStats = lv === 1 ? LEVEL1_COMBAT_STATS[name] : undefined;
     return {
       id: index + 1,
       name,
@@ -43,8 +54,8 @@ function parseCatalog() {
       powerCard,
       abilityCard,
       cost: summonCost(name, lv, powerCard),
-      atk: (powerCard || abilityCard) ? 0 : Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30)),
-      def: (powerCard || abilityCard) ? 0 : Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40))
+      atk: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.atk : Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30))),
+      def: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.def : Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40)))
     };
   });
 }
