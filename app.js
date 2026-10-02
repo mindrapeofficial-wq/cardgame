@@ -2546,17 +2546,11 @@ document.addEventListener("submit",e=>{
     if(input)input.value="";
   }
 });
-$("logoutBtn")?.addEventListener("click",logout);
 
-// Floating player card (desktop): always starts minimized to the avatar; clicking the card
-// toggles it open/closed. The logout button inside only logs out.
-document.querySelector(".player-chip")?.addEventListener("click",e=>{
-  if(e.target.closest("#logoutBtn"))return;
-  const chip=e.currentTarget,collapsed=chip.classList.toggle("collapsed");
-  chip.setAttribute("aria-expanded",String(!collapsed));
-});
+// Floating player card (desktop): name and experience; clicking it opens the profile.
+document.querySelector(".player-chip")?.addEventListener("click",()=>go("profile"));
 document.querySelector(".player-chip")?.addEventListener("keydown",e=>{
-  if((e.key==="Enter"||e.key===" ")&&e.target===e.currentTarget){e.preventDefault();e.currentTarget.click()}
+  if((e.key==="Enter"||e.key===" ")&&e.target===e.currentTarget){e.preventDefault();go("profile")}
 });
 
 document.addEventListener("keydown",e=>{
