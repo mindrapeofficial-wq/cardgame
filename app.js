@@ -969,8 +969,6 @@ function renderChat(){
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
   return `<div class="page">
-    ${pageHead("Competición","Jugar","Crea un reto, entra en una partida existente o entrena contra la IA.",
-      '<button class="btn" data-action="training" '+(deckValid()?"":"disabled")+' >Entrenamiento</button>')}
     <div class="grid two">
       <section class="panel">
         <div class="panel-head"><h2>Crear partida</h2><span class="pill ${deckValid()?"good":"bad"}">${state.profile.deck.length} cartas</span></div>

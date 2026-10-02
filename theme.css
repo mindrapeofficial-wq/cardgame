@@ -442,3 +442,11 @@
 /* No iOS callout or text selection while holding a card. */
 .game-card,.battle-card,.power-mini,.deck-row img,.trade-item img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 @media (prefers-reduced-motion:reduce){.card-zoom,.card-zoom img{transition:none}}
+
+/* Login (desktop): a single logo, centred on the artwork. The panel no longer repeats it.
+   Mobile already shows only the artwork logo and is left as it was. */
+@media (min-width:851px){
+  .login-art{display:flex!important;align-items:center!important;justify-content:center!important}
+  .login-art-copy{width:min(640px,78%)!important;margin:0 auto}
+  .login-panel-brand{display:none!important}
+}
