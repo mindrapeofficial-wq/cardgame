@@ -20,7 +20,13 @@ Para los sobres de Nivel 2 en adelante, la rareza modifica el peso base de cada 
 - Rara: ×0,48
 - Épica: ×0,22
 
-Las legendarias se separan del resto del sorteo y reciben una **masa total máxima del 0,2% por extracción**. Ese 0,2% se reparte entre todas las legendarias elegibles según cercanía de nivel y eficiencia.
+### Poderes avanzados
+
+Las cartas de **Poder de nivel superior a 1** usan una ponderación interna propia de **×0,60**, situada entre Poco común (×0,75) y Rara (×0,48). Esta categoría técnica no se muestra al jugador ni sustituye la rareza histórica visible de la carta: solo interviene en el cálculo de obtención.
+
+El Poder básico de Nivel 1 sigue teniendo probabilidad 0% porque es ilimitado. Cada Poder avanzado entra en el conjunto de cartas posibles cuando el nivel del sobre alcanza el nivel de esa carta y, a partir de ahí, sigue sujeto a la afinidad de nivel del sobre.
+
+Las legendarias no-Poder se separan del resto del sorteo y reciben una **masa total máxima del 0,2% por extracción**. Ese 0,2% se reparte entre todas las legendarias elegibles según cercanía de nivel y eficiencia.
 
 Así evitamos dos problemas: que un sobre alto se llene de comunes antiquísimas solo para cumplir una cuota fija, y que un nivel con muchas cartas históricamente poderosas dispare accidentalmente la frecuencia legendaria.
 
