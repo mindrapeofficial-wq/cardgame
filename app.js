@@ -332,6 +332,7 @@ function updateChrome(){
   $("onlineBadge").textContent=state.users.length||0;
   const inCombat=state.view==="duel"&&!!state.duel;
   const shell=$("appShell");if(shell)shell.classList.toggle("duel-mode",inCombat);
+  if(!inCombat)document.body.classList.remove("duel-log-visible");
   syncDuelOrientation(inCombat);
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
@@ -1411,7 +1412,7 @@ function renderDuel(){
       <div class="duel-bottom">
         <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div><div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div></div><div class="duel-controls">${duelControls(d)}</div></section>
       </div>
-      <details class="duel-log-popover"><summary title="Registro de combate" aria-label="Abrir o cerrar registro de combate">≣</summary><div class="duel-log-window"><div class="duel-log-window-head"><b>Registro de combate</b><span>${phase}</span></div><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></details>
+      <aside class="duel-log-keyboard" aria-label="Registro de combate"><div class="duel-log-window-head"><b>Registro de combate</b><span>${phase}</span></div><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></aside>
     </div>
   </div>`;
 }
@@ -2081,6 +2082,21 @@ document.addEventListener("submit",e=>{
   if(e.target.id==="chatForm"){e.preventDefault();const input=$("chatInput"),text=input?.value.trim();if(!text)return;if(state.connected)state.socket.emit("chat:send",{text});else{state.chat.push({from:state.profile.name,text});renderView()}}
 });
 $("logoutBtn")?.addEventListener("click",logout);
+
+document.addEventListener("keydown",e=>{
+  if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
+  const tag=e.target?.tagName;
+  if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||e.target?.isContentEditable)return;
+  if(e.target?.closest?.("#ve-root"))return;
+  if(e.key==="Escape"){
+    document.body.classList.remove("duel-log-visible");
+    return;
+  }
+  if(String(e.key).toLowerCase()!=="r")return;
+  if(state.view!=="duel"||!state.duel)return;
+  e.preventDefault();
+  document.body.classList.toggle("duel-log-visible");
+});
 
 window.setInterval(updateCombatGraceCountdown,1000);
 boot();
