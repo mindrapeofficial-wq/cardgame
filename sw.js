@@ -1,5 +1,5 @@
-const CACHE="rolplay-reborn-v8";
-const CORE=["./","index.html","modern.css","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg"];
+const CACHE="rolplay-reborn-v9";
+const CORE=["./","index.html","modern.css","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp"];
 const FRESH=new Set(["/","/index.html","/modern.css","/app.js","/cards.csv","/legacy-assets/image-index.json"]);
 
 self.addEventListener("install",event=>{
