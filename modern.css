@@ -2596,3 +2596,434 @@ body.duel-log-visible .duel-log-keyboard{display:block}
   }
   .player-hand-strip{display:block!important}
 }
+/* === ROLPLAY MOBILE ORDERED UI 2026-10-02 === */
+/*
+   Capa final para móvil. Centraliza los overrides responsive y evita que
+   los parches históricos compitan entre sí en pantallas pequeñas.
+*/
+@media (max-width:850px){
+  html{
+    background:#050505;
+    -webkit-text-size-adjust:100%;
+    text-size-adjust:100%;
+  }
+  body{
+    min-width:0;
+    background:#050505;
+    overscroll-behavior-y:none;
+  }
+  .app-bg:before,.app-bg:after{opacity:.07}
+
+  .shell:not(.duel-mode){
+    display:block!important;
+    width:100%;
+    min-height:100dvh;
+  }
+  .shell:not(.duel-mode) .main{
+    width:100%;
+    min-width:0;
+    padding-bottom:calc(68px + env(safe-area-inset-bottom))!important;
+  }
+
+  /* Cabecera móvil real: título + oro, sin controles flotando sobre el contenido. */
+  .shell:not(.duel-mode) .topbar{
+    display:flex!important;
+    position:sticky!important;
+    top:0!important;
+    z-index:55!important;
+    width:100%;
+    height:calc(50px + env(safe-area-inset-top))!important;
+    min-height:calc(50px + env(safe-area-inset-top))!important;
+    padding:env(safe-area-inset-top) 11px 0!important;
+    gap:8px!important;
+    align-items:center!important;
+    border-bottom:1px solid rgba(212,175,55,.16)!important;
+    background:rgba(5,5,5,.96)!important;
+    box-shadow:0 8px 26px rgba(0,0,0,.26)!important;
+    backdrop-filter:blur(14px)!important;
+  }
+  .shell:not(.duel-mode) .topbar-title{
+    display:block!important;
+    min-width:0;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    color:#eee7d9;
+    font:900 14px/1 Georgia,serif;
+    letter-spacing:.055em;
+    text-transform:uppercase;
+  }
+  .shell:not(.duel-mode) .topbar-spacer{display:block!important;flex:1}
+  .shell:not(.duel-mode) .topbar .connection-label,
+  .shell:not(.duel-mode) .global-home-btn{display:none!important}
+  .shell:not(.duel-mode) .currency{
+    position:static!important;
+    inset:auto!important;
+    z-index:auto!important;
+    flex:0 0 auto;
+    min-height:30px!important;
+    padding:6px 9px!important;
+    margin:0!important;
+    border-radius:999px!important;
+    border-color:rgba(212,175,55,.28)!important;
+    background:#0a0906!important;
+    box-shadow:none!important;
+    font-size:11px!important;
+  }
+
+  #viewRoot{width:100%;min-width:0}
+  .page{
+    width:100%!important;
+    max-width:none!important;
+    padding:11px 9px 18px!important;
+  }
+  .page-head{
+    align-items:flex-start!important;
+    flex-direction:column!important;
+    gap:6px!important;
+    margin:0 0 10px!important;
+  }
+  .page-head h1{
+    margin-top:2px!important;
+    font-size:22px!important;
+    line-height:1.08!important;
+  }
+  .page-head p{
+    margin-top:4px!important;
+    max-width:none!important;
+    font-size:12px!important;
+    line-height:1.45!important;
+  }
+
+  /* Controles táctiles consistentes. */
+  .btn{
+    min-height:42px;
+    padding:9px 11px;
+    border-radius:10px;
+  }
+  .btn.small{min-height:36px;padding:7px 9px}
+  .btn.icon{width:40px;height:40px;min-height:40px}
+  .actions{
+    width:100%;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:7px!important;
+  }
+  .actions>.btn{width:100%;min-width:0}
+
+  .grid{gap:9px!important}
+  .grid.two,.grid.three{grid-template-columns:1fr!important}
+  .grid.four{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+
+  .panel,.xp-card,.stat-card{
+    border-radius:11px!important;
+    box-shadow:none!important;
+  }
+  .panel-head{padding:10px 11px!important}
+  .panel-body{padding:11px!important}
+  .panel-head h2,.panel-head h3{font-size:14px}
+  .stat-card{
+    min-width:0;
+    min-height:82px;
+    padding:10px!important;
+  }
+  .stat-card strong{font-size:22px!important}
+
+  /* Inicio: acciones y métricas ordenadas en una cuadrícula compacta. */
+  .home-actions{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+    margin:0 0 9px!important;
+  }
+  .home-actions .btn{
+    width:100%!important;
+    min-width:0;
+    min-height:42px!important;
+    margin:0!important;
+  }
+  .xp-card{padding:10px 11px!important}
+  .xp-row{align-items:flex-start;gap:8px}
+  .xp-row .muted{text-align:right;font-size:11px}
+
+  .hero{
+    min-height:0!important;
+    grid-template-columns:1fr!important;
+    border-radius:12px!important;
+  }
+  .hero-copy{padding:17px!important}
+  .hero h1{font-size:32px!important}
+  .hero p{font-size:12px!important;line-height:1.5}
+  .hero-visual{min-height:145px!important}
+
+  /* Chat, retos y listados. */
+  .chat{height:min(350px,48dvh)!important}
+  .chat-log{padding:9px!important;gap:6px!important}
+  .chat-msg{padding:7px 8px!important}
+  .chat-send{
+    grid-template-columns:minmax(0,1fr) auto!important;
+    gap:6px!important;
+    padding:8px!important;
+  }
+  .online-list{max-height:220px!important}
+  .quick-row,.online-user,.match-row{border-radius:9px!important}
+  .match-row{
+    grid-template-columns:minmax(0,1fr) auto auto!important;
+    gap:7px!important;
+    padding:9px!important;
+  }
+
+  /* Colección, tienda y filtros. */
+  .toolbar{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+    align-items:stretch!important;
+    margin-bottom:9px!important;
+  }
+  .toolbar .input{
+    grid-column:1/-1;
+    width:100%!important;
+    max-width:none!important;
+  }
+  .toolbar .select{
+    width:100%!important;
+    min-width:0!important;
+  }
+  .toolbar .btn{width:100%!important;min-width:0}
+  .toolbar-spacer{display:none!important}
+
+  .card-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+  }
+  .game-card{
+    min-width:0!important;
+    border-radius:10px!important;
+  }
+  .card-info{padding:7px!important}
+  .card-name{font-size:12px!important}
+  .card-sub{font-size:9px!important}
+  .card-stats{padding:6px 7px!important;font-size:10px!important}
+  .card-actions{gap:5px!important;padding:0 7px 7px!important}
+  .card-actions .btn{min-height:35px!important;padding:6px!important;font-size:10px!important}
+
+  /* Mazo, mercado y perfil. */
+  .deck-layout,.trade-layout{grid-template-columns:1fr!important;gap:9px!important}
+  .deck-list{max-height:42dvh!important}
+  .deck-row{
+    grid-template-columns:30px minmax(0,1fr) auto auto!important;
+    gap:6px!important;
+    padding:6px!important;
+  }
+  .deck-row img{width:30px!important;height:42px!important}
+  .trade-layout>:last-child{grid-column:auto!important}
+  .trade-offer{min-height:190px!important}
+  .pack-hero{min-height:210px!important;padding:16px!important}
+  .profile-banner{min-height:118px!important;padding:16px!important}
+  .profile-banner h1{font-size:25px!important}
+
+  /* Manual y contenido largo. */
+  .manual-hero{padding:12px!important;gap:10px!important}
+  .manual-index{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:7px!important;
+  }
+  .manual-section>summary{padding:12px!important}
+  .manual-body{padding:12px!important}
+
+  /* Modales: casi a pantalla completa, sin márgenes arbitrarios. */
+  .modal-backdrop{padding:8px!important}
+  .modal{
+    width:100%!important;
+    max-width:680px!important;
+    max-height:calc(100dvh - 16px)!important;
+    border-radius:14px!important;
+  }
+  .modal-head{padding:10px 11px!important}
+  .modal-body{padding:11px!important}
+  .card-detail{grid-template-columns:1fr!important;gap:12px!important}
+  .card-detail img{width:min(240px,72vw)!important;margin:auto!important}
+
+  /* Navegación inferior: cinco destinos estables con zona táctil amplia. */
+  .mobile-nav{
+    position:fixed!important;
+    left:0!important;
+    right:0!important;
+    bottom:0!important;
+    z-index:70!important;
+    display:grid!important;
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    height:calc(62px + env(safe-area-inset-bottom))!important;
+    padding:4px 4px env(safe-area-inset-bottom)!important;
+    gap:2px!important;
+    border-top:1px solid rgba(212,175,55,.18)!important;
+    background:rgba(4,4,4,.98)!important;
+    box-shadow:0 -10px 28px rgba(0,0,0,.36)!important;
+    backdrop-filter:blur(14px)!important;
+  }
+  .mobile-nav button{
+    position:relative;
+    min-width:0;
+    min-height:52px;
+    padding:4px 2px;
+    border-radius:9px!important;
+    color:#8b8476!important;
+    font-size:9px!important;
+    line-height:1.05;
+  }
+  .mobile-nav button span{font-size:18px!important;line-height:1}
+  .mobile-nav button.active{
+    color:#e0c35f!important;
+    background:rgba(212,175,55,.075)!important;
+  }
+  .mobile-nav button.active:before{
+    content:"";
+    position:absolute;
+    top:2px;
+    left:28%;
+    right:28%;
+    height:2px;
+    border-radius:99px;
+    background:#d4af37;
+  }
+
+  /* El combate ocupa toda la pantalla y no hereda la cabecera/navegación móvil. */
+  .shell.duel-mode .topbar,
+  .shell.duel-mode .mobile-nav,
+  .shell.duel-mode .currency{display:none!important}
+  .shell.duel-mode .main{padding-bottom:0!important}
+}
+
+/* Teléfonos estrechos: prioridad a lectura y pulsación, no a densidad. */
+@media (max-width:430px){
+  .page{padding-left:8px!important;padding-right:8px!important}
+  .page-head h1{font-size:21px!important}
+  .grid.four{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .stat-card{min-height:78px}
+  .stat-card strong{font-size:20px!important}
+  .home-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .login-art-copy p{display:none!important}
+  .login-art h1{font-size:40px!important}
+  .manual-index{grid-template-columns:1fr 1fr!important}
+}
+
+/* Login móvil: arte arriba, formulario limpio y centrado debajo. */
+@media (max-width:850px){
+  .login-screen{
+    min-height:100dvh!important;
+    grid-template-columns:1fr!important;
+    grid-template-rows:minmax(155px,27dvh) minmax(0,1fr)!important;
+  }
+  .login-art{
+    min-height:0!important;
+    padding:18px 20px!important;
+    align-items:flex-end!important;
+  }
+  .login-art-copy{max-width:520px}
+  .login-art h1{
+    margin:4px 0 5px!important;
+    font-size:clamp(38px,10vw,50px)!important;
+    line-height:.9!important;
+  }
+  .login-art p{font-size:12px!important;line-height:1.4!important}
+  .login-panel{
+    min-height:0!important;
+    align-items:flex-start!important;
+    padding:15px 12px calc(22px + env(safe-area-inset-bottom))!important;
+  }
+  .login-box{
+    width:min(100%,480px)!important;
+    margin:0 auto!important;
+  }
+  .login-box .brand{padding-bottom:10px!important}
+  .login-box h2{font-size:23px!important}
+  .login-box .field{margin-top:13px!important}
+}
+
+/* Combate en teléfono horizontal: más tablero, menos chrome. */
+@media (max-width:1024px) and (orientation:landscape) and (max-height:600px){
+  .shell.duel-mode,
+  .shell.duel-mode .main,
+  .shell.duel-mode #viewRoot{
+    width:100vw!important;
+    height:100dvh!important;
+    min-height:0!important;
+    overflow:hidden!important;
+  }
+  .duel-page{
+    width:100vw!important;
+    max-width:none!important;
+    height:100dvh!important;
+    min-height:0!important;
+    padding:3px 5px 4px!important;
+    overflow:hidden!important;
+  }
+  .duel-turn-strip{
+    min-height:30px!important;
+    margin:0 0 2px!important;
+    padding:2px 7px!important;
+  }
+  .duel-turn-state .kicker{font-size:8px!important}
+  .duel-turn-state b{font-size:11px!important}
+  .duel-match-actions{
+    min-height:30px!important;
+    margin:0 0 2px!important;
+    padding:3px 6px!important;
+    gap:6px!important;
+  }
+  .duel-match-actions .draw-offer-copy span{display:none!important}
+  .duel-match-actions .btn{min-height:28px!important;padding:4px 7px!important;font-size:9px!important}
+  .board{gap:3px!important;padding:0!important;min-height:0!important}
+  .board-zone{padding:4px 6px!important;border-radius:8px!important}
+  .zone-title{min-height:16px!important;font-size:8px!important}
+  .duel-phase-divider{
+    grid-template-columns:repeat(6,minmax(0,1fr))!important;
+    gap:2px!important;
+    margin:0!important;
+    padding:0!important;
+  }
+  .phase-step{padding:3px 2px!important;font-size:7px!important;border-radius:5px!important}
+  .battle-row{gap:5px!important;min-height:0!important}
+  .battle-card{width:64px!important;min-width:64px!important;border-radius:7px!important}
+  .battle-art{height:70px!important}
+  .power-mini{width:40px!important;min-width:40px!important;height:54px!important}
+  .hidden-card-back{width:30px!important;height:42px!important}
+  .player-deck-column .duel-deck-back,
+  .enemy-deck-column .duel-deck-back,
+  .hand-zone .duel-deck-back{
+    width:54px!important;
+    flex-basis:54px!important;
+  }
+  .duel-deck-column{min-width:62px!important}
+  .deck-player-meta{width:62px!important}
+  .deck-player-meta b{max-width:62px!important;font-size:8px!important}
+  .deck-player-meta>span{font-size:8px!important}
+  .deck-hp-bar{height:5px!important}
+  .enemy-zone{
+    grid-template-columns:minmax(90px,18%) minmax(0,1fr) 62px!important;
+    padding-right:6px!important;
+  }
+  .enemy-deck-column{
+    position:static!important;
+    width:62px!important;
+    min-width:62px!important;
+  }
+  .player-zone{
+    grid-template-columns:minmax(90px,18%) minmax(0,1fr) 62px!important;
+    column-gap:5px!important;
+  }
+  .player-zone>.player-deck-column{width:62px!important}
+  .hand-zone .battle-row{
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scrollbar-width:none;
+  }
+  .hand-zone .battle-row::-webkit-scrollbar{display:none}
+  .duel-controls{margin-top:2px!important}
+  .duel-controls .actions{display:flex!important;width:auto!important}
+  .duel-phase-action-row .btn{min-width:110px!important}
+}
