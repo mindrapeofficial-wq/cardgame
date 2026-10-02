@@ -959,7 +959,7 @@ function renderDuel(){
   return `<div class="duel-page">
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):"Entrenamiento"}</b></div>
+      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?"Turno del Guardián":"Entrenamiento")}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -1008,6 +1008,7 @@ function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   if(d.online&&d.defending)return renderDefenseControls(d);
   if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
+  if(!d.online&&d.aiActing)return'<div class="turn-wait">El Guardián está jugando su turno…</div>';
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
   return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
 }
@@ -1073,8 +1074,38 @@ function tapLocalPower(uid){
 }
 function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
 function nextLocalPhase(){
-  const d=state.duel;if(d.gameOver)return;
-  if(d.phase===5){resolveLocalAttack();if(checkLocalEnd())return renderView();enemyTurn();if(checkLocalEnd())return renderView();d.turn++;d.phase=0;d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});d.playerPowers.forEach(c=>{c.exhausted=false});d.playerPowerPlayed=false;d.maxPower=powerTotal(d.playerPowers);d.power=0;d.log.push("Comienza tu turno "+d.turn+".");playSound("turn");renderView();return}
+  const d=state.duel;if(d.gameOver||d.aiActing)return;
+  if(d.phase===5){
+    // El ataque del jugador se resuelve como un evento independiente:
+    // atacar nunca resta PV al propio atacante.
+    resolveLocalAttack();
+    if(checkLocalEnd())return renderView();
+
+    d.aiActing=true;
+    d.log.push("Turno del Guardián.");
+    renderView();
+
+    // El Guardián actúa después, en su propio turno visible.
+    // Así sus daños no aparecen mezclados con el ataque del jugador.
+    const duelRef=d;
+    setTimeout(()=>{
+      if(state.duel!==duelRef||d.gameOver)return;
+      enemyTurn();
+      if(checkLocalEnd()){d.aiActing=false;renderView();return}
+      d.turn++;
+      d.phase=0;
+      d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+      d.playerPowers.forEach(c=>{c.exhausted=false});
+      d.playerPowerPlayed=false;
+      d.maxPower=powerTotal(d.playerPowers);
+      d.power=0;
+      d.aiActing=false;
+      d.log.push("Comienza tu turno "+d.turn+".");
+      playSound("turn");
+      renderView();
+    },850);
+    return;
+  }
   d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}renderView();
 }
 function resolveLocalAttack(){
