@@ -3976,3 +3976,92 @@ html.duel-viewport-lock #appShell.duel-mode,
   .duel-fullscreen-card>span{font-size:9px}
   .duel-fullscreen-card .btn{min-height:28px!important;padding:4px 8px!important;font-size:9px!important}
 }
+
+
+/* === DUEL BOTTOM CORNER ACTIONS 2026-10-02 === */
+.duel-controls{
+  width:100%;
+  display:flex!important;
+  align-items:flex-end!important;
+  justify-content:space-between!important;
+  gap:10px!important;
+  margin-top:3px!important;
+  overflow:visible!important;
+}
+.duel-controls-left{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  align-items:flex-end;
+  justify-content:flex-start;
+}
+.duel-controls-left>div{
+  width:100%;
+}
+.duel-match-actions{
+  flex:0 0 auto!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  min-height:0!important;
+  height:auto!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.duel-match-actions .btn{
+  flex:0 0 auto!important;
+}
+.duel-draw-response-modal{
+  max-width:360px;
+}
+.duel-draw-response-buttons{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+}
+@media (max-width:850px){
+  .duel-controls{
+    gap:6px!important;
+  }
+  .duel-match-actions{
+    gap:4px!important;
+  }
+}
+.shell.duel-mode .duel-controls{
+  width:100%!important;
+  display:flex!important;
+  justify-content:space-between!important;
+  align-items:flex-end!important;
+  overflow:visible!important;
+}
+.shell.duel-mode .duel-controls-left{
+  flex:1 1 auto!important;
+  min-width:0!important;
+}
+.shell.duel-mode .duel-match-actions{
+  flex:0 0 auto!important;
+  display:flex!important;
+  justify-content:flex-end!important;
+  align-items:center!important;
+  gap:4px!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  min-height:0!important;
+  height:auto!important;
+  margin:0!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+}
