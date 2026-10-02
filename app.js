@@ -583,23 +583,42 @@ function openMobileMenu(){
 function closeModal(){$("modalRoot").innerHTML=""}
 
 function connectOnline(){
-  if(state.connected||state.connecting||!state.profile)return;
+  if(state.connected||state.connecting||!state.profile||!sessionToken)return;
   state.connecting=true;
-  const start=()=>{
+  const startSocket=()=>{
     if(!window.io){state.connecting=false;return}
     const socket=window.io(SERVER_URL,{transports:["websocket","polling"],timeout:8000});
     state.socket=socket;
-    socket.on("connect",()=>{state.connected=true;state.connecting=false;socket.emit("hello",{name:state.profile.name,level:playerLevel(),wins:state.profile.wins});updateChrome();if(state.view==="home"||state.view==="play"||state.view==="trade")renderView()});
+    socket.on("connect",()=>{
+      state.offlineSession=false;
+      socket.emit("hello",{sessionToken});
+    });
+    socket.on("server:ready",()=>{
+      state.connected=true;state.connecting=false;updateChrome();
+      if(["home","play","trade"].includes(state.view))renderView();
+    });
+    socket.on("auth:error",async m=>{
+      state.connected=false;state.connecting=false;toast(m?.message||"La sesión online no es válida.","bad");
+      const refreshed=await api("me",{},true);
+      if(!refreshed.ok&&refreshed.status===401)logout();
+    });
     socket.on("disconnect",()=>{state.connected=false;updateChrome();if(state.view!=="duel")renderView()});
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
     socket.on("lobby:users",list=>{state.users=Array.isArray(list)?list:[];updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{state.chat.push({from:m.from,text:m.text});if(state.view==="home")renderView()});
     socket.on("chat:system",m=>{state.chat.push({system:true,text:m.text});if(state.view==="home")renderView()});
-    socket.on("match:created",m=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
+    socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
     socket.on("match:ready",m=>{toast("Reto aceptado contra "+(m.opponent?.name||"otro jugador")+".","good")});
     socket.on("duel:snapshot",applyOnlineSnapshot);
+    socket.on("profile:update",m=>{
+      if(!m?.profile)return;
+      const oldLevel=playerLevel();applyProfile(m.profile);
+      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! Ya pueden aparecer cartas de Nivel "+playerLevel()+" en tus sobres.","good")}
+      else if(m.xpAwarded)toast("+"+m.xpAwarded+" XP"+(m.goldAwarded?" · +"+m.goldAwarded+" oro":""),"good");
+      updateChrome();if(["home","profile"].includes(state.view))renderView();
+    });
     socket.on("trade:invited",m=>{
       state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";go("trade");
     });
@@ -609,20 +628,20 @@ function connectOnline(){
     socket.on("trade:locked",m=>{if(m.tradeId===state.trade.onlineId)finalizeTrade("Intercambio online completado.")});
     socket.on("trade:cancelled",m=>{if(m.tradeId===state.trade.onlineId){resetTrade();toast("El intercambio fue cancelado.","bad");if(state.view==="trade")renderView()}});
   };
-  if(window.io){start();return}
-  const sc=document.createElement("script");sc.src=SERVER_URL+"/socket.io/socket.io.js";sc.async=true;sc.onload=start;sc.onerror=()=>{state.connecting=false;toast("Servidor online no disponible. Puedes seguir entrenando en local.","bad")};document.head.appendChild(sc);
+  if(window.io){startSocket();return}
+  const sc=document.createElement("script");sc.src=SERVER_URL+"/socket.io/socket.io.js";sc.async=true;sc.onload=startSocket;sc.onerror=()=>{state.connecting=false;toast("Servidor multijugador no disponible. Puedes seguir en modo offline.","bad")};document.head.appendChild(sc);
 }
 
 function createMatch(){
   const size=Number($("matchSize")?.value)||30,start=$("matchStart")?.value||"normal";
   if(!state.connected){toast("No hay conexión con el servidor.","bad");return}
   if(!deckValid(size)){toast("Tu mazo necesita al menos "+size+" cartas válidas para este reto.","bad");return}
-  state.socket.emit("match:create",{deckSize:size,start,deck:state.profile.deck.slice(0,size)});playSound("click");
+  state.socket.emit("match:create",{deckSize:size,start});playSound("click");
 }
 function joinMatch(id,size){
   size=Number(size)||30;if(!state.connected)return;
   if(!deckValid(size)){toast("Necesitas "+size+" cartas válidas para entrar.","bad");return}
-  state.socket.emit("match:join",{id,deck:state.profile.deck.slice(0,size)});
+  state.socket.emit("match:join",{id});
 }
 function cancelMatch(id){if(state.connected)state.socket.emit("match:cancel",{id})}
 
