@@ -1,0 +1,29 @@
+name: Server checks
+
+on:
+  pull_request:
+    paths:
+      - "server/**"
+      - ".github/workflows/server-check.yml"
+  push:
+    branches:
+      - "synthetic-population-v1"
+    paths:
+      - "server/**"
+      - ".github/workflows/server-check.yml"
+
+jobs:
+  node-check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: node --check server.js
+      - run: node --check synthetic-population.js
+      - run: node -e "require('./synthetic-population'); console.log('synthetic population module loads')"
