@@ -510,7 +510,7 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard:(s.playerBoard||[]).map(wireInstance).filter(Boolean),enemyBoard:(s.enemyBoard||[]).map(wireInstance).filter(Boolean),
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,won:s.won,log:s.log||[],resultApplied:previous?.resultApplied||false
+    gameOver:!!s.gameOver,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},log:s.log||[],resultApplied:previous?.resultApplied||false
   };
   if(state.duel.gameOver&&!state.duel.resultApplied){
     state.duel.resultApplied=true;if(s.won){state.profile.wins++;state.profile.coins+=10;playSound("win")}else state.profile.losses++;
@@ -525,7 +525,7 @@ function renderDuel(){
   return `<div class="duel-page">
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):"Entrenamiento"}</b></div>
+      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):"Entrenamiento"}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -547,15 +547,28 @@ function battleCards(list,zone){
   }).join("");
 }
 function duelCardClickable(c,zone){
-  const d=state.duel;if(!d||d.gameOver)return false;if(d.online&&!d.myTurn)return false;
+  const d=state.duel;if(!d||d.gameOver)return false;
+  if(d.online&&(d.defending||d.attackDeclared))return false;
+  if(d.online&&!d.myTurn)return false;
   if(zone==="hand")return(d.phase===2&&c.powerCard)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
   if(zone==="player")return d.phase===5&&!c.exhausted;
   return false;
 }
 function duelControls(d){
   if(d.gameOver)return`<div class="turn-wait">${d.won===false?"Derrota":"Victoria"} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`;
+  if(d.online&&d.defending)return renderDefenseControls(d);
+  if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
-  return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Resolver ataque":"Siguiente fase"}</button>`;
+  return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
+}
+function renderDefenseControls(d){
+  const attackers=(d.enemyBoard||[]).filter(c=>c.selected&&!c.exhausted);
+  const defenders=(d.playerBoard||[]).filter(c=>!c.exhausted);
+  if(!attackers.length)return'<div class="turn-wait">El ataque rival se está resolviendo…</div>';
+  return`<div style="width:100%"><div class="turn-wait" style="margin-bottom:8px">Asigna un defensor a cada atacante o déjalo pasar.</div>
+    <div class="grid" style="gap:6px">${attackers.map(a=>`<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-block-attacker="${a.uid}"><option value="">Sin bloquear</option>${defenders.map(dfc=>`<option value="${dfc.uid}" ${d.blockAssignments?.[a.uid]===dfc.uid?"selected":""}>${esc(dfc.name)} · DEF ${dfc.def}</option>`).join("")}</select></label>`).join("")}</div>
+    <div class="actions" style="margin-top:8px"><button class="btn danger" data-action="concede">Retirarse</button><span style="flex:1"></span><button class="btn primary" data-action="resolveDefense">Resolver defensa</button></div>
+  </div>`;
 }
 
 function training(){
@@ -650,6 +663,7 @@ document.addEventListener("click",e=>{
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
+  else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"})}
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
   else if(a==="logout")logout();
@@ -662,6 +676,9 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="deckTarget"){state.deckTarget=Number(e.target.value)||30}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
+  else if(e.target.matches("[data-block-attacker]")){
+    const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid:e.target.dataset.blockAttacker,defenderUid:e.target.value||""});
+  }
 });
 document.addEventListener("submit",e=>{
   if(e.target.id==="loginForm"){e.preventDefault();login($("loginName").value)}
