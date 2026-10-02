@@ -87,7 +87,7 @@ const LEVEL1_CARD_ART=Object.freeze({
   "Guerrero Menor":"assets/cards/lvl1-guerrero-menor.webp",
   "Mel":"assets/cards/lvl1-mel.webp",
   "Mimit":"assets/cards/lvl1-mimit.webp",
-  "Dophan":"assets/cards/lvl1-dophan.webp",
+  "Dophan":"assets/cards/lvl1-dophan-v2.webp",
   "Gorad Menor":"assets/cards/lvl1-gorad-menor.webp"
 });
 function hasFullCardArt(c){return !!c&&(isBasicPower(c)||(c.level===1&&!!LEVEL1_CARD_ART[c.name]))}
@@ -1297,7 +1297,7 @@ function renderShop(){
   const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
     <div class="grid two">
-      <section class="panel pack-hero"><div><img class="pack-art" src="assets/packs/pack-lvl1.webp" alt="Sobre ARCANUM TCG"><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
+      <section class="panel pack-hero"><div><img class="pack-art" src="assets/packs/pack-lvl1-v2.webp" alt="Sobre ARCANUM TCG"><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
