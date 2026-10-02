@@ -451,6 +451,14 @@ function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c);
   $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">Rareza de catálogo: ${c.rarity}. Valor económico actual: ${cardValue(c)}. Posees ${owned(c.id)} copia(s), con ${freeCopies(c.id)} libre(s) fuera del mazo.</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${freeCopies(c.id)<=0?"disabled":""}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${freeCopies(c.id)<=0?"disabled":""}>Vender una</button></div></div></div></div></div></div>`;
 }
+function openMobileMenu(){
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" style="max-width:420px" onclick="event.stopPropagation()"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
+    <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="archive"><span class="quick-icon">⌛</span><span><b>Archivo</b><small class="muted" style="display:block">Historia del cliente clásico</small></span></button>
+  </div></div></div></div>`;
+}
 function closeModal(){$("modalRoot").innerHTML=""}
 
 function connectOnline(){
@@ -642,6 +650,7 @@ document.addEventListener("click",e=>{
   const a=el.dataset.action;
   if(a!=="cardDetail")playSound("click");
   if(a==="nav")go(el.dataset.view);
+  else if(a==="mobileMenu")openMobileMenu();
   else if(a==="training")training();
   else if(a==="createMatch")createMatch();
   else if(a==="joinMatch")joinMatch(el.dataset.id,el.dataset.size);
@@ -669,7 +678,11 @@ document.addEventListener("click",e=>{
   else if(a==="logout")logout();
 });
 document.addEventListener("input",e=>{
-  if(e.target.id==="collectionSearch"){state.collectionQuery=e.target.value;renderView()}
+  if(e.target.id==="collectionSearch"){
+    const pos=e.target.selectionStart||e.target.value.length;
+    state.collectionQuery=e.target.value;renderView();
+    requestAnimationFrame(()=>{const n=$("collectionSearch");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch{}}});
+  }
 });
 document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
