@@ -478,17 +478,18 @@ async function sellCard(id){
 
 function renderTrade(){
   const partners=state.users.filter(u=>!state.socket||u.socketId!==state.socket.id);
-  const inventory=state.catalog.filter(c=>freeCopies(c.id)>state.trade.mine.filter(x=>x===c.id).length).slice(0,120);
+  const inventory=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()&&freeCopies(c.id)>state.trade.mine.filter(x=>x===c.id).length).slice(0,120);
   return `<div class="page">
-    ${pageHead("Comercio","Intercambios","Negocia cartas y oro con jugadores conectados. Si estás solo, usa el Mercader del Gremio para probar el sistema.")}
+    ${pageHead("Comercio","Intercambios","Negocia cartas y oro con jugadores conectados. El intercambio se aplica de forma persistente a ambas cuentas solo cuando los dos aceptan.")}
     <div class="trade-layout">
-      <section class="panel"><div class="panel-head"><h2>Tu reserva</h2><span class="muted">${inventory.length} disponibles</span></div><div class="panel-body trade-offer">${inventory.map(c=>`<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · valor ${cardValue(c)} · libres ${freeCopies(c.id)-state.trade.mine.filter(x=>x===c.id).length}</small></div><button class="btn small" data-action="tradeAdd" data-id="${c.id}">+</button></div>`).join("")||'<div class="empty">No tienes copias libres.</div>'}</div></section>
+      <section class="panel"><div class="panel-head"><h2>Tu reserva</h2><span class="muted">${inventory.length} disponibles</span></div><div class="panel-body trade-offer">${inventory.map(c=>`<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · valor ${cardValue(c)} · libres ${freeCopies(c.id)-state.trade.mine.filter(x=>x===c.id).length}</small></div><button class="btn small" data-action="tradeAdd" data-id="${c.id}">+</button></div>`).join("")||'<div class="empty">No tienes cartas libres para intercambiar.</div>'}</div></section>
       <section class="panel"><div class="panel-head"><h2>Negociación</h2></div><div class="panel-body">
-        <div class="field"><label>Jugador</label><select class="select" id="tradePartner"><option value="">Mercader del Gremio</option>${partners.map(u=>`<option value="${esc(u.socketId)}" ${state.trade.partnerId===u.socketId?"selected":""}>${esc(u.name)}</option>`).join("")}</select></div>
+        <div class="field"><label>Jugador conectado</label><select class="select" id="tradePartner"><option value="">Selecciona jugador…</option>${partners.map(u=>`<option value="${esc(u.socketId)}" ${state.trade.partnerId===u.socketId?"selected":""}>${esc(u.name)} · Nivel ${u.level||1}</option>`).join("")}</select></div>
+        ${partners.length?"":'<p class="muted">No hay otro jugador online ahora mismo.</p>'}
         <h3>Tu oferta</h3><div id="myOffer">${renderMyOffer()}</div>
         <div class="field" style="margin-top:10px"><label>Oro ofrecido</label><input class="input" id="tradeGold" type="number" min="0" max="${state.profile.coins}" value="${state.trade.ownGold||0}"></div>
-        <div class="actions" style="margin-top:12px"><button class="btn primary" data-action="tradePropose">Proponer</button><button class="btn" data-action="tradeAccept" ${state.trade.ready?"":"disabled"}>Aceptar</button><button class="btn danger" data-action="tradeCancel">Cancelar</button></div>
-        <p class="muted" style="margin-bottom:0">${esc(state.trade.status||"Selecciona cartas y prepara una oferta.")}</p>
+        <div class="actions" style="margin-top:12px"><button class="btn primary" data-action="tradePropose" ${partners.length?"":"disabled"}>Proponer</button><button class="btn" data-action="tradeAccept" ${state.trade.ready?"":"disabled"}>Aceptar</button><button class="btn danger" data-action="tradeCancel">Cancelar</button></div>
+        <p class="muted" style="margin-bottom:0">${esc(state.trade.status||"Selecciona un jugador y prepara una oferta.")}</p>
       </div></section>
       <section class="panel"><div class="panel-head"><h2>Oferta recibida</h2><span class="pill">${state.trade.theirGold||0} oro</span></div><div class="panel-body trade-offer">${renderTheirOffer()}</div></section>
     </div>
@@ -503,42 +504,34 @@ function renderTheirOffer(){
   return state.trade.theirs.map(id=>{const c=card(id);return c?`<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · valor ${cardValue(c)}</small></div></div>`:""}).join("");
 }
 function tradeAdd(id){
-  id=Number(id);if(freeCopies(id)<=state.trade.mine.filter(x=>x===id).length)return;
+  id=Number(id);const c=card(id);if(!c||isBasicPower(c)||freeCopies(id)<=state.trade.mine.filter(x=>x===id).length)return;
   state.trade.mine.push(id);state.trade.ready=false;renderView();
 }
 function tradeRemove(i){state.trade.mine.splice(Number(i),1);state.trade.ready=false;renderView()}
 function proposeTrade(){
+  if(!state.connected){toast("Necesitas conexión para intercambiar.","bad");return}
   const gold=clamp(Number($("tradeGold")?.value)||0,0,state.profile.coins);state.trade.ownGold=gold;
-  const partner=$("tradePartner")?.value||"";state.trade.partnerId=partner;
+  const partner=$("tradePartner")?.value||state.trade.partnerId||"";state.trade.partnerId=partner;
+  if(!partner){toast("Selecciona un jugador conectado.","bad");return}
   if(!state.trade.mine.length&&!gold){toast("Añade cartas u oro a la oferta.","bad");return}
-  if(partner&&state.connected){
-    const u=state.users.find(x=>x.socketId===partner);state.trade.partnerName=u?.name||"Jugador";
-    if(state.trade.onlineId){state.socket.emit("trade:offer",{tradeId:state.trade.onlineId,cards:state.trade.mine.slice(),gold});state.trade.status="Oferta actualizada y enviada."}
-    else{state.socket.emit("trade:invite",{to:partner});state.trade.status="Solicitud enviada a "+state.trade.partnerName+"…"}
-    renderView();return;
+  const u=state.users.find(x=>x.socketId===partner);state.trade.partnerName=u?.name||state.trade.partnerName||"Jugador";
+  if(state.trade.mine.some(id=>(card(id)?.level||1)>(u?.level||50))){toast("La oferta contiene una carta superior al nivel del receptor.","bad");return}
+  if(state.trade.onlineId){
+    state.socket.emit("trade:offer",{tradeId:state.trade.onlineId,cards:state.trade.mine.slice(),gold});
+    state.trade.status="Oferta actualizada. Ambos deberán volver a aceptar.";
+  }else{
+    state.socket.emit("trade:invite",{to:partner});state.trade.status="Solicitud enviada a "+state.trade.partnerName+"…";
   }
-  const value=state.trade.mine.reduce((n,id)=>n+cardValue(card(id)),0)+gold;
-  const pool=state.catalog.filter(c=>c.level<=Math.max(8,Math.round(value/2)+2));
-  let sum=0,tries=0;state.trade.theirs=[];
-  while(sum<Math.max(1,Math.round(value*.88))&&state.trade.theirs.length<5&&tries++<40){const c=pool[Math.floor(Math.random()*pool.length)];if(c){state.trade.theirs.push(c.id);sum+=cardValue(c)}}
-  state.trade.theirGold=sum<value?Math.min(20,value-sum):0;state.trade.ready=true;state.trade.status="El Mercader del Gremio ha respondido.";renderView();
+  renderView();
 }
 function acceptTrade(){
-  if(!state.trade.ready)return;
+  if(!state.trade.ready||!state.trade.onlineId||!state.connected)return;
   state.trade.ownGold=clamp(Number($("tradeGold")?.value)||state.trade.ownGold||0,0,state.profile.coins);
-  if(state.trade.onlineId&&state.connected){
-    state.socket.emit("trade:accept",{tradeId:state.trade.onlineId});state.trade.status="Aceptado. Esperando confirmación del otro jugador…";renderView();return;
-  }
-  finalizeTrade("Intercambio completado con el Mercader del Gremio.");
+  state.socket.emit("trade:accept",{tradeId:state.trade.onlineId});
+  state.trade.status="Has aceptado. Esperando la confirmación del otro jugador…";renderView();
 }
-function finalizeTrade(message){
-  const counts={};for(const id of state.trade.mine)counts[id]=(counts[id]||0)+1;
-  if(Object.entries(counts).some(([id,q])=>freeCopies(id)<q)){toast("Tu reserva cambió y la oferta ya no es válida.","bad");resetTrade();return}
-  if(state.profile.coins<state.trade.ownGold){toast("No tienes el oro comprometido.","bad");return}
-  for(const id of state.trade.mine)state.profile.collection[id]=Math.max(0,owned(id)-1);
-  for(const id of state.trade.theirs)state.profile.collection[id]=(state.profile.collection[id]||0)+1;
-  state.profile.coins=state.profile.coins-state.trade.ownGold+state.trade.theirGold;
-  saveProfile();resetTrade();toast(message,"good");renderView();
+function handleSettledTrade(profile){
+  applyProfile(profile);resetTrade();toast("Intercambio completado y guardado en tu cuenta.","good");if(state.view==="trade")renderView();else updateChrome();
 }
 function cancelTrade(){
   if(state.trade.onlineId&&state.connected)state.socket.emit("trade:cancel",{tradeId:state.trade.onlineId});
@@ -625,7 +618,8 @@ function connectOnline(){
     socket.on("trade:waiting",m=>{state.trade.onlineId=m.tradeId;state.trade.partnerId=m.to;state.trade.status="Solicitud aceptada por el servidor. Enviando oferta…";socket.emit("trade:offer",{tradeId:m.tradeId,cards:state.trade.mine.slice(),gold:state.trade.ownGold||0});if(state.view==="trade")renderView()});
     socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
     socket.on("trade:accepted",m=>{if(m.tradeId===state.trade.onlineId){state.trade.status="El otro jugador ha aceptado. Falta la segunda confirmación.";if(state.view==="trade")renderView()}});
-    socket.on("trade:locked",m=>{if(m.tradeId===state.trade.onlineId)finalizeTrade("Intercambio online completado.")});
+    socket.on("trade:settled",m=>{if(m.tradeId===state.trade.onlineId&&m.profile)handleSettledTrade(m.profile)});
+    socket.on("trade:error",m=>{if(m.tradeId===state.trade.onlineId){state.trade.ready=false;state.trade.status="Error: "+(m.message||"No se pudo completar el intercambio.");toast(state.trade.status,"bad");if(state.view==="trade")renderView()}});
     socket.on("trade:cancelled",m=>{if(m.tradeId===state.trade.onlineId){resetTrade();toast("El intercambio fue cancelado.","bad");if(state.view==="trade")renderView()}});
   };
   if(window.io){startSocket();return}
