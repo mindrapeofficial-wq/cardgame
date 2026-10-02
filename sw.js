@@ -1,6 +1,6 @@
-const CACHE="rolplay-reborn-v10";
-const CORE=["./","index.html","modern.css","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp"];
-const FRESH=new Set(["/","/index.html","/modern.css","/app.js","/cards.csv","/legacy-assets/image-index.json"]);
+const CACHE="rolplay-reborn-v11";
+const CORE=["./","index.html","modern.css","visual-editor.css","app.js","visual-editor.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp"];
+const FRESH=new Set(["/","/index.html","/modern.css","/visual-editor.css","/app.js","/visual-editor.js","/cards.csv","/legacy-assets/image-index.json"]);
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));
