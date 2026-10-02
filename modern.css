@@ -4186,3 +4186,155 @@ body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-met
     font-size:15px!important;
   }
 }
+
+
+/* === DUEL DECKS FACE TO FACE 2026-10-02 === */
+.shell.duel-mode .board{
+  --duel-deck-rail-width:clamp(92px,9.6vw,154px);
+  --duel-field-card-width:clamp(64px,min(7.4vw,15.8dvh),148px);
+  --duel-hand-card-width:clamp(52px,min(7vw,14.8dvh),132px);
+}
+
+/* Rival: hand/power left, battlefield center, deck on the far-right rail. */
+.shell.duel-mode .enemy-zone{
+  display:grid!important;
+  grid-template-columns:minmax(150px,24%) minmax(0,1fr) var(--duel-deck-rail-width)!important;
+  grid-template-rows:auto minmax(0,1fr) minmax(0,.72fr)!important;
+  column-gap:10px!important;
+  row-gap:2px!important;
+}
+.shell.duel-mode .enemy-zone>.zone-title{
+  grid-column:1/-1!important;
+  grid-row:1!important;
+}
+.shell.duel-mode .enemy-zone>.hidden-cards-strip{
+  grid-column:1!important;
+  grid-row:2!important;
+}
+.shell.duel-mode .enemy-zone>.power-lane{
+  grid-column:1!important;
+  grid-row:3!important;
+}
+.shell.duel-mode .enemy-zone>.battle-row{
+  grid-column:2!important;
+  grid-row:2/4!important;
+}
+.shell.duel-mode .enemy-zone>.enemy-deck-rail{
+  grid-column:3!important;
+  grid-row:2/4!important;
+}
+
+/* Player hand: cards left, own deck in exactly the same right-side rail. */
+.shell.duel-mode .player-hand-layout{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) var(--duel-deck-rail-width)!important;
+  gap:10px!important;
+  align-items:stretch!important;
+}
+.shell.duel-mode .player-hand-layout>.player-hand-strip{
+  grid-column:1!important;
+  min-width:0!important;
+}
+.shell.duel-mode .player-hand-layout>.player-deck-rail{
+  grid-column:2!important;
+}
+
+/* Both rails share the same center line, so the decks face each other perfectly. */
+.shell.duel-mode .duel-deck-rail{
+  position:static!important;
+  inset:auto!important;
+  width:var(--duel-deck-rail-width)!important;
+  min-width:var(--duel-deck-rail-width)!important;
+  max-width:var(--duel-deck-rail-width)!important;
+  height:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  overflow:visible!important;
+}
+.shell.duel-mode .duel-deck-rail .duel-deck-column{
+  position:static!important;
+  inset:auto!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+}
+.shell.duel-mode .enemy-deck-rail .duel-deck-back{
+  width:var(--duel-field-card-width)!important;
+  min-width:var(--duel-field-card-width)!important;
+  max-width:var(--duel-field-card-width)!important;
+  flex:0 0 var(--duel-field-card-width)!important;
+  margin:0 auto!important;
+}
+.shell.duel-mode .player-deck-rail .duel-deck-back{
+  width:var(--duel-hand-card-width)!important;
+  min-width:var(--duel-hand-card-width)!important;
+  max-width:var(--duel-hand-card-width)!important;
+  flex:0 0 var(--duel-hand-card-width)!important;
+  margin:0 auto!important;
+}
+.shell.duel-mode .duel-deck-rail .deck-player-meta{
+  width:min(100%,132px)!important;
+  min-width:0!important;
+  max-width:132px!important;
+  margin:0!important;
+  text-align:center!important;
+}
+.shell.duel-mode .duel-deck-rail .deck-player-meta b{
+  max-width:100%!important;
+  text-align:center!important;
+}
+
+/* Native fullscreen keeps the same face-to-face rail instead of grouping both decks. */
+body.duel-native-fullscreen .shell.duel-mode .enemy-zone{
+  grid-template-columns:minmax(150px,24%) minmax(0,1fr) var(--duel-deck-rail-width)!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .player-hand-layout{
+  grid-template-columns:minmax(0,1fr) var(--duel-deck-rail-width)!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .enemy-deck-rail .duel-deck-back{
+  width:var(--duel-field-card-width)!important;
+  min-width:var(--duel-field-card-width)!important;
+  max-width:var(--duel-field-card-width)!important;
+  flex-basis:var(--duel-field-card-width)!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .player-deck-rail .duel-deck-back{
+  width:var(--duel-hand-card-width)!important;
+  min-width:var(--duel-hand-card-width)!important;
+  max-width:var(--duel-hand-card-width)!important;
+  flex-basis:var(--duel-hand-card-width)!important;
+}
+
+@media (orientation:landscape) and (max-width:1180px){
+  .shell.duel-mode .board{
+    --duel-deck-rail-width:clamp(58px,12dvh,78px);
+    --duel-field-card-width:clamp(34px,12.6dvh,56px);
+    --duel-hand-card-width:clamp(34px,12.6dvh,56px);
+  }
+  .shell.duel-mode .enemy-zone{
+    grid-template-columns:minmax(58px,15%) minmax(0,1fr) var(--duel-deck-rail-width)!important;
+    column-gap:4px!important;
+    padding-right:4px!important;
+  }
+  .shell.duel-mode .player-hand-layout{
+    grid-template-columns:minmax(0,1fr) var(--duel-deck-rail-width)!important;
+    gap:4px!important;
+  }
+  .shell.duel-mode .duel-deck-rail .deck-player-meta{
+    width:100%!important;
+    max-width:100%!important;
+  }
+  .shell.duel-mode .duel-deck-rail .deck-player-meta b,
+  .shell.duel-mode .duel-deck-rail .deck-player-meta>span{
+    font-size:clamp(5px,1.35dvh,7px)!important;
+  }
+}
