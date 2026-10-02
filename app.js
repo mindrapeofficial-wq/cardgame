@@ -1465,16 +1465,7 @@ function duelCardClickable(c,zone){
   return false;
 }
 function renderCombatPrompt(d){
-  if(d.phase!==5)return"";
-  if(d.defending){
-    const name=esc(d.pendingAttack?.attackerName||"la criatura rival");
-    return '<div class="turn-wait" style="margin-bottom:8px">Te atacan con <b>'+name+'</b>. Toca una sola carta enderezada para defender. Al tocarla se girará y la defensa quedará declarada.</div>';
-  }
-  if(d.attackDeclared){
-    const name=esc(d.pendingAttack?.attackerName||"tu criatura");
-    return '<div class="turn-wait" style="margin-bottom:8px"><b>'+name+'</b> ya está atacando. Esperando a que el rival elija una carta para defender…</div>';
-  }
-  return '<div class="turn-wait" style="margin-bottom:8px">Toca una criatura para atacar. Se girará al instante y ese ataque se resolverá antes de poder declarar otro. También puedes pasar tu turno.</div>';
+  return "";
 }
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
