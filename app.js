@@ -9,7 +9,13 @@ const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
 const LAST_USER_KEY="rolplay.last.username";
 const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
 const CARD_BACK_IMAGE="assets/arcanum-card-back.webp";
-const DECK_SIZE=20;
+const DECK_MIN=20;
+const DECK_MAX=50;
+const DECK_SIZE=DECK_MIN;
+const MIN_POWER_CARDS=7;
+const MAX_POWER_CARDS=40;
+const MAX_POWER_POINTS=200;
+const MATCH_LIMIT_MS=40*60*1000;
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
@@ -73,7 +79,7 @@ function rarity(c){
 function cardType(c){return c.powerCard?"Poder":c.abilityCard?"Habilidad":"Criatura"}
 function cardValue(c){return Math.max(1,Math.round(c.level/2)+Math.round(c.rarity/20))}
 function powerValue(c){const m=c&&c.name.match(/^Poder\s+x\s+(\d+)/i);return m?Math.max(1,Number(m[1])||1):1}
-function powerTotal(list){return(list||[]).reduce((n,c)=>n+powerValue(c),0)}
+function powerTotal(list){return Math.min(MAX_POWER_POINTS,(list||[]).reduce((n,c)=>n+powerValue(c),0))}
 function owned(id){return Number(state.profile?.collection?.[id]||0)}
 function deckCount(id){return state.profile?.deck?.filter(x=>Number(x)===Number(id)).length||0}
 function isBasicPower(c){return !!(c&&c.powerCard&&c.level===1)}
@@ -312,8 +318,19 @@ function winrate(){
   const total=(state.profile?.wins||0)+(state.profile?.draws||0)+(state.profile?.losses||0);
   return total?Math.round(state.profile.wins/total*100):0;
 }
+function deckPowerCount(deck=state.profile?.deck||[]){return deck.filter(id=>card(id)?.powerCard).length}
+function deckRuleMessage(deck=state.profile?.deck||[]){
+  if(!state.activeDeckId)return"Guarda y selecciona un mazo antes de jugar.";
+  if(deck.length<DECK_MIN)return"El mazo necesita al menos "+DECK_MIN+" cartas.";
+  if(deck.length>DECK_MAX)return"El mazo no puede superar "+DECK_MAX+" cartas.";
+  const powers=deckPowerCount(deck);
+  if(powers<MIN_POWER_CARDS)return"El mazo necesita al menos "+MIN_POWER_CARDS+" cartas de Poder.";
+  if(powers>MAX_POWER_CARDS)return"El mazo no puede contener más de "+MAX_POWER_CARDS+" cartas de Poder.";
+  return"";
+}
 function deckValid(){
-  if(!state.profile||!state.activeDeckId||state.profile.deck.length!==DECK_SIZE)return false;
+  if(!state.profile||!state.activeDeckId)return false;
+  if(deckRuleMessage())return false;
   const count={};
   for(const id of state.profile.deck){
     const c=card(id);if(!c||c.level>playerLevel())return false;
@@ -365,7 +382,7 @@ function renderHome(){
       <div class="stat-card"><small>Jugadores conectados</small><strong>${state.users.length}</strong><span class="muted">salón en tiempo real</span></div>
       <div class="stat-card"><small>Partidas abiertas</small><strong>${matches}</strong><span class="muted">retos esperando rival</span></div>
       <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}</strong><span class="muted">${collectionTotal()} cartas · Poder básico ∞</span></div>
-      <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"requiere exactamente 20 cartas"}</span></div>
+      <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"mínimo 20 cartas · 7 Poderes"}</span></div>
     </div>
     <div class="grid two" style="margin-top:14px">
       <section class="panel">
@@ -390,10 +407,10 @@ function renderManual(){
       <div class="manual-hero-copy">
         <div class="kicker">Referencia rápida</div>
         <h2>Lo esencial antes de jugar</h2>
-        <p>Necesitas un mazo válido de <b>exactamente 20 cartas</b>. Cada jugador comienza con <b>30 PV</b> y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional antes de su primer turno.</p>
+        <p>Necesitas un mazo válido de <b>20 a 50 cartas</b>, con un mínimo de <b>7 cartas de Poder</b> y un máximo de 40. Cada jugador comienza con <b>30 PV</b> y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional, por lo que comienza con 8.</p>
       </div>
       <div class="manual-fast-grid">
-        <div class="stat-card"><small>Mazo</small><strong>20</strong><span class="muted">cartas exactas</span></div>
+        <div class="stat-card"><small>Mazo</small><strong>20+</strong><span class="muted">máximo 50 cartas</span></div>
         <div class="stat-card"><small>Vida inicial</small><strong>30</strong><span class="muted">PV</span></div>
         <div class="stat-card"><small>Mano inicial</small><strong>7</strong><span class="muted">+1 al segundo jugador</span></div>
         <div class="stat-card"><small>Fases</small><strong>6</strong><span class="muted">por turno</span></div>
@@ -420,7 +437,7 @@ function renderManual(){
         <summary><span><b>1. Preparación de la partida</b><small>Cómo comienza un duelo</small></span></summary>
         <div class="manual-body">
           <ul>
-            <li>Cada jugador entra con un mazo válido de <b>20 cartas exactas</b>.</li>
+            <li>Cada jugador entra con un mazo válido de <b>20 a 50 cartas</b>, con entre <b>7 y 40 cartas de Poder</b>.</li>
             <li>Cada jugador comienza con <b>30 puntos vitales</b>.</li>
             <li>La mano inicial es de <b>7 cartas</b>.</li>
             <li>El jugador que empieza se selecciona <b>aleatoriamente</b>.</li>
@@ -437,7 +454,7 @@ function renderManual(){
           <div class="manual-phase-grid">
             <div><b>1. Reagrupación</b><span>Se enderezan tus cartas giradas y vuelven a estar disponibles.</span></div>
             <div><b>2. Robo</b><span>Robas una carta de tu mazo.</span></div>
-            <div><b>3. Poder</b><span>Puedes bajar como máximo <b>1 carta de Poder por turno</b> y girar Poderes disponibles para generar recursos.</span></div>
+            <div><b>3. Poder</b><span>Puedes bajar como máximo <b>1 carta de Poder por turno</b>. Los Poderes en campo generan automáticamente sus puntos, hasta un máximo de <b>200</b>.</span></div>
             <div><b>4. Invocación</b><span>Invocas criaturas pagando su coste de Poder.</span></div>
             <div><b>5. Habilidades</b><span>Juegas hechizos o habilidades que puedas pagar.</span></div>
             <div><b>6. Ataque</b><span>Seleccionas las criaturas que atacan. Al atacar se giran y no pueden defender hasta tu próximo turno.</span></div>
@@ -462,15 +479,15 @@ function renderManual(){
         <summary><span><b>4. Combate, ataque y defensa</b><small>El Ataque de la atacante se compara con la Defensa de la bloqueadora</small></span></summary>
         <div class="manual-body">
           <ul>
-            <li>Declarar un ataque <b>gira</b> la criatura atacante. Permanece girada hasta la siguiente Reagrupación.</li>
-            <li>Una criatura girada <b>no puede defender</b>.</li>
-            <li>Cuando una criatura defiende, también se <b>gira</b>, impidiendo que bloquee múltiples ataques en el mismo turno.</li>
-            <li>En un bloqueo se compara el <b>ATQ de la atacante</b> contra la <b>DEF de la defensora</b>.</li>
-            <li>Si el ATQ alcanza o supera la DEF, la defensora es destruida. Si el ATQ no alcanza la DEF, la atacante es destruida.</li>
-            <li>Si un ataque no es bloqueado, el daño se aplica <b>solo al rival</b>.</li>
+            <li>Las criaturas no pueden atacar el turno en que son invocadas, salvo las de tipo <b>Berserker</b>.</li>
+            <li>El atacante elige la criatura rival objetivo. Si deja de estar disponible, el ataque pasa a la siguiente criatura rival que aún pueda defender; si no queda ninguna, impacta directamente en los PV.</li>
+            <li>Atacar <b>gira</b> la criatura atacante y defender también gira a la defensora. Una criatura normal solo ataca o defiende una vez por turno.</li>
+            <li>El combate es <b>simultáneo</b>: el ATQ de cada criatura reduce la DEF de la otra y ese daño de DEF se conserva entre combates.</li>
+            <li>Si el ATQ atacante supera la DEF restante de la defensora, el exceso se descuenta de los PV del jugador defensor.</li>
+            <li>Las criaturas con DEF igual o inferior a 0 son destruidas.</li>
           </ul>
-          <div class="manual-example"><b>Ejemplo:</b> una criatura 2/3 ataca a otra 2/3. Se compara 2 ATQ contra 3 DEF. Como 2 no supera 3, la atacante pierde el combate.</div>
-          <div class="manual-note"><b>Poderes:</b> al entrar al campo no se giran automáticamente. Solo se giran cuando el jugador pulsa sobre ellos para activar su Poder.</div>
+          <div class="manual-example"><b>Ejemplo:</b> una criatura 2/1 ataca a una 1/1. Ambas reciben daño suficiente para ser destruidas y el punto de ATQ sobrante del atacante causa 1 PV al rival.</div>
+          <div class="manual-note"><b>Poderes:</b> los puntos de Poder de las cartas que tienes en campo se activan automáticamente cada turno. No es necesario girarlas para generar el recurso base.</div>
         </div>
       </details>
 
@@ -491,11 +508,12 @@ function renderManual(){
       </details>
 
       <details id="manual-mazos" class="manual-section panel">
-        <summary><span><b>6. Construcción de mazos</b><small>El único formato activo es de 20 cartas</small></span></summary>
+        <summary><span><b>6. Construcción de mazos</b><small>Mínimo 20 cartas, máximo 50</small></span></summary>
         <div class="manual-body">
           <ul>
-            <li>No existen actualmente formatos de 30 ni 40 cartas.</li>
-            <li>Solo se puede iniciar o aceptar una partida con un mazo de <b>20 cartas válidas</b>.</li>
+            <li>El formato actual admite mazos de <b>20 a 50 cartas</b>.</li>
+            <li>Solo se puede iniciar o aceptar una partida con al menos <b>20 cartas válidas</b>.</li>
+            <li>El mazo debe contener entre <b>7 y 40 cartas de Poder</b>.</li>
             <li>Solo puedes incluir cartas cuyo nivel sea igual o inferior a tu nivel de jugador.</li>
             <li>Las cartas coleccionables requieren que poseas suficientes copias.</li>
             <li>El <b>Poder básico Nv 1</b> tiene copias infinitas y puede añadirse al mazo sin consumir colección.</li>
@@ -619,18 +637,18 @@ function renderPlay(){
       '<button class="btn" data-action="training" '+(deckValid()?"":"disabled")+' >Entrenamiento</button>')}
     <div class="grid two">
       <section class="panel">
-        <div class="panel-head"><h2>Crear partida</h2><span class="pill ${deckValid()?"good":"bad"}">${state.profile.deck.length}/${DECK_SIZE} cartas</span></div>
+        <div class="panel-head"><h2>Crear partida</h2><span class="pill ${deckValid()?"good":"bad"}">${state.profile.deck.length} cartas</span></div>
         <div class="panel-body">
           <div class="grid two">
-            <div class="field"><label>Formato</label><div class="input" aria-label="Formato de mazo">Mazo estándar · ${DECK_SIZE} cartas</div></div>
-            <div class="field"><label>Quién empieza</label><select class="select" id="matchStart"><option value="normal">Creador</option><option value="random">Aleatorio</option></select></div>
+            <div class="field"><label>Formato</label><div class="input" aria-label="Formato de mazo">Mazo estándar · 20–50 cartas</div></div>
+            <div class="field"><label>Quién empieza</label><div class="input">Aleatorio</div></div>
           </div>
-          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid())?"":"disabled"}>Crear reto online</button><span class="muted">${!state.activeDeckId?"Guarda y selecciona un mazo antes de jugar.":!deckValid()?"El mazo activo debe tener exactamente "+DECK_SIZE+" cartas válidas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
+          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid())?"":"disabled"}>Crear reto online</button><span class="muted">${!deckValid()?deckRuleMessage():state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
         </div>
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo de 20 cartas sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
       </section>
     </div>
     <section class="panel reward-panel" style="margin-top:14px">
@@ -659,7 +677,7 @@ function renderMatches(list){
   if(!list.length)return'<div class="empty">No hay retos abiertos. Puedes crear el primero.</div>';
   return list.map(m=>{
     const mine=state.socket&&m.hostSocketId===state.socket.id;
-    return `<div class="match-row"><div class="match-player"><div class="avatar">${initial(m.player)}</div><div>${esc(m.player)}<div class="muted" style="font-size:11px">Nivel ${m.level||1}</div></div></div><b>${DECK_SIZE} cartas</b><span class="pill">${m.start==="random"?"Aleatorio":"Normal"}</span><span class="good">Esperando</span>${mine?'<button class="btn small danger" data-action="cancelMatch" data-id="'+m.id+'">Cancelar</button>':'<button class="btn small primary" data-action="joinMatch" data-id="'+m.id+'" data-size="'+m.deckSize+'">Unirse</button>'}</div>`;
+    return `<div class="match-row"><div class="match-player"><div class="avatar">${initial(m.player)}</div><div>${esc(m.player)}<div class="muted" style="font-size:11px">Nivel ${m.level||1}</div></div></div><b>${m.deckSize||DECK_MIN} cartas</b><span class="pill">Inicio aleatorio</span><span class="good">Esperando</span>${mine?'<button class="btn small danger" data-action="cancelMatch" data-id="'+m.id+'">Cancelar</button>':'<button class="btn small primary" data-action="joinMatch" data-id="'+m.id+'" data-size="'+m.deckSize+'">Unirse</button>'}</div>`;
   }).join("");
 }
 
@@ -766,7 +784,7 @@ function renderDeck(){
   const active=currentSavedDeck();
   const deckOptions=state.savedDecks.map(d=>`<option value="${d.id}" ${d.id===state.activeDeckId?"selected":""}>${esc(d.name)} · ${d.cards?.length||0} cartas</option>`).join("");
   return `<div class="page">
-    ${pageHead("Estrategia","Constructor de mazos","Todos los mazos de ARCANUM TCG tienen exactamente 20 cartas.",
+    ${pageHead("Estrategia","Constructor de mazos","El formato actual admite de 20 a 50 cartas, con entre 7 y 40 cartas de Poder.",
       '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir 20</button>'+(active&&deckValid()?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':'')+'<button class="btn danger" data-action="clearDeck">Vaciar</button>')}
     <section class="panel deck-library" style="margin-bottom:12px">
       <div class="panel-head"><h2>Mis mazos</h2><span class="pill">${state.savedDecks.length}/12 guardados</span></div>
@@ -784,11 +802,11 @@ function renderDeck(){
     </section>
     <div class="deck-layout">
       <section class="panel">
-        <div class="panel-head"><h2>Mazo activo</h2><span class="pill ${count===DECK_SIZE?"good":"bad"}">${count}/${DECK_SIZE} cartas</span></div>
+        <div class="panel-head"><h2>Mazo activo</h2><span class="pill ${deckValid()?"good":"bad"}">${count}/${DECK_MAX} cartas</span></div>
         <div class="panel-body">
           <div class="grid two"><div class="stat-card"><small>Coste medio</small><strong>${avg.toFixed(1)}</strong></div><div class="stat-card"><small>Poderes</small><strong>${state.profile.deck.filter(id=>card(id)?.powerCard).length}</strong></div></div>
-          <div class="field" style="margin:14px 0"><label>Formato del mazo</label><div class="input">20 cartas exactas</div></div>
-          <div class="deck-meter"><span style="width:${Math.min(100,count/DECK_SIZE*100)}%"></span></div>
+          <div class="field" style="margin:14px 0"><label>Formato del mazo</label><div class="input">20–50 cartas · Poderes 7–40</div></div>
+          <div class="deck-meter"><span style="width:${Math.min(100,count/DECK_MAX*100)}%"></span></div>
           <p class="muted" style="font-size:11px">Poder básico Nv 1: ∞ · Cartas utilizables: nivel ${playerLevel()} o inferior.</p>
           <div class="deck-list" style="margin-top:12px">${renderDeckRows()}</div>
         </div>
@@ -825,7 +843,7 @@ function renderDeckRows(){
 }
 async function persistDeck(candidate,successMessage=""){
   if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
-  candidate=candidate.map(Number).slice(0,DECK_SIZE);
+  candidate=candidate.map(Number).slice(0,DECK_MAX);
   const version=++deckWriteVersion;
 
   // Actualización optimista: el jugador ve la carta entrar al mazo en el mismo clic.
@@ -872,7 +890,7 @@ async function autoDeck(){
   const others=available.filter(id=>!card(id)?.powerCard);
   nonBasicPowers.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));
   others.sort((a,b)=>(card(a)?.level||0)-(card(b)?.level||0));
-  const deck=[],wantedPower=Math.ceil(target*.30);
+  const deck=[],wantedPower=Math.min(MAX_POWER_CARDS,Math.max(MIN_POWER_CARDS,Math.ceil(target*.35)));
   for(const id of nonBasicPowers){if(deck.length>=wantedPower)break;deck.push(id)}
   let bi=0;while(deck.length<wantedPower&&basics.length){deck.push(basics[bi++%basics.length].id)}
   for(const id of others){if(deck.length>=target)break;deck.push(id)}
@@ -883,7 +901,8 @@ async function autoDeck(){
 }
 async function addDeck(id){
   const c=card(id);if(!c||c.level>playerLevel())return;
-  if(state.profile.deck.length>=DECK_SIZE){toast("El mazo ya tiene las 20 cartas permitidas.","bad");return}
+  if(state.profile.deck.length>=DECK_MAX){toast("El mazo ya tiene las "+DECK_MAX+" cartas máximas permitidas.","bad");return}
+  if(c.powerCard&&deckPowerCount()>=MAX_POWER_CARDS){toast("El mazo ya tiene el máximo de "+MAX_POWER_CARDS+" cartas de Poder.","bad");return}
   if(!isBasicPower(c)&&freeCopies(id)<=0){toast("No tienes una copia libre de esa carta.","bad");return}
   const basic=isBasicPower(c);
   await persistDeck([...state.profile.deck,Number(id)],basic?"Poder añadido al mazo.":"Carta añadida al mazo.");
@@ -1192,7 +1211,7 @@ function renderProfile(){
 
 function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c),basic=isBasicPower(c),locked=c.level>playerLevel(),free=freeCopies(c.id);
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_SIZE&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
 }
 
 function openMobileMenu(){
@@ -1262,14 +1281,13 @@ function connectOnline(){
 }
 
 function createMatch(){
-  const start=$("matchStart")?.value||"normal";
   if(!state.connected){toast("No hay conexión con el servidor.","bad");return}
-  if(!deckValid()){toast("Tu mazo debe tener exactamente "+DECK_SIZE+" cartas válidas para jugar.","bad");return}
-  state.socket.emit("match:create",{deckSize:DECK_SIZE,start});playSound("click");
+  if(!deckValid()){toast(deckRuleMessage()||"Tu mazo no es válido para jugar.","bad");return}
+  state.socket.emit("match:create",{deckSize:state.profile.deck.length,start:"random"});playSound("click");
 }
 function joinMatch(id){
   if(!state.connected)return;
-  if(!deckValid()){toast("Necesitas un mazo válido de exactamente "+DECK_SIZE+" cartas para entrar.","bad");return}
+  if(!deckValid()){toast(deckRuleMessage()||"Necesitas un mazo válido para entrar.","bad");return}
   state.socket.emit("match:join",{id});
 }
 function cancelMatch(id){if(state.connected)state.socket.emit("match:cancel",{id})}
