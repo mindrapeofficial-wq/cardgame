@@ -453,3 +453,7 @@
 .shell .hand-zone .battle-card.hand-playable::before{display:none}
 @keyframes arcPlayableRim{0%,100%{outline-color:rgba(240,201,110,.45)}50%{outline-color:rgba(250,222,150,1)}}
 @media (prefers-reduced-motion:reduce){.shell .hand-zone .battle-card.hand-playable{animation:none}}
+
+/* Phase bar: the steps have a fixed height with a tiny line-height, which left the label at
+   the top of each box; centre it both ways. */
+.shell .phase-track .phase-step{display:flex!important;align-items:center;justify-content:center;text-align:center;line-height:1.1!important}
