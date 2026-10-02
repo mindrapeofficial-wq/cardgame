@@ -2,8 +2,10 @@
 (function(){
 "use strict";
 var STORAGE_KEY="arcanum.visualDesign.v1";
+var IMAGE_KEY="arcanum.visualImages.v1";
 var MODE_KEY="arcanum.visualEditor.mode";
 var rules={};
+var imageRules={};
 var selected=null;
 var hover=null;
 var scope="class";
@@ -14,9 +16,17 @@ var badge=null;
 
 function loadRules(){
   try{rules=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")||{}}catch(e){rules={}}
+  try{imageRules=JSON.parse(localStorage.getItem(IMAGE_KEY)||"{}")||{}}catch(e){imageRules={}}
 }
 function saveRules(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(rules));
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(rules));
+    localStorage.setItem(IMAGE_KEY,JSON.stringify(imageRules));
+    return true;
+  }catch(e){
+    setStatus("No se pudo guardar. La imagen puede ser demasiado pesada para el navegador.","bad");
+    return false;
+  }
 }
 function cssText(){
   return Object.keys(rules).map(function(selector){
@@ -34,6 +44,127 @@ function applyRules(){
     document.head.appendChild(styleEl);
   }
   styleEl.textContent=cssText();
+  applyImageRules();
+}
+function setStatus(message,type){
+  if(!root)return;
+  var el=root.querySelector("[data-ve-status]");
+  if(!el)return;
+  el.textContent=message||"";
+  el.classList.toggle("good",type==="good");
+  el.classList.toggle("bad",type==="bad");
+}
+function rememberOriginal(el,target){
+  if(target==="src"&&el.tagName==="IMG"&&!el.hasAttribute("data-ve-original-src")){
+    el.setAttribute("data-ve-original-src",el.getAttribute("src")||"");
+  }
+  if(target==="background"&&!el.hasAttribute("data-ve-original-bg")){
+    el.setAttribute("data-ve-original-bg",el.style.backgroundImage||"");
+  }
+}
+function restoreImageFor(selector,entry){
+  try{
+    document.querySelectorAll(selector).forEach(function(el){
+      if(entry&&entry.target==="src"&&el.tagName==="IMG"&&el.hasAttribute("data-ve-original-src")){
+        var old=el.getAttribute("data-ve-original-src")||"";
+        if(old)el.setAttribute("src",old);else el.removeAttribute("src");
+        el.removeAttribute("data-ve-original-src");
+      }
+      if(entry&&entry.target==="background"&&el.hasAttribute("data-ve-original-bg")){
+        var bg=el.getAttribute("data-ve-original-bg")||"";
+        if(bg)el.style.setProperty("background-image",bg);else el.style.removeProperty("background-image");
+        el.removeAttribute("data-ve-original-bg");
+      }
+    });
+  }catch(e){}
+}
+function applyImageRules(){
+  Object.keys(imageRules).forEach(function(selector){
+    var entry=imageRules[selector];
+    if(!entry||!entry.value)return;
+    try{
+      document.querySelectorAll(selector).forEach(function(el){
+        if(entry.target==="src"&&el.tagName==="IMG"){
+          rememberOriginal(el,"src");
+          if(el.getAttribute("src")!==entry.value)el.setAttribute("src",entry.value);
+        }else{
+          rememberOriginal(el,"background");
+          el.style.setProperty("background-image",'url("'+String(entry.value).replace(/"/g,'\\\"')+'")',"important");
+        }
+      });
+    }catch(e){}
+  });
+}
+function removeImageOverride(selector){
+  var entry=imageRules[selector];
+  if(!entry)return;
+  restoreImageFor(selector,entry);
+  delete imageRules[selector];
+}
+function selectedImageValue(){
+  if(!selected)return"";
+  var selector=selectorFor(selected);
+  if(imageRules[selector]&&imageRules[selector].value)return imageRules[selector].value;
+  if(selected.tagName==="IMG")return selected.currentSrc||selected.getAttribute("src")||"";
+  var bg=getComputedStyle(selected).backgroundImage||"";
+  var m=bg.match(/^url\(["']?(.*?)["']?\)$/i);
+  return m?m[1]:"";
+}
+function setImageValue(value){
+  if(!selected)return;
+  value=String(value||"").trim();
+  if(!value)return;
+  if(/^javascript:/i.test(value)){setStatus("Esa URL no es válida.","bad");return}
+  var selector=selectorFor(selected);
+  var entry={target:selected.tagName==="IMG"?"src":"background",value:value};
+  imageRules[selector]=entry;
+  applyImageRules();
+  if(!saveRules()){
+    restoreImageFor(selector,entry);
+    delete imageRules[selector];
+    return;
+  }
+  refreshPanel();
+  setStatus("Imagen aplicada y guardada.","good");
+}
+function imageFileToDataUrl(file){
+  return new Promise(function(resolve,reject){
+    if(!file||!/^image\/(png|jpe?g|webp|gif)$/i.test(file.type||""))return reject(new Error("Formato no compatible"));
+    if(file.size>12*1024*1024)return reject(new Error("La imagen supera 12 MB"));
+    var reader=new FileReader();
+    reader.onerror=function(){reject(new Error("No se pudo leer la imagen"))};
+    reader.onload=function(){
+      var raw=String(reader.result||"");
+      if(file.type==="image/gif"&&file.size<=900000){resolve(raw);return}
+      var img=new Image();
+      img.onerror=function(){reject(new Error("No se pudo procesar la imagen"))};
+      img.onload=function(){
+        var maxSide=1600;
+        var scale=Math.min(1,maxSide/Math.max(img.naturalWidth||1,img.naturalHeight||1));
+        var w=Math.max(1,Math.round((img.naturalWidth||1)*scale));
+        var h=Math.max(1,Math.round((img.naturalHeight||1)*scale));
+        var canvas=document.createElement("canvas");
+        canvas.width=w;canvas.height=h;
+        var ctx=canvas.getContext("2d");
+        ctx.drawImage(img,0,0,w,h);
+        var quality=.9;
+        var out=canvas.toDataURL("image/webp",quality);
+        while(out.length>900000&&quality>.5){
+          quality-=.1;
+          out=canvas.toDataURL("image/webp",quality);
+        }
+        resolve(out);
+      };
+      img.src=raw;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function imageFitProp(){
+  return selected&&selected.tagName==="IMG"?"object-fit":"background-size";
+}
+function imagePositionProp(){
+  return selected&&selected.tagName==="IMG"?"object-position":"background-position";
 }
 function safeClass(el){
   if(!el||!el.classList)return"";
@@ -124,6 +255,33 @@ function refreshPanel(){
   });
   var scopeEl=root.querySelector("[data-ve-scope]");
   if(scopeEl)scopeEl.value=scope;
+  var preview=root.querySelector("[data-ve-image-preview]");
+  var imageUrl=root.querySelector("[data-ve-image-url]");
+  var fit=root.querySelector("[data-ve-fit]");
+  var pos=root.querySelector("[data-ve-image-position]");
+  if(preview){
+    var val=selectedImageValue();
+    preview.classList.toggle("empty",!val);
+    preview.style.backgroundImage=val?'url("'+String(val).replace(/"/g,'\\\"')+'")':"";
+    preview.textContent=val?"":"Selecciona una imagen o un bloque con fondo";
+  }
+  if(imageUrl)imageUrl.value="";
+  if(fit){
+    if(!selected)fit.value="";
+    else{
+      var fp=imageFitProp();
+      var fv=readProp(fp);
+      fit.value=["cover","contain","100% 100%","auto"].indexOf(fv)>=0?fv:"";
+    }
+  }
+  if(pos){
+    if(!selected)pos.value="";
+    else{
+      var pp=imagePositionProp();
+      var pv=readProp(pp);
+      pos.value=["center","top","bottom","left","right"].indexOf(pv)>=0?pv:"";
+    }
+  }
 }
 function toHex(color){
   if(!color)return"";
@@ -170,7 +328,8 @@ function exportCss(){
   setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 }
 function exportJson(){
-  var blob=new Blob([JSON.stringify(rules,null,2)],{type:"application/json"});
+  var payload={version:2,styles:rules,images:imageRules};
+  var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
   a.download="arcanum-visual-design.json";
@@ -179,12 +338,15 @@ function exportJson(){
 }
 function resetAll(){
   if(!confirm("¿Restablecer todos los cambios visuales guardados en este navegador?"))return;
-  rules={};saveRules();applyRules();refreshPanel();
+  Object.keys(imageRules).forEach(function(selector){restoreImageFor(selector,imageRules[selector])});
+  rules={};imageRules={};saveRules();applyRules();refreshPanel();setStatus("Diseño restablecido.","good");
 }
 function resetSelection(){
   if(!selected)return;
-  delete rules[selectorFor(selected)];
-  saveRules();applyRules();refreshPanel();
+  var selector=selectorFor(selected);
+  delete rules[selector];
+  removeImageOverride(selector);
+  saveRules();applyRules();refreshPanel();setStatus("Elemento restablecido.","good");
 }
 function build(){
   document.body.classList.add("ve-available");
@@ -216,6 +378,16 @@ function build(){
       '<div class="ve-row"><label class="ve-color"><input type="color" data-ve-color="border-color"><span>Borde</span></label><input class="ve-input" data-ve-prop="opacity" placeholder="Opacidad 0-1"></div>'+
     '</div>'+
     '<div class="ve-section">'+
+      '<span class="ve-label">Imagen</span>'+
+      '<div class="ve-image-preview empty" data-ve-image-preview>Selecciona una imagen o un bloque con fondo</div>'+
+      '<input class="ve-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-ve-image-file>'+
+      '<div class="ve-row"><button class="ve-btn primary" data-ve-upload-image>Subir mi imagen</button><button class="ve-btn danger" data-ve-remove-image>Quitar sustitución</button></div>'+
+      '<div class="ve-row ve-image-url-row"><input class="ve-input" data-ve-image-url placeholder="URL de imagen"><button class="ve-btn" data-ve-apply-image-url>Aplicar URL</button></div>'+
+      '<div class="ve-row"><select class="ve-select" data-ve-fit><option value="">Ajuste actual</option><option value="cover">Cubrir</option><option value="contain">Encajar</option><option value="100% 100%">Estirar</option><option value="auto">Tamaño original</option></select><select class="ve-select" data-ve-image-position><option value="">Posición actual</option><option value="center">Centro</option><option value="top">Arriba</option><option value="bottom">Abajo</option><option value="left">Izquierda</option><option value="right">Derecha</option></select></div>'+
+      '<div class="ve-help">En una etiqueta IMG sustituye su archivo. En bloques como .card-art sustituye la imagen de fondo. La imagen subida queda incluida al exportar el diseño.</div>'+
+      '<div class="ve-status" data-ve-status></div>'+
+    '</div>'+
+    '<div class="ve-section">'+
       '<span class="ve-label">Posición fina</span>'+
       '<div class="ve-row"><input class="ve-input" data-ve-prop="left" placeholder="Izq. ej. 10px"><input class="ve-input" data-ve-prop="top" placeholder="Arriba ej. -5px"></div>'+
       '<div class="ve-row"><select class="ve-select" data-ve-prop="position"><option value="">Posición actual</option><option value="relative">relative</option><option value="absolute">absolute</option><option value="sticky">sticky</option><option value="fixed">fixed</option></select><input class="ve-input" data-ve-prop="z-index" placeholder="z-index"></div>'+
@@ -238,7 +410,25 @@ function build(){
     e.stopPropagation();
     var m=e.target.closest("[data-ve-mode]");
     if(m){mode=m.getAttribute("data-ve-mode");updateModeButtons();return}
-    if(e.target.closest("[data-ve-save]")){saveRules();applyRules();return}
+    if(e.target.closest("[data-ve-save]")){saveRules();applyRules();setStatus("Cambios guardados en este navegador.","good");return}
+    if(e.target.closest("[data-ve-upload-image]")){
+      var fileInput=root.querySelector("[data-ve-image-file]");
+      if(!selected){setStatus("Primero selecciona el elemento donde quieres poner la imagen.","bad");return}
+      if(fileInput)fileInput.click();
+      return;
+    }
+    if(e.target.closest("[data-ve-apply-image-url]")){
+      if(!selected){setStatus("Primero selecciona un elemento.","bad");return}
+      var urlInput=root.querySelector("[data-ve-image-url]");
+      var url=urlInput?urlInput.value.trim():"";
+      if(!url){setStatus("Pega una URL de imagen primero.","bad");return}
+      setImageValue(url);return;
+    }
+    if(e.target.closest("[data-ve-remove-image]")){
+      if(!selected){setStatus("Primero selecciona un elemento.","bad");return}
+      var selector=selectorFor(selected);
+      removeImageOverride(selector);saveRules();applyRules();refreshPanel();setStatus("Sustitución de imagen eliminada.","good");return;
+    }
     if(e.target.closest("[data-ve-export-css]")){exportCss();return}
     if(e.target.closest("[data-ve-export-json]")){exportJson();return}
     if(e.target.closest("[data-ve-reset]")){resetAll();return}
@@ -248,6 +438,31 @@ function build(){
   root.addEventListener("change",function(e){
     e.stopPropagation();
     if(e.target.matches("[data-ve-scope]")){scope=e.target.value;refreshPanel();return}
+    if(e.target.matches("[data-ve-image-file]")){
+      var file=e.target.files&&e.target.files[0];
+      if(!file||!selected)return;
+      setStatus("Procesando imagen…","");
+      imageFileToDataUrl(file).then(function(data){
+        setImageValue(data);
+        e.target.value="";
+      }).catch(function(err){
+        setStatus(err&&err.message?err.message:"No se pudo cargar la imagen.","bad");
+        e.target.value="";
+      });
+      return;
+    }
+    if(e.target.matches("[data-ve-fit]")){
+      if(!selected)return;
+      var fitValue=e.target.value;
+      if(fitValue)setProp(imageFitProp(),fitValue);else setProp(imageFitProp(),"");
+      return;
+    }
+    if(e.target.matches("[data-ve-image-position]")){
+      if(!selected)return;
+      var posValue=e.target.value;
+      if(posValue)setProp(imagePositionProp(),posValue);else setProp(imagePositionProp(),"");
+      return;
+    }
     var cp=e.target.getAttribute("data-ve-color");
     if(cp){setProp(cp,e.target.value);return}
     var prop=e.target.getAttribute("data-ve-prop");
@@ -259,6 +474,11 @@ function build(){
     }
   });
 
+  var observer=new MutationObserver(function(){
+    if(!Object.keys(imageRules).length)return;
+    requestAnimationFrame(applyImageRules);
+  });
+  observer.observe(document.body,{childList:true,subtree:true});
   if(location.search.indexOf("design=1")>=0||localStorage.getItem(MODE_KEY)==="on")activate();
 }
 document.addEventListener("pointerover",function(e){
