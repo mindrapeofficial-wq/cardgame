@@ -1318,7 +1318,7 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard,enemyBoard,
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,pendingAttack:s.pendingAttack||null,blockAssignments:{},attackTargets:{},
+    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,pendingAttack:s.pendingAttack||null,drawOfferIncoming:!!s.drawOfferIncoming,drawOfferOutgoing:!!s.drawOfferOutgoing,blockAssignments:{},attackTargets:{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false,
     opponentDisconnectDeadlineAt:Number(s.opponentDisconnectDeadlineAt)||0,serverNow:Number(s.serverNow)||Date.now()
   };
@@ -1348,6 +1348,7 @@ function renderDuel(){
       <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
+    ${duelMatchActions(d)}
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
     <div class="board">
       <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
@@ -1359,6 +1360,19 @@ function renderDuel(){
     </div>
   </div>`;
 }
+function duelMatchActions(d){
+  if(!d?.online||d.gameOver)return"";
+  let drawArea="";
+  if(d.drawOfferIncoming){
+    drawArea=`<div class="draw-offer-copy"><b>${esc(d.opponent||"El rival")} ofrece tablas</b><span>Si aceptas, la partida termina en empate.</span></div><div class="draw-offer-response"><button class="btn small" data-action="rejectDraw">Rechazar</button><button class="btn small primary" data-action="acceptDraw">Aceptar tablas</button></div>`;
+  }else if(d.drawOfferOutgoing){
+    drawArea=`<div class="draw-offer-copy"><b>Tablas ofrecidas</b><span>Esperando la respuesta de ${esc(d.opponent||"tu rival")}.</span></div><button class="btn small" disabled>Oferta pendiente</button>`;
+  }else{
+    drawArea=`<div class="draw-offer-copy"><b>Empate por acuerdo</b><span>Puedes proponer tablas en cualquier momento.</span></div><button class="btn small" data-action="offerDraw">Ofrecer tablas</button>`;
+  }
+  return `<div class="duel-match-actions"><button class="btn small danger" data-action="concede">Rendirse</button><div class="duel-draw-actions">${drawArea}</div></div>`;
+}
+
 function hiddenCardBacks(count){
   const total=Math.max(0,Number(count)||0),shown=Math.min(total,10);
   if(!shown)return'<div class="hidden-hand-empty">Sin cartas ocultas</div>';
@@ -1424,14 +1438,14 @@ function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   const prompt=d.phase===5?renderCombatPrompt(d):"";
   if(d.defending){
-    return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button></div></div>`;
+    return d.online?`<div style="width:100%">${prompt}</div>`:`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="restartTraining">Reiniciar</button></div></div>`;
   }
   if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}…</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
   if(d.attackDeclared){
-    return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button></div></div>`;
+    return d.online?`<div style="width:100%">${prompt}</div>`:`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="restartTraining">Reiniciar</button></div></div>`;
   }
-  return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
+  return`<div style="width:100%">${prompt}<div class="actions">${d.online?"":'<button class="btn danger" data-action="restartTraining">Reiniciar</button>'}<span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
 }
 
 function training(){
@@ -1919,6 +1933,8 @@ function nextPhase(){
   }else if(!d.aiActing&&!d.defending&&!d.pendingAttack)nextLocalPhase();
 }
 function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
+function offerDraw(){const d=state.duel;if(d?.online&&state.connected&&!d.gameOver&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"})}
+function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
 function leaveDuel(){state.duel=null;go("home")}
 
 document.addEventListener("click",e=>{
@@ -1958,6 +1974,9 @@ document.addEventListener("click",e=>{
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
+  else if(a==="offerDraw")offerDraw();
+  else if(a==="acceptDraw")respondDraw(true);
+  else if(a==="rejectDraw")respondDraw(false);
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
   else if(a==="refreshRanking")void loadRanking();
