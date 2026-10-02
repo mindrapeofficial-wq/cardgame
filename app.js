@@ -1378,20 +1378,24 @@ function renderDuel(){
   const disconnectWarning=disconnectLeft>0?`<div class="duel-disconnect-warning"><b>Rival desconectado</b><span>Tiene <strong data-combat-grace-countdown>${formatCombatGrace(disconnectLeft)}</strong> para volver. Si no regresa, pierde la partida.</span></div>`:"";
   return `<div class="duel-page">
     ${disconnectWarning}
-    <div class="duel-top">
-      <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
-      <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
+    <div class="duel-top duel-turn-strip">
+      <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
     </div>
     ${duelMatchActions(d)}
-    <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
     <div class="board">
-      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
-      <section class="board-zone"><div class="zone-title"><span>Tu campo</span><span>${phase}</span></div>${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
+      <section class="board-zone enemy-zone">
+        <div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</span></div>
+        <div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}</div>
+        ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
+        <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
+        <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span></div></div>
+      </section>
+      <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
+      <section class="board-zone player-zone"><div class="zone-title"><span>Tu campo</span><span>Poder ${d.power}/${d.maxPower}</span></div>${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
-        <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
-        <details class="duel-log-drawer"><summary><span>Registro de combate</span><span class="duel-log-phase">${phase}</span></summary><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></details>
+        <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span><span>${phase}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div><div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span></div></div></div><div class="duel-controls">${duelControls(d)}</div></section>
       </div>
+      <details class="duel-log-popover"><summary title="Registro de combate" aria-label="Abrir o cerrar registro de combate">≣</summary><div class="duel-log-window"><div class="duel-log-window-head"><b>Registro de combate</b><span>${phase}</span></div><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></details>
     </div>
   </div>`;
 }
@@ -1470,15 +1474,11 @@ function renderCombatPrompt(d){
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   const prompt=d.phase===5?renderCombatPrompt(d):"";
-  if(d.defending){
-    return d.online?`<div style="width:100%">${prompt}</div>`:`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="restartTraining">Reiniciar</button></div></div>`;
-  }
+  if(d.defending)return`<div style="width:100%">${prompt}</div>`;
   if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}…</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
-  if(d.attackDeclared){
-    return d.online?`<div style="width:100%">${prompt}</div>`:`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="restartTraining">Reiniciar</button></div></div>`;
-  }
-  return`<div style="width:100%">${prompt}<div class="actions">${d.online?"":'<button class="btn danger" data-action="restartTraining">Reiniciar</button>'}<span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
+  if(d.attackDeclared)return`<div style="width:100%">${prompt}</div>`;
+  return`<div style="width:100%">${prompt}<div class="actions duel-phase-action-row"><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
 }
 
 function training(){
