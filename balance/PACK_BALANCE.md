@@ -1,102 +1,92 @@
-# Rolplay Reborn — Pack & Rarity Balance
+# Rolplay Reborn — Balance de sobres y rarezas
 
-## Canonical rarity bands
+## Sistema global
 
-- Common / Común: historical rarity 1–9
-- Uncommon / Poco común: 10–34
-- Rare / Rara: 35–69
-- Epic / Épica: 70–99
-- Legendary / Legendaria: exactly 100
+Todos los niveles 1–50 usan el mismo motor de obtención. Los sobres tienen un nivel seleccionable y el jugador solo puede comprar sobres de nivel igual o inferior a su propio nivel.
 
-The historical rarity signal defines the base tier. Within the same tier, final loot probability is adjusted using current gameplay efficiency.
+Un sobre de Nivel N:
+- contiene 5 cartas;
+- nunca contiene una carta de nivel superior a N;
+- puede contener cartas antiguas;
+- favorece fuertemente cartas cercanas a N;
+- excluye el Poder básico de Nivel 1 porque es infinito.
 
-## Gameplay efficiency inputs
+## Presupuesto de rareza por hueco
 
-The pack engine accounts for:
+A partir de que la rareza esté desbloqueada en el conjunto elegible:
 
-- attack
-- defense
-- current Power/mana cost
-- card role
-- special-card utility
-- multiplier/version in cards such as `x 5`, `x 10`, etc.
-- distance between card level and selected pack level
+- Común: 55%
+- Poco común: 25%
+- Rara: 14%
+- Épica: 5,8%
+- Legendaria: 0,2%
 
-Stronger/more efficient cards inside the same rarity tier receive a modest probability penalty rather than being moved automatically to a higher tier.
+La masa legendaria total es solo 0,2% por extracción y se reparte entre todas las legendarias elegibles. En un sobre de 5 cartas, cuando ya hay legendarias desbloqueadas, la probabilidad de obtener al menos una ronda aproximadamente el 1%.
 
-## Pack levels
+Si una rareza todavía no existe en los niveles desbloqueados por ese sobre, su porcentaje se redistribuye hacia la rareza disponible más cercana sin crear cartas imposibles.
 
-A player can buy any pack level from 1 up to their current player level.
+## Peso por nivel
 
-A Level N pack:
-- can never contain cards above Level N;
-- can contain older cards;
-- strongly favors cards close to Level N;
-- excludes the infinite basic Level 1 Power.
+Dentro de cada rareza se usa:
 
-Level affinity uses an exponential decay:
+`afinidad = exp(-0,55 × (nivel del sobre - nivel de la carta))`
 
-`level affinity = exp(-0.55 × (pack level - card level))`
+Una carta del mismo nivel del sobre tiene peso 1,00; una de un nivel inferior ~0,58; dos niveles inferior ~0,33; tres niveles inferior ~0,19. Esto evita que los sobres altos se llenen de cartas muy antiguas.
 
-So a card at the exact pack level has weight 1.0, one level below ~0.58, two below ~0.33, three below ~0.19, and older cards continue falling rapidly.
+## Ajuste de fuerza y utilidad
 
-## Rarity budget per card slot
+Además de la rareza histórica se calcula un índice de utilidad que considera:
+- ataque;
+- defensa;
+- coste de Poder/mana;
+- si es criatura, Poder o habilidad;
+- multiplicadores `x N` de cartas especiales;
+- eficiencia relativa frente a cartas del mismo rol y niveles cercanos.
 
-For pack levels that have unlocked all rarity groups, the target budget is:
+Dentro de una misma rareza, una carta más eficiente recibe un pequeño castigo de probabilidad. No basta con tener el mismo color de rareza: las cartas más fuertes son ligeramente más difíciles de obtener.
 
-- Common: 55%
-- Uncommon: 25%
-- Rare: 14%
-- Epic: 5.8%
-- Legendary: 0.2%
+## Detección de legendarias
 
-Legendary therefore has only a 0.2% share per individual draw before that share is split among all eligible legendary cards. A five-card pack with legendary cards unlocked has roughly a 1% chance to contain at least one legendary.
+La categoría legendaria no se asigna solo por un número histórico. Se exige rareza histórica muy alta y rendimiento excepcional frente a cartas del mismo rol en una ventana de ±2 niveles.
 
-If a pack level has not yet unlocked a rarity tier, that tier's probability is redistributed toward the nearest available lower rarity so unavailable tiers do not create phantom drops.
+Reglas actuales:
+- rareza 100 + percentil de utilidad >= 60%;
+- o rareza 99 + percentil >= 90%;
+- o rareza >= 95 + percentil >= 98%;
+- o Poder histórico de rareza 100 con multiplicador >= x15.
 
-## Level 1 special onboarding balance
+Esto deja 35 cartas legendarias de 285.
 
-Level 1 keeps its manually tuned opening distribution:
+- Nivel 9: Mujer Aguila
+- Nivel 14: Korth
+- Nivel 17: Poder x 8 Mayor
+- Nivel 20: Poder Mental x 4, Argnathor Poderal, Urgul Mayor, Angel Caido
+- Nivel 22: Poder x 12 Mayor
+- Nivel 25: Enher, Argnathor Ametal, Poder x 15 Domica, Poder x 15 Ametal, Poder x 15 Natural, Poder x 15 Poderal
+- Nivel 27: Poder Mental x 7
+- Nivel 29: Flora
+- Nivel 30: Argnathor Natural, Hombre Angel, Poder x 15 Mayor
+- Nivel 34: Acrum x 3, Ardala
+- Nivel 35: Sanal, Argnathor Domic, Elfo Brujo
+- Nivel 36: Poder Mental x 9
+- Nivel 39: Hijo de Keathan
+- Nivel 40: Bestia del Caos
+- Nivel 43: Angrath
+- Nivel 45: Gigante, Acrum x 4, Insignia Solamnica
+- Nivel 48: Pesadilla
+- Nivel 49: Tentaculo
+- Nivel 50: Keatahn, Poder x 20
 
+## Nivel 1
+
+Se mantiene el balance manual de introducción:
 - Elfo Bardo: 20%
 - Duende: 20%
 - Guerrero Menor: 20%
 - Mel: 20%
 - Mimit: 15%
-- Dophan: 3.5%
-- Gorad Menor: 1.5%
-- Basic Power: 0% from packs because it is infinite
+- Dophan: 3,5%
+- Gorad Menor: 1,5%
+- Poder Nv 1: 0% porque es infinito
 
-## Legendary cards detected
-
-Legendary status currently requires the maximum historical rarity value of 100. There are 50 legendary catalogue cards:
-
-- Nivel 9: Mujer Aguila
-- Nivel 14: Korth
-- Nivel 15: Poder x 7 Poderal, Poder x 7 Natural, Poder x 7 Ametal, Poder x 7 Domica
-- Nivel 17: Poder x 8 Mayor
-- Nivel 20: Argnathor Poderal, Urgul Mayor, Angel Caido, Poder x 10 Poderal, Poder x 10 Natural, Poder x 10 Ametal, Poder x 10 Domica
-- Nivel 21: Acrum
-- Nivel 22: Poder x 12 Mayor
-- Nivel 25: Enher, Argnathor Ametal, Poder x 15 Domica, Poder x 15 Ametal, Poder x 15 Natural, Poder x 15 Poderal
-- Nivel 26: Acrum x 2, Draconia
-- Nivel 27: Hermanos Elfo
-- Nivel 29: Flora
-- Nivel 30: Argnathor Natural, Hombre Angel, Poder x 15 Mayor
-- Nivel 31: Solemn
-- Nivel 34: Acrum x 3, Ardala
-- Nivel 35: Sanal, Argnathor Domic, Elfo Brujo
-- Nivel 39: Hijo de Keathan
-- Nivel 40: Bestia del Caos
-- Nivel 41: Ruinthz x 3
-- Nivel 42: Rueda x 3, Kurth Arth x 4
-- Nivel 43: Angrath
-- Nivel 45: Gigante, Acrum x 4, Insignia Solamnica
-- Nivel 46: Imnazthril, Genios
-- Nivel 48: Pesadilla
-- Nivel 49: Tentaculo
-- Nivel 50: Keatahn, Poder x 20
-
-## Notes
-
-The probabilities shown in the shop are calculated by the same server-side system used to draw the cards. The UI does not decide the result of a pack.
+La tienda muestra las probabilidades exactas del nivel de sobre seleccionado y esas probabilidades proceden del mismo motor del servidor que realiza la tirada.
