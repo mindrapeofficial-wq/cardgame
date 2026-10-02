@@ -9,6 +9,8 @@ const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
 const LAST_USER_KEY="rolplay.last.username";
 const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
+let deckWriteQueue=Promise.resolve();
+let deckWriteVersion=0;
 const RARITIES=[
   {name:"Común",key:"common",min:0},
   {name:"Poco común",key:"uncommon",min:10},
@@ -378,15 +380,16 @@ function renderCollection(){
   </div>`;
 }
 function cardTile(c,opt={}){
-  const r=rarity(c),basic=isBasicPower(c),qty=basic?Infinity:(opt.qty||0),locked=c.level>playerLevel();
+  const r=rarity(c),basic=isBasicPower(c),qty=basic?Infinity:(opt.qty||0),locked=c.level>playerLevel(),inDeck=deckCount(c.id);
   const qtyLabel=qty===Infinity?"∞":qty;
   const canAdd=!locked&&(basic||freeCopies(c.id)>0);
   const canSell=!basic&&freeCopies(c.id)>0;
+  const addLabel=basic&&inDeck>0?"Al mazo · "+inDeck:"Al mazo";
   return `<article class="game-card r-${r.key}" data-action="cardDetail" data-id="${c.id}">
     <div class="card-art" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty '+(basic?'infinity-badge':'')+'">'+(basic?'∞ básico':'x'+qtyLabel)+'</span>':""}${locked?'<div class="level-lock">Requiere<br>Nivel '+c.level+'</div>':""}</div>
     <div class="card-info"><div class="card-name">${esc(c.name)}</div><div class="card-sub">${cardType(c)} · Nv ${c.level} · ${r.name}${basic?" · Infinito":""}</div></div>
     <div class="card-stats"><span>${c.powerCard?"Poder +"+powerValue(c):"ATQ "+c.atk}</span><span>${c.powerCard?"":"DEF "+c.def}</span></div>
-    ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(canAdd?"":"disabled")+'>Al mazo</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(canSell?"":"disabled")+'>'+(basic?'No vendible':'Vender +'+Math.max(1,Math.floor(cardValue(c)/2)))+'</button></div>':""}
+    ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(canAdd?"":"disabled")+'>'+addLabel+'</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(canSell?"":"disabled")+'>'+(basic?'No vendible':'Vender +'+Math.max(1,Math.floor(cardValue(c)/2)))+'</button></div>':""}
   </article>`;
 }
 
@@ -417,9 +420,36 @@ function renderDeckRows(){
 }
 async function persistDeck(candidate,successMessage=""){
   if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
-  const r=await api("save_deck",{deck:candidate},true);
-  if(!r.ok){toast(authErrorMessage(r.error),"bad");return false}
-  applyProfile(r.profile);if(successMessage)toast(successMessage,"good");renderView();return true;
+  candidate=candidate.map(Number).slice(0,50);
+  const version=++deckWriteVersion;
+
+  // Actualización optimista: el jugador ve la carta entrar al mazo en el mismo clic.
+  state.profile.deck=candidate.slice();
+  cacheProfile();
+  renderView();
+
+  const write=async()=>{
+    const r=await api("save_deck",{deck:candidate},true);
+    if(!r.ok){
+      if(version===deckWriteVersion){
+        const fresh=await api("me",{},true);
+        if(fresh.ok)applyProfile(fresh.profile);
+        toast(authErrorMessage(r.error),"bad");
+        renderView();
+      }
+      return false;
+    }
+    // Una respuesta antigua nunca debe pisar un clic posterior.
+    if(version===deckWriteVersion){
+      applyProfile(r.profile);
+      if(successMessage)toast(successMessage,"good");
+      renderView();
+    }
+    return true;
+  };
+
+  deckWriteQueue=deckWriteQueue.then(write,write);
+  return deckWriteQueue;
 }
 async function autoDeck(){
   const target=state.deckTarget;
@@ -445,8 +475,9 @@ async function autoDeck(){
 async function addDeck(id){
   const c=card(id);if(!c||c.level>playerLevel())return;
   if(state.profile.deck.length>=50){toast("El límite es 50 cartas.","bad");return}
-  if(!isBasicPower(c)&&freeCopies(id)<=0)return;
-  await persistDeck([...state.profile.deck,Number(id)]);
+  if(!isBasicPower(c)&&freeCopies(id)<=0){toast("No tienes una copia libre de esa carta.","bad");return}
+  const basic=isBasicPower(c);
+  await persistDeck([...state.profile.deck,Number(id)],basic?"Poder añadido al mazo.":"Carta añadida al mazo.");
 }
 async function removeDeck(index){
   const next=state.profile.deck.slice();next.splice(Number(index),1);await persistDeck(next);
