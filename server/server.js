@@ -286,6 +286,7 @@ function snapshotFor(match, socketId) {
     enemyHp: game.hp[foe],
     power: game.availablePower[side],
     maxPower: totalPower(game, side),
+    powerPlayed: !!game.powerPlayed[side],
     enemyPower: game.availablePower[foe],
     enemyMaxPower: totalPower(game, foe),
     playerDeckCount: game.deck[side].length,
@@ -590,6 +591,7 @@ io.on("connection", socket => {
     if (trade.acceptedA && trade.acceptedB) {
       io.to(trade.a).emit("trade:locked", { tradeId: trade.id });
       io.to(trade.b).emit("trade:locked", { tradeId: trade.id });
+      trades.delete(trade.id);
     }
   });
 
