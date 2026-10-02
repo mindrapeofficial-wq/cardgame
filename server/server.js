@@ -134,6 +134,8 @@ function draw(game, side, n = 1) {
 function beginTurn(game, side) {
   game.active = side;
   game.phase = 0;
+  game.pendingAttack = null;
+  game.powerPlayed[side] = false;
   game.board[side].forEach(c => { c.exhausted = false; c.selected = false; });
   game.availablePower[side] = totalPower(game, side);
 }
@@ -177,15 +179,49 @@ function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
   return (card?.def || 0) + (inst.defBonus || 0);
 }
-function resolveAttack(game, side) {
+function declareAttack(game, side) {
   const foe = sideOther(side);
   const attackers = game.board[side].filter(c => c.selected && !c.exhausted);
-  const blockers = game.board[foe].filter(c => !c.exhausted).slice().sort((x, y) => effectiveDef(y) - effectiveDef(x));
+  if (!attackers.length) return false;
+  game.pendingAttack = {
+    attackerSide: side,
+    defenderSide: foe,
+    attackers: attackers.map(c => c.uid),
+    blocks: {}
+  };
+  gameLog(game, "Ataque declarado con " + attackers.length + " criatura(s). Esperando defensores.");
+  return true;
+}
 
-  attackers.forEach((attacker, index) => {
+function assignBlock(game, side, attackerUid, defenderUid) {
+  const pending = game.pendingAttack;
+  if (!pending || pending.defenderSide !== side || !pending.attackers.includes(attackerUid)) return;
+  for (const [a, d] of Object.entries(pending.blocks)) {
+    if (d === defenderUid && a !== attackerUid) delete pending.blocks[a];
+  }
+  if (!defenderUid) {
+    delete pending.blocks[attackerUid];
+    return;
+  }
+  const defender = game.board[side].find(c => c.uid === defenderUid && !c.exhausted);
+  if (!defender) return;
+  pending.blocks[attackerUid] = defenderUid;
+}
+
+function resolveDeclaredAttack(game) {
+  const pending = game.pendingAttack;
+  if (!pending) return;
+  const side = pending.attackerSide;
+  const foe = pending.defenderSide;
+
+  for (const attackerUid of pending.attackers) {
+    const attacker = game.board[side].find(c => c.uid === attackerUid);
+    if (!attacker || attacker.exhausted) continue;
     const ac = BY_ID.get(attacker.cardId);
-    const blocker = blockers[index];
-    if (blocker && game.board[foe].some(c => c.uid === blocker.uid)) {
+    const blockerUid = pending.blocks[attackerUid];
+    const blocker = blockerUid ? game.board[foe].find(c => c.uid === blockerUid && !c.exhausted) : null;
+
+    if (blocker) {
       const bc = BY_ID.get(blocker.cardId);
       const attackerDies = (bc?.atk || 0) >= effectiveDef(attacker);
       const blockerDies = (ac?.atk || 0) >= effectiveDef(blocker);
@@ -197,9 +233,14 @@ function resolveAttack(game, side) {
       gameLog(game, ac.name + " causa " + (ac?.atk || 0) + " PV.");
     }
     const survivor = game.board[side].find(c => c.uid === attacker.uid);
-    if (survivor) { survivor.exhausted = true; survivor.selected = false; }
-  });
+    if (survivor) {
+      survivor.exhausted = true;
+      survivor.selected = false;
+    }
+  }
+  game.pendingAttack = null;
 }
+
 function initDuel(match) {
   const size = match.deckSize;
   const game = {
@@ -215,6 +256,8 @@ function initDuel(match) {
     board: { a: [], b: [] },
     powers: { a: [], b: [] },
     availablePower: { a: 0, b: 0 },
+    powerPlayed: { a: false, b: false },
+    pendingAttack: null,
     deckOut: { a: false, b: false },
     gameOver: false,
     winner: null,
@@ -236,7 +279,7 @@ function snapshotFor(match, socketId) {
   return {
     matchId: match.id,
     side,
-    myTurn: game.active === side,
+    myTurn: game.pendingAttack ? game.pendingAttack.defenderSide === side : game.active === side,
     phase: game.phase,
     turn: game.turn,
     playerHp: game.hp[side],
@@ -255,6 +298,9 @@ function snapshotFor(match, socketId) {
     enemyPowers: game.powers[foe],
     gameOver: game.gameOver,
     won: game.gameOver ? game.winner === side : null,
+    defending: !!(game.pendingAttack && game.pendingAttack.defenderSide === side),
+    attackDeclared: !!(game.pendingAttack && game.pendingAttack.attackerSide === side),
+    blockAssignments: game.pendingAttack ? { ...game.pendingAttack.blocks } : {},
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
     log: game.log.slice(-35)
   };
@@ -272,8 +318,9 @@ function playCard(match, side, uid) {
   const card = BY_ID.get(inst.cardId);
   if (!card) return;
 
-  if (game.phase === 2 && card.powerCard) {
+  if (game.phase === 2 && card.powerCard && !game.powerPlayed[side]) {
     game.hand[side].splice(index, 1);
+    game.powerPlayed[side] = true;
     game.powers[side].push(inst);
     game.availablePower[side] = totalPower(game, side);
     gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " conjura " + card.name + ".");
@@ -295,9 +342,44 @@ function playCard(match, side, uid) {
 function handleDuelAction(match, socketId, payload) {
   const game = match.duel;
   const side = sideFor(match, socketId);
-  if (!game || !side || game.gameOver || game.active !== side) return;
+  if (!game || !side || game.gameOver) return;
 
   const type = cleanText(payload && payload.type, 40);
+
+  if (type === "concede") {
+    game.gameOver = true;
+    game.winner = sideOther(side);
+    gameLog(game, "Un jugador se ha retirado.");
+    emitDuel(match);
+    return;
+  }
+
+  if (game.pendingAttack) {
+    if (game.pendingAttack.defenderSide !== side) return;
+    if (type === "assignBlock") {
+      assignBlock(
+        game,
+        side,
+        cleanText(payload && payload.attackerUid, 100),
+        cleanText(payload && payload.defenderUid, 100)
+      );
+      emitDuel(match);
+      return;
+    }
+    if (type === "resolveDefense") {
+      resolveDeclaredAttack(game);
+      if (!checkEnd(game)) {
+        game.turn += 1;
+        beginTurn(game, sideOther(game.active));
+      }
+      emitDuel(match);
+      return;
+    }
+    return;
+  }
+
+  if (game.active !== side) return;
+
   if (type === "play") {
     playCard(match, side, cleanText(payload && payload.uid, 100));
   } else if (type === "toggleAttack" && game.phase === 5) {
@@ -305,10 +387,20 @@ function handleDuelAction(match, socketId, payload) {
     if (unit && !unit.exhausted) unit.selected = !unit.selected;
   } else if (type === "nextPhase") {
     if (game.phase === 5) {
-      resolveAttack(game, side);
-      if (!checkEnd(game)) {
+      const declared = declareAttack(game, side);
+      if (!declared) {
         game.turn += 1;
         beginTurn(game, sideOther(side));
+      } else {
+        const foe = sideOther(side);
+        const defenders = game.board[foe].filter(c => !c.exhausted);
+        if (!defenders.length) {
+          resolveDeclaredAttack(game);
+          if (!checkEnd(game)) {
+            game.turn += 1;
+            beginTurn(game, foe);
+          }
+        }
       }
     } else {
       game.phase += 1;
@@ -318,14 +410,11 @@ function handleDuelAction(match, socketId, payload) {
       }
       if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
     }
-  } else if (type === "concede") {
-    game.gameOver = true;
-    game.winner = sideOther(side);
-    gameLog(game, "Un jugador se ha retirado.");
   }
   checkEnd(game);
   emitDuel(match);
 }
+
 function removeSocketMatches(socketId) {
   let changed = false;
   for (const [mid, match] of matches.entries()) {
