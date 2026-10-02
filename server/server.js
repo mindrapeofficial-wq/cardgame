@@ -6,6 +6,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const { SyntheticPopulation } = require("./synthetic-population");
 const { version: SERVER_VERSION } = require("./package.json");
 
 const PORT = process.env.PORT || 10000;
@@ -50,6 +51,7 @@ const users = new Map();
 const matches = new Map();
 const trades = new Map();
 const combatIdleTimers = new Map();
+let syntheticPopulation = null;
 
 function cleanName(value) {
   return String(value || "Jugador").replace(/[<>]/g, "").trim().slice(0, 24) || "Jugador";
@@ -1044,6 +1046,17 @@ app.get("/state", (_req, res) => res.json({
   matches: [...matches.values()].map(publicMatch)
 }));
 
+app.get("/synthetic/state", (req, res) => {
+  const adminToken = String(process.env.SYNTHETIC_ADMIN_TOKEN || "");
+  if (!adminToken || String(req.get("x-synthetic-admin-token") || "") !== adminToken) {
+    return res.status(404).json({ ok: false });
+  }
+  if (!syntheticPopulation) {
+    return res.json({ ok: true, enabled: false });
+  }
+  return res.json({ ok: true, ...syntheticPopulation.state() });
+});
+
 io.on("connection", socket => {
   socket.on("hello", async payload => {
     const sessionToken = String(payload && payload.sessionToken || "");
@@ -1377,4 +1390,24 @@ io.on("connection", socket => {
 
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log("Rolplay restoration server v" + SERVER_VERSION + " listening on 0.0.0.0:" + PORT + " with " + CATALOG.length + " cards");
+
+  const syntheticEnabled = /^(1|true|yes)$/i.test(String(process.env.SYNTHETIC_POPULATION_ENABLED || ""));
+  if (syntheticEnabled) {
+    syntheticPopulation = new SyntheticPopulation({
+      apiUrl: ROLPLAY_API_URL,
+      serverKey: ROLPLAY_SERVER_KEY,
+      serverUrl: process.env.SYNTHETIC_SERVER_URL || ("http://127.0.0.1:" + PORT),
+      catalog: CATALOG
+    });
+    syntheticPopulation.start().then(() => {
+      console.log(
+        "Synthetic population enabled: "
+        + syntheticPopulation.accountCount + " accounts, target "
+        + syntheticPopulation.concurrentTarget + " concurrent."
+      );
+    }).catch(error => {
+      console.error("Synthetic population failed to start:", error);
+      syntheticPopulation = null;
+    });
+  }
 });
