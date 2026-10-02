@@ -32,10 +32,16 @@
           <p>Recarga la página. Si continúa, el despliegue puede estar actualizándose.</p>
         </div>
         <form id="loginForm" class="hidden">
-          <h2>Entra al salón</h2>
-          <p>Tu colección y progreso se guardan en este navegador. Un jugador nuevo recibe un mazo inicial listo para jugar.</p>
-          <div class="field"><label>Nombre de jugador</label><input id="loginName" class="input" maxlength="24" placeholder="Tu nombre" autocomplete="nickname"></div>
-          <button class="btn primary" type="submit">Entrar a Rolplay</button>
+          <div class="auth-tabs">
+            <button type="button" class="auth-tab active" data-auth-mode="login">Iniciar sesión</button>
+            <button type="button" class="auth-tab" data-auth-mode="register">Crear usuario</button>
+          </div>
+          <h2 id="authTitle">Entrar al salón</h2>
+          <p id="authDesc">Entra con tu usuario y contraseña para recuperar tu progreso.</p>
+          <div class="field"><label>Usuario</label><input id="loginName" class="input" maxlength="20" placeholder="Tu usuario" autocomplete="username"></div>
+          <div class="field"><label>Contraseña</label><input id="loginPassword" class="input" type="password" minlength="8" maxlength="128" placeholder="Mínimo 8 caracteres" autocomplete="current-password"></div>
+          <div id="confirmField" class="field hidden"><label>Repite la contraseña</label><input id="loginConfirm" class="input" type="password" minlength="8" maxlength="128" placeholder="Repite la contraseña" autocomplete="new-password"></div>
+          <button id="authSubmit" class="btn primary" type="submit">Iniciar sesión</button>
         </form>
       </div>
     </div>
@@ -55,7 +61,7 @@
         <button class="nav-btn" data-action="nav" data-view="archive" data-nav="archive"><span class="nav-icon">⌛</span><span>Archivo</span></button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="player-chip"><div id="playerAvatar" class="avatar">?</div><div><b id="playerName">Jugador</b><small id="playerMeta">Nivel 1</small></div><button id="logoutBtn" class="btn icon ghost" title="Salir">↪</button></div>
+        <div class="player-chip"><div id="playerAvatar" class="avatar">?</div><div style="min-width:0"><b id="playerName">Jugador</b><small id="playerMeta">Nivel 1</small><div class="mini-xp"><span id="playerXpFill"></span></div></div><button id="logoutBtn" class="btn icon ghost" title="Cerrar sesión">↪</button></div>
       </div>
     </aside>
 
