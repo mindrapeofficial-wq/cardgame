@@ -1474,11 +1474,14 @@ function battleCards(list,zone){
   return cards.map(entry=>{
     const c=entry.card,dying=entry.dying;
     const clickable=!dying&&duelCardClickable(c,zone);
+    const handPlayable=!dying&&zone==="hand"&&clickable;
+    const attacked=!dying&&(Number(c.attacksThisTurn)||0)>0;
     const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
-    return `<article class="battle-card ${dying?"dying":""} ${clickable?"clickable":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label)}" aria-label="${esc(dying?c.name+" destruida":label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
+    const stateHint=handPlayable?" · jugable ahora":attacked?" · ataque declarado":"";
+    return `<article class="battle-card ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
