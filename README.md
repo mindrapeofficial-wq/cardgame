@@ -38,7 +38,7 @@ Rolplay Reborn now has a complete playable loop:
 - 20–50 card decks with 7–40 Power cards
 - random starting player and an extra opening card for the second player
 - creature summoning and recovered ability subset
-- attacker target selection with simultaneous combat, persistent defense damage and overflow to life
+- sequential one-at-a-time attacks with defender-chosen blocks; tapping an attacker or defender exhausts that card immediately, each combat resolves before another attack can be declared, damage is simultaneous, defense damage persists and overflow hits life
 - life, deck-exhaustion, concession/disconnect and 40-minute score win conditions
 - conceding and disconnect handling
 - player-to-player card + gold exchanges with two-party locking
