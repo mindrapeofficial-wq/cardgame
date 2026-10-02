@@ -9,14 +9,10 @@ const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
 const LAST_USER_KEY="rolplay.last.username";
 const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
 const CARD_BACK_IMAGE="assets/arcanum-card-back.webp";
-const DECK_MIN=20;
-const DECK_MAX=50;
+// Card stats, costs and deck limits come from rules.js, shared with the multiplayer server.
+const RULES=window.ROLPLAY_RULES;
+const {DECK_MIN,DECK_MAX,MIN_POWER_CARDS,MAX_POWER_CARDS,MAX_POWER_POINTS,MATCH_LIMIT_MS,COMBAT_LEAVE_GRACE_MS,powerValue}=RULES;
 const DECK_SIZE=DECK_MIN;
-const MIN_POWER_CARDS=7;
-const MAX_POWER_CARDS=40;
-const MAX_POWER_POINTS=200;
-const MATCH_LIMIT_MS=40*60*1000;
-const COMBAT_LEAVE_GRACE_MS=2*60*1000;
 const COMBAT_IDLE_BASE_MS=3*60*1000;
 const COMBAT_IDLE_MAX_MS=5*60*1000;
 const COMBAT_IDLE_ACTION_BONUS_MS=10*1000;
@@ -46,24 +42,6 @@ const RARITIES=[
   {name:"Legendaria",key:"legendary",min:Infinity}
 ];
 const LEGENDARY_IDS=new Set([76,115,142,157,158,160,161,176,183,190,191,192,193,194,203,210,213,215,216,229,230,236,237,238,242,248,253,265,269,272,273,279,283,284,285]);
-const LEVEL1_COMBAT_STATS=Object.freeze({
-  "Duende":{atk:1,def:1},
-  "Elfo Bardo":{atk:0,def:2},
-  "Guerrero Menor":{atk:1,def:1},
-  "Dophan":{atk:2,def:1},
-  "Gorad Menor":{atk:1,def:2},
-  "Mimit":{atk:0,def:3},
-  "Mel":{atk:1,def:1}
-});
-const LEVEL1_POWER_COSTS=Object.freeze({
-  "Duende":1,
-  "Elfo Bardo":2,
-  "Guerrero Menor":2,
-  "Mel":2,
-  "Dophan":3,
-  "Gorad Menor":3,
-  "Mimit":3
-});
 const $=id=>document.getElementById(id);
 const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
@@ -79,11 +57,6 @@ const state={
 function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false,revision:null}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function norm(s){return String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
-function summonCost(name,level,powerCard){
-  if(powerCard)return 0;
-  const fixed=Number(level)===1?LEVEL1_POWER_COSTS[name]:undefined;
-  return Number.isFinite(fixed)?fixed:Math.max(1,Math.min(10,Math.ceil((Number(level)||1)/5)));
-}
 function uid(){return crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function clamp(n,a,b){return Math.min(b,Math.max(a,n))}
@@ -97,15 +70,12 @@ function rarity(c){
 }
 function cardType(c){return c.powerCard?"Poder":c.abilityCard?"Habilidad":"Criatura"}
 function cardValue(c){return Math.max(1,Math.round(c.level/2)+Math.round(c.rarity/20))}
-function powerValue(c){const m=c&&c.name.match(/^Poder\s+x\s+(\d+)/i);return m?Math.max(1,Number(m[1])||1):1}
 function powerTotal(list){return Math.min(MAX_POWER_POINTS,(list||[]).reduce((n,c)=>n+powerValue(c),0))}
 function owned(id){return Number(state.profile?.collection?.[id]||0)}
 function deckCount(id){return state.profile?.deck?.filter(x=>Number(x)===Number(id)).length||0}
 function isBasicPower(c){return !!(c&&c.powerCard&&c.level===1)}
 function freeCopies(id){const c=card(id);return isBasicPower(c)?Infinity:Math.max(0,owned(id)-deckCount(id))}
 function card(id){return state.byId.get(Number(id))}
-function isPowerName(n){return /^Poder(?:\s+x\s+\d+|\s*$)/i.test(n)}
-function isAbilityName(n){return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(n)}
 
 function imageKey(s){
   return norm(s).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").replace(/[^a-z0-9]+/g,"");
@@ -119,16 +89,7 @@ function cardImage(c){
   return state.imageMap[k]||CARD_BACK_IMAGE;
 }
 function parseCards(text){
-  state.catalog=text.trim().split(/\r?\n/).slice(1).filter(Boolean).map((line,i)=>{
-    const p=line.split(";"),name=p[0],rar=Number(p[1])||1,quantity=Number(p[2])||1,level=Number(p[3])||1;
-    const powerCard=isPowerName(name),abilityCard=isAbilityName(name);
-    const fixedStats=Number(level)===1?LEVEL1_COMBAT_STATS[name]:undefined;
-    return{id:i+1,name,rarity:rar,quantity,level,powerCard,abilityCard,
-      cost:summonCost(name,level,powerCard),
-      atk:(powerCard||abilityCard)?0:(fixedStats?fixedStats.atk:Math.max(1,Math.ceil(level*.52)+Math.floor(rar/30))),
-      def:(powerCard||abilityCard)?0:(fixedStats?fixedStats.def:Math.max(1,Math.ceil(level*.40)+Math.floor((101-rar)/40)))
-    };
-  });
+  state.catalog=RULES.parseCatalog(text);
   state.byId=new Map(state.catalog.map(c=>[c.id,c]));
 }
 function applyImageIndex(j){
@@ -177,6 +138,8 @@ function authErrorMessage(code){
     password_invalid:"La contraseña debe tener al menos 8 caracteres.",
     username_taken:"Ese nombre de usuario ya está registrado.",
     invalid_credentials:"Usuario o contraseña incorrectos.",
+    too_many_attempts:"Demasiados intentos fallidos. Espera 15 minutos y vuelve a intentarlo.",
+    too_many_registrations:"Se han creado demasiadas cuentas desde esta conexión hoy. Inténtalo mañana.",
     unauthorized:"La sesión ha caducado. Vuelve a iniciar sesión.",
     not_enough_gold:"No tienes oro suficiente.",
     no_cards_for_level:"No hay cartas disponibles para tu nivel.",
@@ -669,10 +632,17 @@ function go(view){
   if(view==="trade")void loadMarketListings();
   window.scrollTo({top:0,behavior:"smooth"});
 }
+const CHAT_HISTORY_LIMIT=200;
+function pushChat(m){state.chat.push(m);if(state.chat.length>CHAT_HISTORY_LIMIT)state.chat.splice(0,state.chat.length-CHAT_HISTORY_LIMIT)}
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
+  // Lobby events re-render the whole view; keep the focused field and its caret where they were.
+  const active=document.activeElement,focusId=active&&root.contains(active)&&/^(INPUT|TEXTAREA)$/.test(active.tagName)?active.id:"";
+  let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
   const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
   root.innerHTML=(renderers[state.view]||renderHome)();
+  const again=focusId&&$(focusId);
+  if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
 }
 
 function pageHead(kicker,title,desc,actions=""){
@@ -692,7 +662,7 @@ function renderHome(){
       <section class="panel home-mobile-chat">
         <div class="panel-head"><h2>Chat</h2><span class="muted">${state.chat.length} mensajes</span></div>
         <div class="chat"><div class="chat-log" id="chatLogMobile">${renderChat()}</div>
-          <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
+          <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off" value="${esc(state.chatDraft||"")}"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
         </div>
       </section>
       <section class="panel home-mobile-searching">
@@ -733,7 +703,7 @@ function renderHome(){
         <section class="panel">
           <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
           <div class="chat"><div class="chat-log" id="chatLog">${renderChat()}</div>
-            <form class="chat-send" id="chatFormDesktop"><input class="input" id="chatInputDesktop" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
+            <form class="chat-send" id="chatFormDesktop"><input class="input" id="chatInputDesktop" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off" value="${esc(state.chatDraft||"")}"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
           </div>
         </section>
       </div>
@@ -786,7 +756,7 @@ function renderManual(){
             <li>El jugador que no empieza recibe <b>una carta adicional</b> antes de su primer turno.</li>
             <li>El mazo se baraja antes de repartir.</li>
           </ul>
-          <div class="manual-note"><b>Importante:</b> si el mazo se queda sin cartas disponibles, la partida termina.</div>
+          <div class="manual-note"><b>Importante:</b> si debes robar y tu mazo está vacío, pierdes la partida. Robar tu última carta no te hace perder.</div>
         </div>
       </details>
 
@@ -1599,8 +1569,8 @@ function connectOnline(){
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];if(["home","play"].includes(state.view))renderView()});
-    socket.on("chat:message",m=>{state.chat.push({from:m.from,text:m.text});if(state.view==="home")renderView()});
-    socket.on("chat:system",m=>{state.chat.push({system:true,text:m.text});if(state.view==="home")renderView()});
+    socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
+    socket.on("chat:system",m=>{pushChat({system:true,text:m.text});if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
     socket.on("match:ready",m=>{toast("Reto aceptado contra "+(m.opponent?.name||"otro jugador")+".","good")});
@@ -1706,7 +1676,10 @@ function applyOnlineSnapshot(s){
     playerLeaveDeadlineAt:Number(s.playerLeaveDeadlineAt)||0,playerLeaveReason:String(s.playerLeaveReason||""),
     opponentDisconnectDeadlineAt:Number(s.opponentDisconnectDeadlineAt)||0,
     opponentLeaveDeadlineAt:Number(s.opponentLeaveDeadlineAt??s.opponentDisconnectDeadlineAt)||0,opponentLeaveReason:String(s.opponentLeaveReason||""),
-    serverNow:Number(s.serverNow)||Date.now()
+    serverNow:Number(s.serverNow)||Date.now(),
+    // Server deadline converted to this device's clock, so clock skew does not matter.
+    decisionDeadlineAt:Number(s.decisionDeadlineAt)?Number(s.decisionDeadlineAt)-(Number(s.serverNow)||Date.now())+Date.now():0,
+    decisionIsMine:!!s.decisionIsMine
   };
   duelIdleAllowanceMs=Math.max(COMBAT_IDLE_BASE_MS,Math.min(COMBAT_IDLE_MAX_MS,Number(state.duel.playerIdleAllowanceMs)||COMBAT_IDLE_BASE_MS));
   removedPlayer.forEach(x=>queueDeathGhost(state.duel,"player",x.c,x.index));
@@ -1939,7 +1912,6 @@ function drawLocal(side,n=1){
     const deck=d[side+"Deck"];
     if(!deck.length){d[side+"DeckOut"]=true;break}
     d[side+"Hand"].push(deck.pop());
-    if(!deck.length){d[side+"DeckOut"]=true;break}
   }
 }
 function localPlay(uid){
@@ -2363,8 +2335,8 @@ function checkLocalEnd(forceScore=false){
       if(ps===es)finalizeLocalResult(d,"draw","Empate por puntuación: "+ps+" a "+es+".");
       else if(ps>es)finalizeLocalResult(d,"win","Victoria por puntuación: "+ps+" a "+es+".");
       else finalizeLocalResult(d,"loss","Derrota por puntuación: "+ps+" a "+es+".");
-    }else if(playerLost)finalizeLocalResult(d,"loss",d.playerDeckOut?"Tu mazo se ha quedado sin cartas.":"Tus PV han llegado a 0.");
-    else if(enemyLost)finalizeLocalResult(d,"win",d.enemyDeckOut?"El mazo rival se ha quedado sin cartas.":"Los PV del rival han llegado a 0.");
+    }else if(playerLost)finalizeLocalResult(d,"loss",d.playerDeckOut?"Has tenido que robar con el mazo vacío.":"Tus PV han llegado a 0.");
+    else if(enemyLost)finalizeLocalResult(d,"win",d.enemyDeckOut?"El rival ha tenido que robar con el mazo vacío.":"Los PV del rival han llegado a 0.");
   }
   if(d.gameOver){
     if(!d.resultApplied){d.resultApplied=true;if(d.won)playSound("win");void awardTraining(d)}
@@ -2507,6 +2479,7 @@ document.addEventListener("click",e=>{
   else if(a==="logout")logout();
 });
 document.addEventListener("input",e=>{
+  if(e.target.id==="chatInput"||e.target.id==="chatInputDesktop"){state.chatDraft=e.target.value;return}
   if(e.target.id==="collectionSearch"){
     const pos=e.target.selectionStart||e.target.value.length;
     state.collectionQuery=e.target.value;renderView();
@@ -2529,8 +2502,9 @@ document.addEventListener("submit",e=>{
     e.preventDefault();
     const input=e.target.querySelector("input"),text=input?.value.trim();
     if(!text)return;
+    state.chatDraft="";
     if(state.connected)state.socket.emit("chat:send",{text});
-    else{state.chat.push({from:state.profile.name,text});renderView()}
+    else{pushChat({from:state.profile.name,text});renderView()}
     if(input)input.value="";
   }
 });
@@ -2586,9 +2560,19 @@ document.addEventListener("visibilitychange",()=>{
 window.addEventListener("focus",()=>markDuelActivity("return"));
 document.addEventListener("pointerdown",()=>markDuelActivity("activity"),{passive:true});
 document.addEventListener("keydown",()=>markDuelActivity("activity"));
+let decisionWarnedFor=0;
+function checkDecisionClock(){
+  const d=state.duel;
+  if(!d||!d.online||d.gameOver||!d.decisionIsMine||!d.decisionDeadlineAt)return;
+  const left=d.decisionDeadlineAt-Date.now();
+  if(left>20000||left<=0||decisionWarnedFor===d.decisionDeadlineAt)return;
+  decisionWarnedFor=d.decisionDeadlineAt;
+  toast(d.defending?"Te quedan 20 s para elegir defensor; si no, el ataque entrará sin bloqueo.":"Te quedan 20 s para actuar; si no, tu turno pasará automáticamente.","bad");
+}
 window.setInterval(()=>{
   updateCombatGraceCountdown();
   updateDuelFullscreenCountdown();
+  checkDecisionClock();
 },1000);
 boot();
 })();

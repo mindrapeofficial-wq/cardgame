@@ -6,6 +6,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const { version: SERVER_VERSION } = require("./package.json");
 
 const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
@@ -15,56 +16,13 @@ const ROLPLAY_SERVER_KEY = process.env.ROLPLAY_SERVER_KEY || "";
 if (!ROLPLAY_SERVER_KEY) console.warn("ROLPLAY_SERVER_KEY is not set: match and trade settlements will be rejected.");
 const SETTLEMENT_HEADERS = Object.freeze({ "content-type": "application/json", "x-rolplay-server-key": ROLPLAY_SERVER_KEY });
 
-const LEVEL1_COMBAT_STATS = Object.freeze({
-  "Duende": { atk: 1, def: 1 },
-  "Elfo Bardo": { atk: 0, def: 2 },
-  "Guerrero Menor": { atk: 1, def: 1 },
-  "Dophan": { atk: 2, def: 1 },
-  "Gorad Menor": { atk: 1, def: 2 },
-  "Mimit": { atk: 0, def: 3 },
-  "Mel": { atk: 1, def: 1 }
-});
+const rules = require("../rules.js");
+const {
+  DECK_MIN, DECK_MAX, MIN_POWER_CARDS, MAX_POWER_CARDS, MAX_POWER_POINTS,
+  MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS, powerValue
+} = rules;
 
-const LEVEL1_POWER_COSTS = Object.freeze({
-  "Duende": 1,
-  "Elfo Bardo": 2,
-  "Guerrero Menor": 2,
-  "Mel": 2,
-  "Dophan": 3,
-  "Gorad Menor": 3,
-  "Mimit": 3
-});
-function summonCost(name, level, powerCard) {
-  if (powerCard) return 0;
-  const fixed = Number(level) === 1 ? LEVEL1_POWER_COSTS[name] : undefined;
-  return Number.isFinite(fixed) ? fixed : Math.max(1, Math.min(10, Math.ceil((Number(level) || 1) / 5)));
-}
-
-function parseCatalog() {
-  const raw = fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8");
-  return raw.trim().split(/\r?\n/).slice(1).map((line, index) => {
-    const [name, rarity, quantity, level] = line.split(";");
-    const lv = Number(level) || 1;
-    const rar = Number(rarity) || 1;
-    const powerCard = /^Poder(?:\s+x\s+\d+|\s*$)/i.test(name);
-    const abilityCard = /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(name);
-    const fixedStats = lv === 1 ? LEVEL1_COMBAT_STATS[name] : undefined;
-    return {
-      id: index + 1,
-      name,
-      rarity: rar,
-      quantity: Number(quantity) || 1,
-      level: lv,
-      powerCard,
-      abilityCard,
-      cost: summonCost(name, lv, powerCard),
-      atk: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.atk : Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30))),
-      def: (powerCard || abilityCard) ? 0 : (fixedStats ? fixedStats.def : Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40)))
-    };
-  });
-}
-
-const CATALOG = parseCatalog();
+const CATALOG = rules.parseCatalog(fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8"));
 const BY_ID = new Map(CATALOG.map(c => [c.id, c]));
 
 const app = express();
@@ -80,15 +38,11 @@ const io = new Server(httpServer, {
   transports: ["websocket", "polling"]
 });
 
-const DECK_MIN = 20;
-const DECK_MAX = 50;
-const MIN_POWER_CARDS = 7;
-const MAX_POWER_CARDS = 40;
-const MAX_POWER_POINTS = 200;
 const INITIAL_HAND = 7;
 const SECOND_PLAYER_BONUS = 1;
-const MATCH_LIMIT_MS = 40 * 60 * 1000;
-const COMBAT_LEAVE_GRACE_MS = 2 * 60 * 1000;
+const DECISION_LIMIT_MS = Number(process.env.DECISION_LIMIT_MS) || 2 * 60 * 1000;
+const DEFENSE_DECISION_LIMIT_MS = Number(process.env.DEFENSE_DECISION_LIMIT_MS) || 60 * 1000;
+const FINISHED_MATCH_TTL_MS = 10 * 60 * 1000;
 const COMBAT_IDLE_BASE_MS = 3 * 60 * 1000;
 const COMBAT_IDLE_MAX_MS = 5 * 60 * 1000;
 const COMBAT_IDLE_ACTION_BONUS_MS = 10 * 1000;
@@ -196,10 +150,6 @@ function shuffle(a) {
   }
   return a;
 }
-function powerValue(card) {
-  const m = card && card.name.match(/^Poder\s+x\s+(\d+)/i);
-  return m ? Math.max(1, Number(m[1]) || 1) : 1;
-}
 function publicUser(socketId, user) {
   return { socketId, name: user.name, level: user.level, elo: Number(user.elo) || 1000, status: user.status, wins: user.wins };
 }
@@ -304,11 +254,8 @@ function draw(game, side, n = 1) {
       game.deckOut[side] = true;
       break;
     }
+    // Drawing the last card is fine; a player only loses when a draw finds the deck empty.
     game.hand[side].push(cardInstance(game.deck[side].pop()));
-    if (!game.deck[side].length) {
-      game.deckOut[side] = true;
-      break;
-    }
   }
 }
 function beginTurn(game, side) {
@@ -635,6 +582,8 @@ function snapshotFor(match, socketId) {
     opponentDisconnectDeadlineAt,
     opponentLeaveDeadlineAt: opponentDisconnectDeadlineAt,
     opponentLeaveReason,
+    decisionDeadlineAt: match.decision ? match.decision.deadlineAt : 0,
+    decisionIsMine: !!match.decision && match.decision.owner === side,
     serverNow: Date.now(),
     log: game.log.slice(-35)
   };
@@ -675,11 +624,95 @@ async function settleMatchReward(match) {
   }
   emitUsers();
 }
+function sideName(match, side) {
+  const user = users.get(socketForSide(match, side));
+  return user ? user.name : (side === "a" ? match.player : (match.guestName || "El rival")) || "Jugador";
+}
+
+// Whoever must act (the active player, or the defender of a pending attack) gets a limited
+// time per decision. When it runs out the server makes the default move instead of letting
+// the duel stall until the 40-minute limit.
+function decisionOwner(game) {
+  return game.pendingAttack ? sideOther(game.pendingAttack.side) : game.active;
+}
+function decisionSignature(game) {
+  const n = zone => zone.a.length + "/" + zone.b.length;
+  return [
+    decisionOwner(game), game.turn, game.phase, game.pendingAttack ? game.pendingAttack.attackerUid : "",
+    n(game.hand), n(game.board), n(game.powers), game.hp.a + "/" + game.hp.b,
+    game.availablePower.a + "/" + game.availablePower.b
+  ].join("|");
+}
+function clearDecisionTimer(match) {
+  if (match.decision && match.decision.timer) clearTimeout(match.decision.timer);
+  match.decision = null;
+}
+function refreshDecisionTimer(match) {
+  const game = match.duel;
+  if (!game || game.gameOver) {
+    clearDecisionTimer(match);
+    return;
+  }
+  const signature = decisionSignature(game);
+  if (match.decision && match.decision.signature === signature) return;
+  clearDecisionTimer(match);
+  const limit = game.pendingAttack ? DEFENSE_DECISION_LIMIT_MS : DECISION_LIMIT_MS;
+  const timer = setTimeout(() => enforceDecisionTimeout(match, signature), limit + 50);
+  match.decision = { signature, owner: decisionOwner(game), deadlineAt: Date.now() + limit, timer };
+}
+function enforceDecisionTimeout(match, signature) {
+  const game = match.duel;
+  if (!game || game.gameOver || matches.get(match.id) !== match) return;
+  if (!match.decision || match.decision.signature !== signature) return;
+  match.decision = null;
+  const owner = decisionOwner(game);
+  if (game.pendingAttack) {
+    gameLog(game, sideName(match, owner) + " no eligió defensor a tiempo: el ataque se resuelve sin bloqueo.");
+    resolvePendingAttack(game, owner, "", true);
+  } else {
+    gameLog(game, sideName(match, owner) + " agotó su tiempo de decisión y pasa el turno.");
+    game.turn += 1;
+    beginTurn(game, sideOther(game.active));
+  }
+  if (!checkEnd(game)) advanceAutomaticPhases(game);
+  checkEnd(game);
+  emitDuel(match);
+}
+
+// Every way a duel can end passes through emitDuel. Finished matches stay for a while so a
+// player who missed the ending (closed tab, lost connection) can reconnect and see the result.
+function finalizeMatch(match) {
+  if (match.status === "finished") return;
+  match.status = "finished";
+  match.finishedAt = Date.now();
+  clearDecisionTimer(match);
+  clearCombatIdleWatch(match.id, "a");
+  clearCombatIdleWatch(match.id, "b");
+  const finishedAt = match.finishedAt;
+  setTimeout(() => {
+    if (matches.get(match.id) === match && match.finishedAt === finishedAt) {
+      matches.delete(match.id);
+      emitMatches();
+    }
+  }, FINISHED_MATCH_TTL_MS);
+  emitMatches();
+}
 function emitDuel(match) {
   if (!match.duel) return;
-  if (match.hostSocketId) io.to(match.hostSocketId).emit("duel:snapshot", snapshotFor(match, match.hostSocketId));
-  if (match.guestSocketId) io.to(match.guestSocketId).emit("duel:snapshot", snapshotFor(match, match.guestSocketId));
-  if (match.duel.gameOver) void settleMatchReward(match);
+  refreshDecisionTimer(match);
+  for (const side of ["a", "b"]) {
+    const socketId = socketForSide(match, side);
+    if (!socketId) continue;
+    io.to(socketId).emit("duel:snapshot", snapshotFor(match, socketId));
+    if (match.duel.gameOver && io.sockets.sockets.get(socketId)?.connected) {
+      match.resultDelivered = match.resultDelivered || { a: false, b: false };
+      match.resultDelivered[side] = true;
+    }
+  }
+  if (match.duel.gameOver) {
+    finalizeMatch(match);
+    void settleMatchReward(match);
+  }
 }
 
 function playCard(match, side, uid) {
@@ -897,12 +930,8 @@ function finishDisconnectGrace(matchId, side, deadline) {
   const leaveReason = String(match.disconnectReason && match.disconnectReason[side] || "disconnect");
   match.disconnectDeadlineAt[side] = 0;
   if (match.disconnectReason) match.disconnectReason[side] = "";
-  clearCombatIdleWatch(matchId, "a");
-  clearCombatIdleWatch(matchId, "b");
   match.duel.gameOver = true;
   match.duel.winner = sideOther(side);
-  match.status = "finished";
-  match.finishedAt = Date.now();
   const lossMessage = leaveReason === "inactive"
     ? "El jugador no volvió a actuar durante los 2 minutos de gracia y pierde la partida."
     : leaveReason === "fullscreen"
@@ -910,20 +939,14 @@ function finishDisconnectGrace(matchId, side, deadline) {
       : "El jugador desconectado no regresó en 2 minutos y pierde la partida.";
   gameLog(match.duel, lossMessage);
   emitDuel(match);
-  emitMatches();
-  setTimeout(() => {
-    const live = matches.get(matchId);
-    if (live === match && live.status === "finished" && live.finishedAt === match.finishedAt) {
-      matches.delete(matchId);
-      emitMatches();
-    }
-  }, 10 * 60 * 1000);
 }
 
 function removeSocketMatches(socketId, useGrace = false) {
   let changed = false;
   for (const [mid, match] of matches.entries()) {
     if (match.hostSocketId !== socketId && match.guestSocketId !== socketId) continue;
+    // Finished matches expire on their own timer so the result can still be recovered.
+    if (match.status === "finished") continue;
 
     if (useGrace && match.status === "playing" && match.duel && !match.duel.gameOver) {
       const side = sideFor(match, socketId);
@@ -954,7 +977,9 @@ function resumeCombatForUser(socket, user) {
     if (!side) continue;
 
     if (match.duel.gameOver) {
-      if (match.status !== "finished" || !match.finishedAt || Date.now() - match.finishedAt > 10 * 60 * 1000) continue;
+      if (match.status !== "finished" || !match.finishedAt || Date.now() - match.finishedAt > FINISHED_MATCH_TTL_MS) continue;
+      // Only bring back players who never received the final result.
+      if (match.resultDelivered && match.resultDelivered[side]) continue;
       const oldSocketId = socketForSide(match, side);
       setSocketForSide(match, side, socket.id);
       socket.join(match.id);
@@ -1005,7 +1030,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: onlineUserCount(),
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.7.1"
+    version: SERVER_VERSION
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: onlineUserCount(), matches: matches.size, cards: CATALOG.length }));
@@ -1036,7 +1061,7 @@ io.on("connection", socket => {
     users.set(socket.id, user);
     const resumedMatch = resumeCombatForUser(socket, user);
     disconnectDuplicateAccountSockets(socket, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.7.1", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: SERVER_VERSION, cards: CATALOG.length });
     emitUsers();
     emitMatches();
     if (resumedMatch) {
@@ -1346,5 +1371,5 @@ io.on("connection", socket => {
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log("Rolplay restoration server v0.2.0 listening on 0.0.0.0:"+PORT+" with "+CATALOG.length+" cards");
+  console.log("Rolplay restoration server v" + SERVER_VERSION + " listening on 0.0.0.0:" + PORT + " with " + CATALOG.length + " cards");
 });

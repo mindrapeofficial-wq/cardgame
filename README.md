@@ -38,8 +38,9 @@ Rolplay Reborn now has a complete playable loop:
 - 20–50 card decks with 7–40 Power cards
 - random starting player and an extra opening card for the second player
 - creature summoning and recovered ability subset
-- sequential one-at-a-time attacks with defender-chosen blocks; tapping an attacker or defender exhausts that card immediately, each combat resolves before another attack can be declared, damage is simultaneous, defense damage persists and overflow hits life
-- life, deck-exhaustion, concession/disconnect and 40-minute score win conditions
+- sequential one-at-a-time attacks with defender-chosen blocks; tapping an attacker or defender exhausts that card immediately, each combat resolves before another attack can be declared, damage is simultaneous, card stats do not wear down between combats and overflow damage hits life
+- life, deck-exhaustion, concession/disconnect and 40-minute score win conditions; a player loses on deck exhaustion only when they must draw from an empty deck (drawing the last card is fine)
+- per-decision time limits online: 2 minutes for the active player and 60 seconds to choose a blocker; when time runs out the turn passes or the attack resolves unblocked
 - conceding and disconnect handling
 - player-to-player card + gold exchanges with two-party locking
 - local guild-merchant exchange fallback
@@ -55,6 +56,7 @@ Static vanilla web application:
 
 - `index.html` — modern application shell
 - `modern.css` — responsive design system
+- `rules.js` — card stats, Power costs and deck limits shared with the server (edit them only here)
 - `app.js` — game client, local economy, collection/decks, AI and multiplayer UI
 - `manifest.webmanifest` — installable web app metadata
 - `sw.js` — network-first core caching and offline asset cache
@@ -63,8 +65,19 @@ Static vanilla web application:
 
 Node.js + Express + Socket.IO:
 
-- `server/server.js`
-- `server/package.json`
+- `server/server.js` (loads `../rules.js` and `../cards.csv`)
+- `server/package.json` — also the single source of the server version
+
+The server needs the `ROLPLAY_SERVER_KEY` environment variable. Its SHA-256 must exist in the `rolplay_server_keys` table; without it, match and trade settlements are rejected.
+
+### Accounts API
+
+Supabase Edge Function plus Postgres functions, versioned under `supabase/`:
+
+- `supabase/functions/rolplay-api/index.ts` — accounts, packs, decks, market, rewards and settlements
+- `supabase/migrations/` — database changes applied to the project
+
+Failed logins are limited to 10 per username and 30 per IP every 15 minutes, and account creation to 5 per IP per day. Training gold is capped at 10 paid wins per day.
 
 The server owns online duel state so clients do not receive the opponent's private hand.
 
@@ -120,7 +133,17 @@ Level 1 pack slots use explicit server-side probabilities based on historical ra
 
 This gives a per-slot category distribution of 80% Common, 15% Uncommon and 5% Rare. Basic Level 1 Power has a 0% pack drop rate because it is infinite by rule.
 
-For Level 1, all collectible creatures currently cost 1 Power. The four common creatures are 1 ATK / 3 DEF, Mimit shares that stat line but preserves its higher historical rarity signal, Dophan is 2 ATK / 2 DEF, and Gorad Menor is 3 ATK / 2 DEF. Gorad therefore receives the lowest drop chance within the tier because it is the strongest offensive efficiency at this level.
+Level 1 creature stats and Power costs (defined in `rules.js`):
+
+| Card | ATK / DEF | Power cost |
+|---|---|---|
+| Duende | 1 / 1 | 1 |
+| Elfo Bardo | 0 / 2 | 2 |
+| Guerrero Menor | 1 / 1 | 2 |
+| Mel | 1 / 1 | 2 |
+| Dophan | 2 / 1 | 3 |
+| Gorad Menor | 1 / 2 | 3 |
+| Mimit | 0 / 3 | 3 |
 
 
 ## All-level pack system

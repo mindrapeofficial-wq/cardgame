@@ -40,6 +40,36 @@ async function isTrustedServer(req: Request) {
     .maybeSingle();
   return !error && !!data;
 }
+// Login/registration throttling. Failed logins are counted per username and per client IP
+// (stored only as a hash); the check runs before PBKDF2 so floods cannot burn CPU either.
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_FAILS_PER_USER = 10;
+const LOGIN_FAILS_PER_IP = 30;
+const REGISTER_WINDOW_MS = 24 * 60 * 60 * 1000;
+const REGISTRATIONS_PER_IP = 5;
+function clientIp(req: Request) {
+  return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim()
+    || req.headers.get("cf-connecting-ip")
+    || "unknown";
+}
+async function recentAttempts(kind: string, subject: string, windowMs: number) {
+  const { count, error } = await db
+    .from("rolplay_auth_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("kind", kind)
+    .eq("subject", subject)
+    .gte("created_at", new Date(Date.now() - windowMs).toISOString());
+  if (error) throw error;
+  return count || 0;
+}
+async function recordAttempts(rows: Array<{ kind: string; subject: string }>) {
+  const { error } = await db.from("rolplay_auth_attempts").insert(rows);
+  if (error) throw error;
+  // Keep the table small: nothing older than the longest window is ever needed.
+  await db.from("rolplay_auth_attempts")
+    .delete()
+    .lt("created_at", new Date(Date.now() - 2 * REGISTER_WINDOW_MS).toISOString());
+}
 function normalizeUsername(value: unknown) {
   return String(value || "").trim();
 }
@@ -323,6 +353,10 @@ Deno.serve(async (req: Request) => {
       const password = String(body.password || "");
       if (!validateUsername(username)) return fail("username_invalid");
       if (!validatePassword(password)) return fail("password_invalid");
+      const ipKey = await sha256Text("ip:" + clientIp(req));
+      if (await recentAttempts("register_ip", ipKey, REGISTER_WINDOW_MS) >= REGISTRATIONS_PER_IP) {
+        return fail("too_many_registrations", 429);
+      }
 
       const key = usernameKey(username);
       const { data: existing } = await db
@@ -360,6 +394,7 @@ Deno.serve(async (req: Request) => {
         if ((error as any).code === "23505") return fail("username_taken", 409);
         throw error;
       }
+      await recordAttempts([{ kind: "register_ip", subject: ipKey }]);
       const token = await createSession(account.id);
       return json({ ok: true, token, profile: publicProfile(account) }, 201);
     }
@@ -367,14 +402,32 @@ Deno.serve(async (req: Request) => {
     if (action === "login") {
       const username = normalizeUsername(body.username);
       const password = String(body.password || "");
+      const key = usernameKey(username).slice(0, 40);
+      const ipKey = await sha256Text("ip:" + clientIp(req));
+      const [userFails, ipFails] = await Promise.all([
+        recentAttempts("login_fail_user", key, LOGIN_WINDOW_MS),
+        recentAttempts("login_fail_ip", ipKey, LOGIN_WINDOW_MS),
+      ]);
+      if (userFails >= LOGIN_FAILS_PER_USER || ipFails >= LOGIN_FAILS_PER_IP) {
+        return fail("too_many_attempts", 429);
+      }
+      const loginFailed = async () => {
+        await recordAttempts([
+          { kind: "login_fail_user", subject: key },
+          { kind: "login_fail_ip", subject: ipKey },
+        ]);
+        return fail("invalid_credentials", 401);
+      };
+
       const { data: account, error } = await db
         .from("rolplay_accounts")
         .select("*")
-        .eq("username_key", usernameKey(username))
+        .eq("username_key", key)
         .maybeSingle();
-      if (error || !account) return fail("invalid_credentials", 401);
+      if (error || !account) return await loginFailed();
       const derived = await derivePassword(password, unb64(account.password_salt));
-      if (!safeEqual(derived, account.password_hash)) return fail("invalid_credentials", 401);
+      if (!safeEqual(derived, account.password_hash)) return await loginFailed();
+      await db.from("rolplay_auth_attempts").delete().eq("kind", "login_fail_user").eq("subject", key);
       const token = await createSession(account.id);
       return json({ ok: true, token, profile: publicProfile(account) });
     }
