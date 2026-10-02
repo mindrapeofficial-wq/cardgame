@@ -703,6 +703,7 @@ class SyntheticPopulation {
     this.running = false;
     this.tickTimer = null;
     this.chatTimes = [];
+    this.lastStateLogAt = 0;
     this.metrics = {
       provisioned: 0, sessionsStarted: 0, sessionsStopped: 0,
       packsBought: 0, decksBuilt: 0, matchesEntered: 0, matchesFinished: 0,
@@ -772,6 +773,18 @@ class SyntheticPopulation {
   async tick() {
     const desired = this.desiredOnline();
     const online = this.agents.filter(a => a.online || a.starting);
+    if (Date.now() - this.lastStateLogAt >= 60_000) {
+      this.lastStateLogAt = Date.now();
+      const active = this.agents.filter(a => a.online);
+      console.log("[synthetic-state]", JSON.stringify({
+        desiredOnline: desired,
+        online: active.length,
+        starting: this.agents.filter(a => a.starting).length,
+        inMatches: active.filter(a => a.inMatch).length,
+        waitingMatches: active.filter(a => a.waitingMatchId).length,
+        metrics: this.metrics
+      }));
+    }
     if (online.length < desired) {
       const candidates = this.agents.filter(a => !a.online && !a.starting && !a.stopping);
       candidates.sort((a, b) => {
