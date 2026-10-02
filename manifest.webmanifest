@@ -9,8 +9,8 @@
   "theme_color": "#050505",
   "icons": [
     {
-      "src": "legacy-assets/imagenes/icono.png",
-      "sizes": "any",
+      "src": "assets/arcanum-favicon-64.png",
+      "sizes": "64x64",
       "type": "image/png",
       "purpose": "any"
     }
