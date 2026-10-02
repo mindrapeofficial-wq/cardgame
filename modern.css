@@ -1085,3 +1085,22 @@ body{
   .deck-save-actions{grid-column:auto;flex-wrap:wrap}
   .deck-save-actions .btn{flex:1 1 auto}
 }
+
+
+/* ELO ranking */
+.ranking-summary{margin-top:14px}
+.ranking-wrap{overflow-x:auto}
+.ranking-row{display:grid;grid-template-columns:72px minmax(220px,1fr) 110px 150px 90px;gap:12px;align-items:center;min-width:720px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ranking-row:last-child{border-bottom:0}
+.ranking-head{padding-top:4px;color:var(--muted);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em;background:transparent}
+.ranking-row.me{background:linear-gradient(90deg,rgba(230,185,92,.13),rgba(230,185,92,.025));box-shadow:inset 3px 0 0 var(--gold)}
+.rank-pos{font:900 18px Georgia,serif;color:#d8c7a0}
+.rank-player{display:flex;align-items:center;gap:10px;min-width:0}
+.rank-player .avatar{width:34px;height:34px;border-radius:9px;flex:0 0 34px}
+.rank-player b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank-player small,.rank-record small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+.rank-elo{font-size:20px;font-weight:950;color:#f1d18c}
+.rank-record,.rank-games{font-weight:800}
+@media(max-width:760px){
+  .ranking-summary{grid-template-columns:1fr!important}
+}
