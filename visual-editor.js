@@ -227,7 +227,72 @@ function setProp(prop,value){
   if(!Object.keys(r).length)delete rules[selector];
   applyRules();saveRules();refreshPanel();
 }
-function pxValue(v){var n=parseFloat(String(v||"").trim());return Number.isFinite(n)?n:0}\nfunction nudgeSelected(dx,dy){\n  if(!selected)return;\n  var selector=selectorFor(selected),r=getRule(selector),computed=getComputedStyle(selected);\n  if((r.position||computed.position||"static")==="static")r.position="relative";\n  r.left=(pxValue(r.left||computed.left)+dx)+"px";\n  r.top=(pxValue(r.top||computed.top)+dy)+"px";\n  applyRules();saveRules();refreshPanel();setStatus("Posición actualizada.","good");\n}\nfunction normalizeSize(v){\n  v=String(v||"").trim();\n  if(!v)return"";\n  if(/^-?\\d+(\\.\\d+)?$/.test(v))return v+"px";\n  return v;\n}
+function pxValue(v){
+  var n=parseFloat(String(v||"").trim());
+  return Number.isFinite(n)?n:0;
+}
+function ensureMoveRule(){
+  if(!selected)return null;
+  var selector=selectorFor(selected);
+  var r=getRule(selector);
+  var computed=getComputedStyle(selected);
+  if((r.position||computed.position||"static")==="static")r.position="relative";
+  if(r.left==null||r.left==="")r.left=(pxValue(computed.left)||0)+"px";
+  if(r.top==null||r.top==="")r.top=(pxValue(computed.top)||0)+"px";
+  return {selector:selector,rule:r};
+}
+function nudgeSelected(dx,dy){
+  var move=ensureMoveRule();
+  if(!move)return;
+  move.rule.left=(pxValue(move.rule.left)+dx)+"px";
+  move.rule.top=(pxValue(move.rule.top)+dy)+"px";
+  applyRules();saveRules();refreshPanel();setStatus("Posición actualizada.","good");
+}
+function beginDrag(e){
+  if(mode!=="move"||!selected||!root)return;
+  if(root.contains(e.target)||e.target.classList.contains("ve-fab"))return;
+  if(!(e.target===selected||selected.contains(e.target)))return;
+  var move=ensureMoveRule();
+  if(!move)return;
+  dragState={
+    pointerId:e.pointerId,
+    selector:move.selector,
+    startX:e.clientX,
+    startY:e.clientY,
+    left:pxValue(move.rule.left),
+    top:pxValue(move.rule.top)
+  };
+  selected.classList.add("ve-dragging");
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+}
+function dragMove(e){
+  if(!dragState||e.pointerId!==dragState.pointerId)return;
+  var r=getRule(dragState.selector);
+  r.position=r.position&&r.position!=="static"?r.position:"relative";
+  r.left=(dragState.left+(e.clientX-dragState.startX))+"px";
+  r.top=(dragState.top+(e.clientY-dragState.startY))+"px";
+  applyRules();
+  e.preventDefault();
+  e.stopPropagation();
+}
+function finishDrag(e){
+  if(!dragState||e.pointerId!==dragState.pointerId)return;
+  if(selected)selected.classList.remove("ve-dragging");
+  dragState=null;
+  saveRules();
+  refreshPanel();
+  setStatus("Posición guardada.","good");
+  e.preventDefault();
+  e.stopPropagation();
+}
+function normalizeSize(v){
+  v=String(v||"").trim();
+  if(!v)return"";
+  if(/^-?\d+(\.\d+)?$/.test(v))return v+"px";
+  return v;
+}
 function select(el){
   if(selected)selected.classList.remove("ve-target");
   selected=el;
@@ -294,7 +359,7 @@ function activate(){
   updateModeButtons();
 }
 function deactivate(){
-  document.body.classList.remove("ve-enabled","ve-select-mode");
+  document.body.classList.remove("ve-enabled","ve-select-mode","ve-move-mode");
   mode="interact";
   localStorage.setItem(MODE_KEY,"off");
   select(null);
@@ -312,7 +377,8 @@ function updateModeButtons(){
   root.querySelectorAll("[data-ve-mode]").forEach(function(b){
     b.classList.toggle("active",b.getAttribute("data-ve-mode")===mode);
   });
-  document.body.classList.toggle("ve-select-mode",mode==="select");\n  document.body.classList.toggle("ve-move-mode",mode==="move");
+  document.body.classList.toggle("ve-select-mode",mode==="select");
+  document.body.classList.toggle("ve-move-mode",mode==="move");
 }
 function exportCss(){
   var text="/* ARCANUM visual overrides */\n"+cssText()+"\n";
@@ -477,6 +543,18 @@ function build(){
   observer.observe(document.body,{childList:true,subtree:true});
   if(location.search.indexOf("design=1")>=0||localStorage.getItem(MODE_KEY)==="on")activate();
 }
+document.addEventListener("pointerdown",function(e){
+  beginDrag(e);
+},true);
+document.addEventListener("pointermove",function(e){
+  dragMove(e);
+},true);
+document.addEventListener("pointerup",function(e){
+  finishDrag(e);
+},true);
+document.addEventListener("pointercancel",function(e){
+  finishDrag(e);
+},true);
 document.addEventListener("pointerover",function(e){
   if(!document.body.classList.contains("ve-enabled")||mode!=="select"||!root)return;
   if(root.contains(e.target)||e.target.classList.contains("ve-fab"))return;
@@ -493,15 +571,31 @@ document.addEventListener("pointerout",function(e){
   if(e.target===hover){hover.classList.remove("ve-hover");hover=null;if(badge){badge.remove();badge=null}}
 },true);
 document.addEventListener("click",function(e){
-  if(!document.body.classList.contains("ve-enabled")||mode!=="select"||!root)return;
+  if(!document.body.classList.contains("ve-enabled")||!root)return;
   if(root.contains(e.target)||e.target.classList.contains("ve-fab"))return;
-  e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
-  select(e.target);
+  if(mode==="select"){
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    select(e.target);
+    return;
+  }
+  if(mode==="move"){
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+  }
 },true);
 document.addEventListener("keydown",function(e){
   if(e.ctrlKey&&e.shiftKey&&String(e.key).toLowerCase()==="d"){
     e.preventDefault();
     if(document.body.classList.contains("ve-enabled"))deactivate();else activate();
+    return;
+  }
+  if(document.body.classList.contains("ve-enabled")&&mode==="move"&&selected&&["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.key)>=0){
+    if(root&&root.contains(document.activeElement))return;
+    e.preventDefault();
+    var step=e.shiftKey?10:1;
+    if(e.key==="ArrowUp")nudgeSelected(0,-step);
+    if(e.key==="ArrowDown")nudgeSelected(0,step);
+    if(e.key==="ArrowLeft")nudgeSelected(-step,0);
+    if(e.key==="ArrowRight")nudgeSelected(step,0);
   }
 });
 loadRules();
