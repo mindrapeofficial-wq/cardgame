@@ -4065,3 +4065,124 @@ html.duel-viewport-lock #appShell.duel-mode,
   box-shadow:none!important;
   backdrop-filter:none!important;
 }
+
+
+/* === NATIVE FULLSCREEN / WEB MODE TOGGLE 2026-10-02 === */
+.duel-turn-strip{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:8px!important;
+}
+.duel-fullscreen-button{
+  flex:0 0 auto!important;
+  width:32px!important;
+  min-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:18px!important;
+  line-height:1!important;
+  border-color:rgba(212,175,55,.42)!important;
+  color:#e3c56c!important;
+  background:rgba(7,7,7,.72)!important;
+}
+.duel-fullscreen-button:hover{
+  border-color:#d4af37!important;
+  background:#17130b!important;
+}
+
+/* Native fullscreen gets its own fixed deck geometry so both decks stay parallel. */
+body.duel-native-fullscreen .shell.duel-mode .player-hand-layout{
+  grid-template-columns:minmax(0,1fr) 196px!important;
+  gap:12px!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner{
+  width:196px!important;
+  min-width:196px!important;
+  height:100%!important;
+  display:grid!important;
+  grid-template-columns:repeat(2,88px)!important;
+  align-items:center!important;
+  align-content:center!important;
+  justify-content:end!important;
+  justify-items:center!important;
+  gap:10px!important;
+  padding:0!important;
+  margin:0!important;
+  overflow:visible!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .duel-deck-column{
+  position:static!important;
+  width:88px!important;
+  min-width:88px!important;
+  max-width:88px!important;
+  height:auto!important;
+  margin:0!important;
+  padding:0!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:4px!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .duel-deck-back{
+  width:62px!important;
+  min-width:62px!important;
+  max-width:62px!important;
+  flex:0 0 62px!important;
+  margin:0 auto!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-meta{
+  width:82px!important;
+  min-width:82px!important;
+  max-width:82px!important;
+  margin:0!important;
+  text-align:center!important;
+}
+body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-meta b{
+  width:100%!important;
+  max-width:82px!important;
+}
+
+@media (orientation:landscape) and (max-width:1180px){
+  body.duel-native-fullscreen .shell.duel-mode .player-hand-layout{
+    grid-template-columns:minmax(0,1fr) 142px!important;
+    gap:6px!important;
+  }
+  body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner{
+    width:142px!important;
+    min-width:142px!important;
+    grid-template-columns:repeat(2,66px)!important;
+    gap:5px!important;
+  }
+  body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .duel-deck-column{
+    width:66px!important;
+    min-width:66px!important;
+    max-width:66px!important;
+  }
+  body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .duel-deck-back{
+    width:46px!important;
+    min-width:46px!important;
+    max-width:46px!important;
+    flex-basis:46px!important;
+  }
+  body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-meta{
+    width:62px!important;
+    min-width:62px!important;
+    max-width:62px!important;
+  }
+  body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-meta b{
+    max-width:62px!important;
+    font-size:7px!important;
+  }
+  .duel-fullscreen-button{
+    width:26px!important;
+    min-width:26px!important;
+    height:26px!important;
+    min-height:26px!important;
+    font-size:15px!important;
+  }
+}
