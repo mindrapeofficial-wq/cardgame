@@ -113,8 +113,12 @@ async function derivePassword(password: string, salt: Uint8Array) {
     false,
     ["deriveBits"],
   );
+  // Deno 2's WebCrypto typings require a concrete ArrayBuffer here.
+  // Copying preserves the exact salt bytes and does not change the PBKDF2 result.
+  const saltBuffer = new ArrayBuffer(salt.byteLength);
+  new Uint8Array(saltBuffer).set(salt);
   const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 180000 },
+    { name: "PBKDF2", hash: "SHA-256", salt: saltBuffer, iterations: 180000 },
     material,
     256,
   );
