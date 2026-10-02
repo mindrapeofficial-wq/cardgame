@@ -1107,8 +1107,11 @@ function renderDeck(){
   const active=currentSavedDeck();
   const deckOptions=state.savedDecks.map(d=>`<option value="${d.id}" ${d.id===state.activeDeckId?"selected":""}>${esc(d.name)} · ${d.cards?.length||0} cartas</option>`).join("");
   return `<div class="page">
-    ${pageHead("Estrategia","Constructor de mazos","El formato actual admite de 20 a 50 cartas, con entre 7 y 40 cartas de Poder.",
-      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir 20</button>'+(active&&deckValid()?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':'')+'<button class="btn danger" data-action="clearDeck">Vaciar</button>')}
+    <div class="actions" style="justify-content:flex-end;margin-bottom:12px">
+      <button class="btn" data-action="newDeck">Nuevo mazo</button>
+      ${active&&deckValid()?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':''}
+      <button class="btn danger" data-action="clearDeck">Vaciar</button>
+    </div>
     <section class="panel deck-library" style="margin-bottom:12px">
       <div class="panel-head"><h2>Mis mazos</h2><span class="pill">${state.savedDecks.length}/12 guardados</span></div>
       <div class="panel-body">
