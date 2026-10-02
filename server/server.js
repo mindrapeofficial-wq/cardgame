@@ -9,6 +9,7 @@ const { Server } = require("socket.io");
 
 const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
+const ROLPLAY_API_URL = process.env.ROLPLAY_API_URL || "https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
 
 function parseCatalog() {
   const raw = fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8");
@@ -54,7 +55,37 @@ const matches = new Map();
 const trades = new Map();
 
 function cleanName(value) {
-  return String(value || "Invitado").replace(/[<>]/g, "").trim().slice(0, 24) || "Invitado";
+  return String(value || "Jugador").replace(/[<>]/g, "").trim().slice(0, 24) || "Jugador";
+}
+async function profileFromSession(sessionToken) {
+  if (!sessionToken || typeof sessionToken !== "string") return null;
+  try {
+    const response = await fetch(ROLPLAY_API_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-rolplay-session": sessionToken },
+      body: JSON.stringify({ action: "me" })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data && data.ok && data.profile ? data.profile : null;
+  } catch {
+    return null;
+  }
+}
+async function awardProfile(sessionToken, payload) {
+  if (!sessionToken) return null;
+  try {
+    const response = await fetch(ROLPLAY_API_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-rolplay-session": sessionToken },
+      body: JSON.stringify({ action: "award_result", ...payload })
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return data && data.ok ? data : null;
+  } catch {
+    return null;
+  }
 }
 function cleanText(value, max = 300) {
   return String(value || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
@@ -96,18 +127,14 @@ function emitMatches() {
 function cardInstance(cardId) {
   return { uid: id("c"), cardId: Number(cardId), exhausted: false, selected: false };
 }
-function sanitizeDeck(input, size) {
-  const ids = Array.isArray(input) ? input.map(Number).filter(x => BY_ID.has(x)).slice(0, size) : [];
-  if (ids.length >= 20) return shuffle(ids.slice());
-  const powers = CATALOG.filter(c => c.powerCard && c.level <= 15);
-  const creatures = CATALOG.filter(c => !c.powerCard && !c.abilityCard && c.level <= 10);
-  const deck = ids.slice();
-  while (deck.length < size) {
-    const choosePower = deck.filter(cid => BY_ID.get(cid)?.powerCard).length < Math.ceil(size * 0.32);
-    const pool = choosePower ? powers : creatures;
-    deck.push(pool[Math.floor(Math.random() * pool.length)].id);
-  }
-  return shuffle(deck);
+function sanitizeDeck(input, size, level) {
+  const ids = Array.isArray(input)
+    ? input.map(Number).filter(x => {
+        const c = BY_ID.get(x);
+        return c && c.level <= level;
+      }).slice(0, size)
+    : [];
+  return ids.length === size ? shuffle(ids.slice()) : [];
 }
 function sideOther(side) { return side === "a" ? "b" : "a"; }
 function sideFor(match, socketId) {
@@ -159,9 +186,9 @@ function resolveAbility(game, side, inst) {
   if (n.startsWith("fuente de vida")) {
     game.hp[side] += 3; gameLog(game, card.name + ": +3 PV.");
   } else if (n.startsWith("veneno")) {
-    game.hp[foe] -= 3; gameLog(game, card.name + ": 3 PV al adversario.");
+    game.hp[foe] -= 3; game.damage[side] += 3; gameLog(game, card.name + ": 3 PV al adversario.");
   } else if (n.startsWith("drenador")) {
-    game.hp[foe] -= 2; game.hp[side] += 2; gameLog(game, card.name + ": drena 2 PV.");
+    game.hp[foe] -= 2; game.damage[side] += 2; game.hp[side] += 2; gameLog(game, card.name + ": drena 2 PV.");
   } else if (n.startsWith("poder mental")) {
     draw(game, side, 1); gameLog(game, card.name + ": carta adicional.");
   } else if (n.startsWith("poderador")) {
@@ -229,8 +256,10 @@ function resolveDeclaredAttack(game) {
       if (blockerDies) game.board[foe] = game.board[foe].filter(c => c.uid !== blocker.uid);
       if (attackerDies) game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
     } else {
-      game.hp[foe] -= ac?.atk || 0;
-      gameLog(game, ac.name + " causa " + (ac?.atk || 0) + " PV.");
+      const dealt = ac?.atk || 0;
+      game.hp[foe] -= dealt;
+      game.damage[side] += dealt;
+      gameLog(game, ac.name + " causa " + dealt + " PV.");
     }
     const survivor = game.board[side].find(c => c.uid === attacker.uid);
     if (survivor) {
@@ -249,8 +278,8 @@ function initDuel(match) {
     phase: 0,
     hp: { a: 30, b: 30 },
     deck: {
-      a: sanitizeDeck(match.hostDeck, size),
-      b: sanitizeDeck(match.guestDeck, size)
+      a: sanitizeDeck(match.hostDeck, size, match.hostLevel),
+      b: sanitizeDeck(match.guestDeck, size, match.guestLevel)
     },
     hand: { a: [], b: [] },
     board: { a: [], b: [] },
@@ -258,6 +287,8 @@ function initDuel(match) {
     availablePower: { a: 0, b: 0 },
     powerPlayed: { a: false, b: false },
     pendingAttack: null,
+    damage: { a: 0, b: 0 },
+    rewardRequested: { a: false, b: false },
     deckOut: { a: false, b: false },
     gameOver: false,
     winner: null,
@@ -302,14 +333,43 @@ function snapshotFor(match, socketId) {
     defending: !!(game.pendingAttack && game.pendingAttack.defenderSide === side),
     attackDeclared: !!(game.pendingAttack && game.pendingAttack.attackerSide === side),
     blockAssignments: game.pendingAttack ? { ...game.pendingAttack.blocks } : {},
+    damageDealt: game.damage[side],
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
     log: game.log.slice(-35)
   };
+}
+async function rewardSide(match, side) {
+  const game = match.duel;
+  if (!game || !game.gameOver || game.rewardRequested[side]) return;
+  game.rewardRequested[side] = true;
+  const socketId = side === "a" ? match.hostSocketId : match.guestSocketId;
+  const user = users.get(socketId);
+  if (!user || !user.sessionToken) return;
+  const result = await awardProfile(user.sessionToken, {
+    rewardKey: "online:" + match.id + ":" + user.accountId,
+    win: game.winner === side,
+    damage: Math.min(30, Math.max(0, game.damage[side] || 0)),
+    mode: "online"
+  });
+  if (result && result.profile) {
+    user.level = result.profile.level;
+    user.wins = result.profile.wins;
+    io.to(socketId).emit("profile:update", {
+      profile: result.profile,
+      xpAwarded: result.xpAwarded || 0,
+      goldAwarded: result.goldAwarded || 0
+    });
+    emitUsers();
+  }
 }
 function emitDuel(match) {
   if (!match.duel) return;
   if (match.hostSocketId) io.to(match.hostSocketId).emit("duel:snapshot", snapshotFor(match, match.hostSocketId));
   if (match.guestSocketId) io.to(match.guestSocketId).emit("duel:snapshot", snapshotFor(match, match.guestSocketId));
+  if (match.duel.gameOver) {
+    void rewardSide(match, "a");
+    void rewardSide(match, "b");
+  }
 }
 function playCard(match, side, uid) {
   const game = match.duel;
@@ -439,7 +499,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.2.0"
+    version: "0.3.0"
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -449,15 +509,25 @@ app.get("/state", (_req, res) => res.json({
 }));
 
 io.on("connection", socket => {
-  socket.on("hello", payload => {
+  socket.on("hello", async payload => {
+    const sessionToken = String(payload && payload.sessionToken || "");
+    const profile = await profileFromSession(sessionToken);
+    if (!profile) {
+      socket.emit("auth:error", { message: "Sesión inválida o caducada." });
+      socket.disconnect(true);
+      return;
+    }
     const user = {
-      name: cleanName(payload && payload.name),
-      level: Math.max(1, Math.min(50, Number(payload && payload.level) || 1)),
-      wins: Math.max(0, Number(payload && payload.wins) || 0),
+      accountId: profile.id,
+      sessionToken,
+      name: cleanName(profile.name),
+      level: Math.max(1, Math.min(50, Number(profile.level) || 1)),
+      wins: Math.max(0, Number(profile.wins) || 0),
+      deck: Array.isArray(profile.deck) ? profile.deck.map(Number) : [],
       status: "Disponible"
     };
     users.set(socket.id, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.2.0", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: "0.3.0", cards: CATALOG.length });
     emitUsers();
     emitMatches();
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
@@ -483,6 +553,10 @@ io.on("connection", socket => {
     if (!user) return;
     removeSocketMatches(socket.id);
     const deckSize = [20, 30, 40, 50].includes(Number(payload && payload.deckSize)) ? Number(payload.deckSize) : 30;
+    if (!Array.isArray(user.deck) || user.deck.length < deckSize) {
+      socket.emit("match:error", { message: "Tu mazo guardado no tiene suficientes cartas." });
+      return;
+    }
     const match = {
       id: id("match"),
       player: user.name,
@@ -492,8 +566,10 @@ io.on("connection", socket => {
       status: "waiting",
       hostSocketId: socket.id,
       guestSocketId: null,
-      hostDeck: Array.isArray(payload && payload.deck) ? payload.deck.slice(0, deckSize) : [],
+      hostDeck: user.deck.slice(0, deckSize),
       guestDeck: [],
+      hostLevel: user.level,
+      guestLevel: 1,
       duel: null,
       createdAt: Date.now()
     };
@@ -520,8 +596,13 @@ io.on("connection", socket => {
       return;
     }
     match.status = "playing";
+    if (!Array.isArray(user.deck) || user.deck.length < match.deckSize) {
+      socket.emit("match:error", { message: "Tu mazo guardado no tiene suficientes cartas." });
+      return;
+    }
     match.guestSocketId = socket.id;
-    match.guestDeck = Array.isArray(payload && payload.deck) ? payload.deck.slice(0, match.deckSize) : [];
+    match.guestDeck = user.deck.slice(0, match.deckSize);
+    match.guestLevel = user.level;
     socket.join(mid);
     initDuel(match);
 
@@ -606,8 +687,8 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     const user = users.get(socket.id);
-    users.delete(socket.id);
     removeSocketMatches(socket.id);
+    users.delete(socket.id);
     for (const [tid, trade] of trades.entries()) {
       if (trade.a === socket.id || trade.b === socket.id) {
         const other = trade.a === socket.id ? trade.b : trade.a;
