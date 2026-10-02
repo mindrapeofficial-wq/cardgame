@@ -449,7 +449,6 @@ function collectionCards(){
 function renderCollection(){
   const list=collectionCards();
   return `<div class="page">
-    ${pageHead("Biblioteca","Colección","Explora las 285 cartas recuperadas. Vende duplicados, inspecciona detalles o llévalas al constructor de mazos.")}
     <div class="toolbar"><input class="input" id="collectionSearch" value="${esc(state.collectionQuery)}" placeholder="Buscar carta…"><select class="select" id="collectionMode"><option value="owned" ${state.collectionMode==="owned"?"selected":""}>Mi colección</option><option value="all" ${state.collectionMode==="all"?"selected":""}>Catálogo completo</option></select><select class="select" id="collectionType"><option value="all">Todos los tipos</option><option ${state.collectionType==="Criatura"?"selected":""}>Criatura</option><option ${state.collectionType==="Poder"?"selected":""}>Poder</option><option ${state.collectionType==="Habilidad"?"selected":""}>Habilidad</option></select><span class="toolbar-spacer"></span><span class="muted">${list.length} resultados</span></div>
     <div class="card-grid">${list.map(c=>cardTile(c,{qty:owned(c.id),collection:true})).join("")||'<div class="empty">No hay cartas que coincidan.</div>'}</div>
   </div>`;
