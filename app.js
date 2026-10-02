@@ -669,6 +669,7 @@ function renderView(){
   let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
   const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
   root.innerHTML=(renderers[state.view]||renderHome)();
+  if(state.view==="duel")animateHandDraws();
   const again=focusId&&$(focusId);
   if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
 }
@@ -1808,6 +1809,41 @@ function drawButton(){
   offerDraw();
 }
 
+// Cards entering the player's hand fly in from their deck: the opening hand is dealt one by
+// one and every later draw gets the same flight. renderView rebuilds the DOM, so flights still
+// running are resumed on the new elements at the point they had reached.
+const HAND_DRAW_MS=520,HAND_DEAL_GAP_MS=150;
+const handDraws={key:"",seen:new Set(),flights:new Map()};
+function animateHandDraws(){
+  const d=state.duel,key=duelPresentationKey(d);
+  if(!key)return;
+  if(handDraws.key!==key){handDraws.key=key;handDraws.seen=new Set();handDraws.flights=new Map()}
+  const deck=document.querySelector(".player-deck-column .duel-deck-back");
+  const cards=[...document.querySelectorAll(".battle-card.zone-hand[data-hand-uid]")];
+  let reduce=false;try{reduce=matchMedia("(prefers-reduced-motion: reduce)").matches}catch{}
+  const now=performance.now();let queued=0;
+  for(const el of cards){
+    const uid=el.dataset.handUid;
+    if(!handDraws.seen.has(uid)){
+      handDraws.seen.add(uid);
+      if(!reduce&&deck&&el.animate)handDraws.flights.set(uid,now+queued++*HAND_DEAL_GAP_MS);
+    }
+    const start=handDraws.flights.get(uid);
+    if(start==null)continue;
+    if(now-start>=HAND_DRAW_MS){handDraws.flights.delete(uid);continue}
+    const from=deck.getBoundingClientRect(),to=el.getBoundingClientRect();
+    if(!to.width)continue;
+    const dx=(from.left+from.width/2)-(to.left+to.width/2),dy=(from.top+from.height/2)-(to.top+to.height/2);
+    const scale=Math.min(1,from.width/to.width||1);
+    const anim=el.animate([
+      {transform:`translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg)`,opacity:0,filter:"brightness(.35)"},
+      {transform:`translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg)`,opacity:1,filter:"brightness(.35)",offset:.12},
+      {transform:"translate(0,-14px) scale(1.04) rotate(0deg)",opacity:1,filter:"brightness(1)",offset:.8},
+      {transform:"none",opacity:1,filter:"none"}
+    ],{duration:HAND_DRAW_MS,delay:Math.max(0,start-now),easing:"cubic-bezier(.2,.75,.25,1)",fill:"backwards"});
+    if(now>start)anim.currentTime=now-start;
+  }
+}
 function hiddenCardBacks(count){
   const total=Math.max(0,Number(count)||0),shown=Math.min(total,10);
   if(!shown)return'<div class="hidden-hand-empty">Sin cartas ocultas</div>';
@@ -1876,7 +1912,7 @@ function battleCards(list,zone){
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
     const stateHint=handPlayable?" · jugable ahora":[attackingNow?"atacando ahora":"",attacked&&!attackingNow?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
-    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
+    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} ${zone==="hand"&&c.uid?'data-hand-uid="'+esc(c.uid)+'"':""} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
