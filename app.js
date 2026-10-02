@@ -491,7 +491,7 @@ function renderManual(){
             <li>Las criaturas no pueden atacar el turno en que son invocadas, salvo las de tipo <b>Berserker</b>.</li>
             <li>Los ataques se declaran de uno en uno. El atacante toca una criatura preparada y esta se gira inmediatamente. El defensor responde tocando una sola criatura preparada, que también se gira. No pueden acumularse varios atacantes ni varios defensores pendientes al mismo tiempo.</li>
             <li>Tras resolver ese combate, el jugador atacante puede tocar otra criatura para iniciar un nuevo ataque o pasar directamente su turno. Una criatura normal solo ataca o defiende una vez por turno.</li>
-            <li>El combate es <b>simultáneo</b>: el ATQ de cada criatura reduce la DEF de la otra y ese daño de DEF se conserva entre combates.</li>
+            <li>El combate es <b>simultáneo</b>: se compara el ATQ de cada criatura con la DEF completa de la otra. El combate <b>no desgasta ni reduce</b> ATQ o DEF; una criatura que sobreviva conserva sus estadísticas completas para futuros combates, salvo efectos de cartas que indiquen expresamente una modificación.</li>
             <li>Si el ATQ atacante supera la DEF restante de la defensora, el exceso se descuenta de los PV del jugador defensor.</li>
             <li>Las criaturas con DEF igual o inferior a 0 son destruidas.</li>
           </ul>
@@ -1423,7 +1423,7 @@ function powerLane(list,label,zone){
     return `<div class="power-mini ${c.exhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder automático"><span>+${powerValue(c)}</span></div>`;
   }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
 }
-function currentDef(c){return Math.max(0,(Number(c?.def)||0)+(Number(c?.defBonus)||0)-(Number(c?.damage)||0))}
+function currentDef(c){return Math.max(0,(Number(c?.def)||0)+(Number(c?.defBonus)||0))}
 function cardCanAttackUi(d,c){
   if(!d||!c||(Number(c.atk)||0)<=0)return false;
   if(c.exhausted)return false;
@@ -1444,7 +1444,7 @@ function battleCards(list,zone){
     const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
-      : `${c.name} · Ataque ${c.atk} · Defensa ${defense}${c.damage?" · Daño "+c.damage:""}`;
+      : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
     return `<article class="battle-card ${dying?"dying":""} ${clickable?"clickable":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label)}" aria-label="${esc(dying?c.name+" destruida":label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
@@ -1571,19 +1571,20 @@ function resolveLocalSingleAttack(side,attacker,defender){
   }
   const liveDefender=d[foe+"Board"].find(x=>x.uid===defender.uid);
   if(!liveDefender||!localCanDefend(liveDefender))return false;
-  const bDef=currentDef(liveDefender),bAtk=Math.max(0,Number(liveDefender.atk)||0);
+  const bDef=currentDef(liveDefender),bAtk=Math.max(0,Number(liveDefender.atk)||0),aDef=currentDef(liveAttacker);
   liveDefender.exhausted=true;liveDefender.defensesThisTurn=(liveDefender.defensesThisTurn||0)+1;
-  liveDefender.damage=(liveDefender.damage||0)+aAtk;liveAttacker.damage=(liveAttacker.damage||0)+bAtk;
+  const defenderDestroyed=aAtk>=bDef;
+  const attackerDestroyed=bAtk>=aDef;
   const overflow=Math.max(0,aAtk-bDef);
   if(overflow){d[foe+"Hp"]-=overflow;if(side==="player")d.damageDealt+=overflow}
-  d.log.push(liveAttacker.name+" ("+aAtk+" ATQ) combate con "+liveDefender.name+" ("+bAtk+" ATQ / "+bDef+" DEF)."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
-  if(currentDef(liveDefender)<=0){
+  d.log.push(liveAttacker.name+" ("+aAtk+" ATQ / "+aDef+" DEF) combate con "+liveDefender.name+" ("+bAtk+" ATQ / "+bDef+" DEF). Las estadísticas no se desgastan."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
+  if(defenderDestroyed){
     const deathIndex=d[foe+"Board"].findIndex(x=>x.uid===liveDefender.uid);
     queueDeathGhost(d,foe,liveDefender,deathIndex);
     d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==liveDefender.uid);
     d.log.push(liveDefender.name+" es destruida.");
   }
-  if(currentDef(liveAttacker)<=0){
+  if(attackerDestroyed){
     const deathIndex=d[side+"Board"].findIndex(x=>x.uid===liveAttacker.uid);
     queueDeathGhost(d,side,liveAttacker,deathIndex);
     d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);
