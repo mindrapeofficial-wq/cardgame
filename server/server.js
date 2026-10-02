@@ -409,64 +409,86 @@ function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
   return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
 }
-function resolveTargetedAttack(game, side, targets = {}) {
+function resolvePendingAttack(game, defenderSide, defenderUid) {
+  const pending = game.pendingAttack;
+  if (!pending) return false;
+  const side = pending.side;
   const foe = sideOther(side);
-  const attackers = game.board[side].filter(inst => inst.selected && canAttack(game, side, inst));
-  if (!attackers.length) return false;
+  if (defenderSide && defenderSide !== foe) return false;
 
-  for (const attacker of attackers) {
-    const currentAttacker = game.board[side].find(c => c.uid === attacker.uid);
-    if (!currentAttacker || !canAttack(game, side, currentAttacker)) continue;
-    const ac = BY_ID.get(currentAttacker.cardId);
-    currentAttacker.attacksThisTurn = (Number(currentAttacker.attacksThisTurn) || 0) + 1;
-    currentAttacker.exhausted = currentAttacker.attacksThisTurn >= attackLimit(ac);
-    currentAttacker.selected = false;
-
-    const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
-    const requested = cleanText(targets && targets[currentAttacker.uid], 100);
-    let defender = requested ? defenders.find(inst => inst.uid === requested) : null;
-    if (!defender) defender = defenders[0] || null;
-
-    if (!defender) {
-      const dealt = Math.max(0, Number(ac?.atk) || 0);
-      game.hp[foe] -= dealt;
-      game.damage[side] += dealt;
-      gameLog(game, ac.name + " ataca directamente y causa " + dealt + " PV.");
-      continue;
-    }
-
-    const bc = BY_ID.get(defender.cardId);
-    const attackerAttack = Math.max(0, Number(ac?.atk) || 0);
-    const defenderAttack = Math.max(0, Number(bc?.atk) || 0);
-    const defenderDefBefore = effectiveDef(defender);
-
-    defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
-    defender.exhausted = defender.defensesThisTurn >= defenseLimit(bc);
-    defender.damage = (Number(defender.damage) || 0) + attackerAttack;
-    currentAttacker.damage = (Number(currentAttacker.damage) || 0) + defenderAttack;
-
-    const overflow = Math.max(0, attackerAttack - defenderDefBefore);
-    if (overflow > 0) {
-      game.hp[foe] -= overflow;
-      game.damage[side] += overflow;
-    }
-
-    gameLog(
-      game,
-      ac.name + " (" + attackerAttack + " ATQ) combate con " + bc.name + " (" + defenderAttack + " ATQ / " + defenderDefBefore + " DEF)."
-      + (overflow ? " " + overflow + " de daño atraviesa al jugador defensor." : "")
-    );
-
-    if (effectiveDef(defender) <= 0) {
-      game.board[foe] = game.board[foe].filter(c => c.uid !== defender.uid);
-      gameLog(game, bc.name + " es destruida.");
-    }
-    if (effectiveDef(currentAttacker) <= 0) {
-      game.board[side] = game.board[side].filter(c => c.uid !== currentAttacker.uid);
-      gameLog(game, ac.name + " es destruida por el contraataque.");
-    }
-    if (game.hp[foe] <= 0) break;
+  const attacker = game.board[side].find(c => c.uid === pending.attackerUid);
+  if (!attacker) {
+    game.pendingAttack = null;
+    return false;
   }
+
+  const ac = BY_ID.get(attacker.cardId);
+  const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
+  let defender = null;
+
+  if (defenders.length) {
+    const wanted = cleanText(defenderUid, 100);
+    defender = wanted ? defenders.find(inst => inst.uid === wanted) : null;
+    if (!defender) return false;
+  }
+
+  game.pendingAttack = null;
+
+  if (!defender) {
+    const dealt = Math.max(0, Number(ac?.atk) || 0);
+    game.hp[foe] -= dealt;
+    game.damage[side] += dealt;
+    gameLog(game, ac.name + " ataca directamente y causa " + dealt + " PV.");
+    return true;
+  }
+
+  const bc = BY_ID.get(defender.cardId);
+  const attackerAttack = Math.max(0, Number(ac?.atk) || 0);
+  const defenderAttack = Math.max(0, Number(bc?.atk) || 0);
+  const defenderDefBefore = effectiveDef(defender);
+
+  defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
+  defender.exhausted = true;
+  defender.damage = (Number(defender.damage) || 0) + attackerAttack;
+  attacker.damage = (Number(attacker.damage) || 0) + defenderAttack;
+
+  const overflow = Math.max(0, attackerAttack - defenderDefBefore);
+  if (overflow > 0) {
+    game.hp[foe] -= overflow;
+    game.damage[side] += overflow;
+  }
+
+  gameLog(
+    game,
+    ac.name + " (" + attackerAttack + " ATQ) combate con " + bc.name + " (" + defenderAttack + " ATQ / " + defenderDefBefore + " DEF)."
+    + (overflow ? " " + overflow + " de daño atraviesa al jugador defensor." : "")
+  );
+
+  if (effectiveDef(defender) <= 0) {
+    game.board[foe] = game.board[foe].filter(c => c.uid !== defender.uid);
+    gameLog(game, bc.name + " es destruida.");
+  }
+  if (effectiveDef(attacker) <= 0) {
+    game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
+    gameLog(game, ac.name + " es destruida por el contraataque.");
+  }
+  return true;
+}
+function declareAttack(game, side, uid) {
+  if (!game || game.gameOver || game.phase !== 5 || game.pendingAttack) return false;
+  const attacker = game.board[side].find(c => c.uid === uid);
+  if (!attacker || !canAttack(game, side, attacker)) return false;
+
+  const ac = BY_ID.get(attacker.cardId);
+  attacker.attacksThisTurn = (Number(attacker.attacksThisTurn) || 0) + 1;
+  attacker.exhausted = true;
+  attacker.selected = false;
+  game.pendingAttack = { side, attackerUid: attacker.uid };
+  gameLog(game, ac.name + " declara un ataque.");
+
+  const foe = sideOther(side);
+  const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
+  if (!defenders.length) return resolvePendingAttack(game, null, "");
   return true;
 }
 
@@ -519,6 +541,9 @@ function snapshotFor(match, socketId) {
   const foe = sideOther(side);
   const opponentSocket = side === "a" ? match.guestSocketId : match.hostSocketId;
   const opponent = users.get(opponentSocket);
+  const pending = game.pendingAttack;
+  const pendingAttacker = pending ? game.board[pending.side].find(c => c.uid === pending.attackerUid) : null;
+  const pendingCard = pendingAttacker ? BY_ID.get(pendingAttacker.cardId) : null;
   return {
     matchId: match.id,
     side,
@@ -543,8 +568,9 @@ function snapshotFor(match, socketId) {
     gameOver: game.gameOver,
     result: game.gameOver ? (game.winner === "draw" ? "draw" : game.winner === side ? "win" : "loss") : null,
     won: game.gameOver ? (game.winner === "draw" ? null : game.winner === side) : null,
-    defending: false,
-    attackDeclared: false,
+    defending: !!pending && pending.side === foe,
+    attackDeclared: !!pending && pending.side === side,
+    pendingAttack: pending ? { attackerUid: pending.attackerUid, attackerName: pendingCard?.name || "Criatura" } : null,
     drawOfferIncoming: !!(game.drawOfferBy && game.drawOfferBy !== side),
     drawOfferOutgoing: game.drawOfferBy === side,
     blockAssignments: {},
@@ -671,22 +697,30 @@ function handleDuelAction(match, socketId, payload) {
     return;
   }
 
+  if (type === "defend") {
+    if (game.phase !== 5 || !game.pendingAttack || side !== sideOther(game.pendingAttack.side)) return;
+    const resolved = resolvePendingAttack(game, side, cleanText(payload && payload.uid, 100));
+    if (!resolved) return;
+    if (!checkEnd(game)) advanceAutomaticPhases(game);
+    checkEnd(game);
+    emitDuel(match);
+    return;
+  }
+
   if (game.active !== side) return;
 
   if (type === "play") {
     playCard(match, side, cleanText(payload && payload.uid, 100));
     advanceAutomaticPhases(game);
-  } else if (type === "toggleAttack" && game.phase === 5) {
-    const unit = game.board[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
-    if (unit && canAttack(game, side, unit)) unit.selected = !unit.selected;
+  } else if (type === "attack" && game.phase === 5) {
+    const declared = declareAttack(game, side, cleanText(payload && payload.uid, 100));
+    if (declared && !game.pendingAttack && !checkEnd(game)) advanceAutomaticPhases(game);
   } else if (type === "nextPhase") {
     if (game.phase === 5) {
-      resolveTargetedAttack(game, side, payload && payload.targets && typeof payload.targets === "object" ? payload.targets : {});
-      if (!checkEnd(game)) {
-        game.turn += 1;
-        beginTurn(game, sideOther(side));
-        advanceAutomaticPhases(game);
-      }
+      if (game.pendingAttack) return;
+      game.turn += 1;
+      beginTurn(game, sideOther(side));
+      advanceAutomaticPhases(game);
     } else {
       game.phase += 1;
       if (game.phase === 1) {
@@ -724,7 +758,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.5.0"
+    version: "0.6.0"
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -753,7 +787,7 @@ io.on("connection", socket => {
       status: "Disponible"
     };
     users.set(socket.id, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.5.0", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: "0.6.0", cards: CATALOG.length });
     emitUsers();
     emitMatches();
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
