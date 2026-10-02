@@ -342,7 +342,7 @@ function renderView(){
 }
 
 function pageHead(kicker,title,desc,actions=""){
-  return `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`;
+  return `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1>${desc?`<p>${desc}</p>`:""}</div><div class="actions">${actions}</div></div>`;
 }
 function renderHome(){
   const deckReady=deckValid(),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
@@ -938,7 +938,7 @@ function renderRanking(){
     return `<div class="ranking-row ${mine?"me":""}"><div class="rank-pos">#${p.position}</div><div class="rank-player"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b><small>Nivel ${Number(p.level)||1}${mine?" · Tú":""}</small></div></div><div class="rank-elo">${Number(p.elo)||1000}</div><div class="rank-record">${Number(p.wins)||0}-${Number(p.draws)||0}-${Number(p.losses)||0}<small>${wr}% victorias</small></div><div class="rank-games">${Number(p.rankedMatches)||0}</div></div>`;
   }).join("");
   return `<div class="page">
-    ${pageHead("Competición","Ranking","Cálculo FIDE: resultado real menos resultado esperado, multiplicado por el coeficiente K del jugador.",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
+    ${pageHead("Competición","Ranking","",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
     <div class="grid three ranking-summary">
       <div class="stat-card"><small>Tu ELO</small><strong>${myElo}</strong><span class="muted">K FIDE = ${myK}</span></div>
       <div class="stat-card"><small>Tu posición</small><strong>#${myRank}</strong><span class="muted">clasificación global</span></div>
@@ -951,7 +951,6 @@ function renderRanking(){
         ${body||(state.rankingLoading?'<div class="empty">Cargando clasificación…</div>':'<div class="empty">Todavía no hay jugadores clasificados.</div>')}
       </div>
     </section>
-    <div class="reward-rules" style="margin-top:14px"><b>Cómo cambia el ELO</b><p>Cada partida usa la probabilidad esperada de la tabla FIDE. Victoria = 1, empate = 0,5 y derrota = 0. El cambio es K × (resultado − expectativa), redondeado al entero más cercano. K=40 durante las primeras 30 partidas puntuadas, K=20 después mientras no se haya alcanzado 2400, y K=10 desde el momento en que se alcanzan 2400. Para jugadores por debajo de 2650, una diferencia superior a 400 puntos se calcula como 400.</p></div>
   </div>`;
 }
 
