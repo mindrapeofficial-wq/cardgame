@@ -134,6 +134,7 @@ function applyProfile(profile){
     losses:Math.max(0,Number(profile.losses)||0),
     elo:Number.isFinite(Number(profile.elo))?Number(profile.elo):1000,
     rankedMatches:Math.max(0,Number(profile.rankedMatches)||0),
+    eloEver2400:!!profile.eloEver2400,
     collection:profile.collection&&typeof profile.collection==="object"?profile.collection:{},
     deck:Array.isArray(profile.deck)?profile.deck.map(Number):[],
     packs:Math.max(0,Number(profile.packs)||0)
@@ -801,9 +802,16 @@ async function loadRanking(){
   state.myRank=Number(r.myRank)||null;
   if(state.view==="ranking")renderView();
 }
+function fideK(profile=state.profile){
+  const elo=Number(profile?.elo)||1000;
+  if(profile?.eloEver2400||elo>=2400)return 10;
+  if((Number(profile?.rankedMatches)||0)<30)return 40;
+  return 20;
+}
 function renderRanking(){
   const rows=state.ranking||[];
   const myElo=Number(state.profile?.elo)||1000;
+  const myK=fideK(state.profile);
   const myRank=state.myRank||rows.find(x=>x.id===state.profile?.id)?.position||"—";
   const body=rows.map(p=>{
     const total=(Number(p.wins)||0)+(Number(p.draws)||0)+(Number(p.losses)||0);
@@ -812,9 +820,9 @@ function renderRanking(){
     return `<div class="ranking-row ${mine?"me":""}"><div class="rank-pos">#${p.position}</div><div class="rank-player"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b><small>Nivel ${Number(p.level)||1}${mine?" · Tú":""}</small></div></div><div class="rank-elo">${Number(p.elo)||1000}</div><div class="rank-record">${Number(p.wins)||0}-${Number(p.draws)||0}-${Number(p.losses)||0}<small>${wr}% victorias</small></div><div class="rank-games">${Number(p.rankedMatches)||0}</div></div>`;
   }).join("");
   return `<div class="page">
-    ${pageHead("Competición","Ranking","Clasificación PvP por ELO. Todos empiezan en 1000 y cada duelo online modifica la puntuación según la fuerza relativa de ambos jugadores.",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
+    ${pageHead("Competición","Ranking","Cálculo FIDE: resultado real menos resultado esperado, multiplicado por el coeficiente K del jugador.",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
     <div class="grid three ranking-summary">
-      <div class="stat-card"><small>Tu ELO</small><strong>${myElo}</strong><span class="muted">K = 32</span></div>
+      <div class="stat-card"><small>Tu ELO</small><strong>${myElo}</strong><span class="muted">K FIDE = ${myK}</span></div>
       <div class="stat-card"><small>Tu posición</small><strong>#${myRank}</strong><span class="muted">clasificación global</span></div>
       <div class="stat-card"><small>Partidas puntuadas</small><strong>${state.profile?.rankedMatches||0}</strong><span class="muted">solo PvP online</span></div>
     </div>
@@ -825,7 +833,7 @@ function renderRanking(){
         ${body||(state.rankingLoading?'<div class="empty">Cargando clasificación…</div>':'<div class="empty">Todavía no hay jugadores clasificados.</div>')}
       </div>
     </section>
-    <div class="reward-rules" style="margin-top:14px"><b>Cómo cambia el ELO</b><p>La puntuación usa la fórmula Elo estándar con K=32. Una victoria contra un rival con mayor ELO vale más; perder contra un rival muy superior resta menos. Los empates también ajustan la puntuación según la diferencia previa.</p></div>
+    <div class="reward-rules" style="margin-top:14px"><b>Cómo cambia el ELO</b><p>Cada partida usa la probabilidad esperada de la tabla FIDE. Victoria = 1, empate = 0,5 y derrota = 0. El cambio es K × (resultado − expectativa), redondeado al entero más cercano. K=40 durante las primeras 30 partidas puntuadas, K=20 después mientras no se haya alcanzado 2400, y K=10 desde el momento en que se alcanzan 2400. Para jugadores por debajo de 2650, una diferencia superior a 400 puntos se calcula como 400.</p></div>
   </div>`;
 }
 
