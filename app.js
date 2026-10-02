@@ -1869,7 +1869,7 @@ function powerLane(list,label,zone){
   return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${groups.length?groups.map(group=>{
     const c=group.sample,count=group.count,value=powerValue(c),stackPower=count*value,allExhausted=group.exhausted===count;
     return `<div class="power-mini power-stack ${allExhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · ${count} carta${count===1?"":"s"} · +${stackPower} Poder automático">${count>1?`<b class="power-stack-count">×${count}</b>`:""}<span>+${value}</span></div>`;
-  }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
+  }).join(""):""}</div></div>`;
 }
 function currentDef(c){return Math.max(0,(Number(c?.def)||0)+(Number(c?.defBonus)||0))}
 function cardCanAttackUi(d,c){
