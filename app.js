@@ -514,7 +514,7 @@ function applyOnlineSnapshot(s){
   if(!s)return;
   const previous=state.duel&&state.duel.online&&state.duel.matchId===s.matchId?state.duel:null;
   state.duel={online:true,matchId:s.matchId,myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
-    playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,
+    playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
     enemyPower:Number(s.enemyPower)||0,enemyMaxPower:Number(s.enemyMaxPower)||0,playerDeckCount:Number(s.playerDeckCount)||0,enemyDeckCount:Number(s.enemyDeckCount)||0,
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard:(s.playerBoard||[]).map(wireInstance).filter(Boolean),enemyBoard:(s.enemyBoard||[]).map(wireInstance).filter(Boolean),
@@ -559,7 +559,7 @@ function duelCardClickable(c,zone){
   const d=state.duel;if(!d||d.gameOver)return false;
   if(d.online&&(d.defending||d.attackDeclared))return false;
   if(d.online&&!d.myTurn)return false;
-  if(zone==="hand")return(d.phase===2&&c.powerCard)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
+  if(zone==="hand")return(d.phase===2&&c.powerCard&&!d.powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
   if(zone==="player")return d.phase===5&&!c.exhausted;
   return false;
 }
