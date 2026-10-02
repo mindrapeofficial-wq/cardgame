@@ -945,8 +945,8 @@ function renderDuel(){
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
     <div class="board">
-      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
-      <section class="board-zone"><div class="zone-title"><span>Tu campo</span><span>${phase}</span></div>${powerLane(d.playerPowers||[],"Tu Poder")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
+      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
+      <section class="board-zone"><div class="zone-title"><span>Tu campo</span><span>${phase}</span></div>${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
         <section class="board-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
         <section class="panel"><div class="panel-head"><h3>Registro</h3><span class="pill">${phase}</span></div><div class="panel-body"><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></section>
@@ -963,9 +963,12 @@ function deckBack(count,label){
   const total=Math.max(0,Number(count)||0);
   return `<div class="duel-deck-back ${total?"":"empty"}" title="${esc(label||"Mazo")} · ${total} cartas" aria-label="${esc(label||"Mazo")} con ${total} cartas"><span>${total}</span></div>`;
 }
-function powerLane(list,label){
-  const cards=list||[],total=powerTotal(cards);
-  return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${cards.length?cards.map(c=>`<div class="power-mini ${c.exhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder"><span>+${powerValue(c)}</span></div>`).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
+function powerLane(list,label,zone){
+  const cards=list||[],total=powerTotal(cards),d=state.duel;
+  return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${cards.length?cards.map(c=>{
+    const clickable=zone==="playerPower"&&d&&!d.gameOver&&d.phase===2&&(!d.online||d.myTurn)&&!d.defending&&!d.attackDeclared&&!c.exhausted;
+    return `<div class="power-mini ${clickable?"clickable":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelPower" data-uid="'+c.uid+'"':""} style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder"><span>+${powerValue(c)}</span></div>`;
+  }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
 }
 function battleCards(list,zone){
   if(!list?.length)return'<div class="empty" style="min-width:100%">Sin cartas</div>';
@@ -990,8 +993,9 @@ function duelControls(d){
   return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
 }
 function renderDefenseControls(d){
-  const attackers=(d.enemyBoard||[]).filter(c=>c.selected&&!c.exhausted);
-  const defenders=(d.playerBoard||[]).filter(c=>!c.exhausted);
+  const attackers=(d.enemyBoard||[]).filter(c=>c.selected);
+  const assigned=new Set(Object.values(d.blockAssignments||{}));
+  const defenders=(d.playerBoard||[]).filter(c=>!c.exhausted||assigned.has(c.uid));
   if(!attackers.length)return'<div class="turn-wait">El ataque rival se está resolviendo…</div>';
   return`<div style="width:100%"><div class="turn-wait" style="margin-bottom:8px">Asigna un defensor a cada atacante o déjalo pasar.</div>
     <div class="grid" style="gap:6px">${attackers.map(a=>`<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-block-attacker="${a.uid}"><option value="">Sin bloquear</option>${defenders.map(dfc=>`<option value="${dfc.uid}" ${d.blockAssignments?.[a.uid]===dfc.uid?"selected":""}>${esc(dfc.name)} · DEF ${dfc.def}</option>`).join("")}</select></label>`).join("")}</div>
@@ -1024,7 +1028,7 @@ function drawLocal(side,n=1){
 }
 function localPlay(uid){
   const d=state.duel,i=d.playerHand.findIndex(c=>c.uid===uid);if(i<0)return;const c=d.playerHand[i];
-  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);c.exhausted=true;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.playerPowerPlayed=true;d.log.push("Conjuras "+c.name+" girada y obtienes +"+powerValue(c)+" Poder.");playSound("power")}
+  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);c.exhausted=false;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.playerPowerPlayed=true;d.log.push("Pones "+c.name+" en tu zona de Poder.");playSound("power")}
   else if(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);d.playerBoard.push(c);d.log.push("Invocas "+c.name+".");playSound("summon")}
   else if(d.phase===4&&c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);resolveLocalAbility(c,"player")}
   renderView();
@@ -1039,17 +1043,36 @@ function resolveLocalAbility(c,side){
   else{drawLocal(side,1);d.log.push(c.name+" se resuelve.")}
   checkLocalEnd();
 }
+function tapLocalPower(uid){
+  const d=state.duel,c=d?.playerPowers?.find(x=>x.uid===uid);
+  if(!d||d.phase!==2||!c||c.exhausted)return;
+  c.exhausted=true;
+  d.power+=powerValue(c);
+  d.maxPower=powerTotal(d.playerPowers);
+  d.log.push("Giras "+c.name+" y generas +"+powerValue(c)+" Poder.");
+  playSound("power");renderView();
+}
 function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
 function nextLocalPhase(){
   const d=state.duel;if(d.gameOver)return;
   if(d.phase===5){resolveLocalAttack();if(checkLocalEnd())return renderView();enemyTurn();if(checkLocalEnd())return renderView();d.turn++;d.phase=0;d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});d.playerPowers.forEach(c=>{c.exhausted=false});d.playerPowerPlayed=false;d.maxPower=powerTotal(d.playerPowers);d.power=0;d.log.push("Comienza tu turno "+d.turn+".");playSound("turn");renderView();return}
-  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.playerPowers.forEach(c=>{c.exhausted=true});d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}renderView();
+  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}renderView();
 }
 function resolveLocalAttack(){
   const d=state.duel,atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted),blocks=d.enemyBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
-  atk.forEach((a,i)=>{const b=blocks[i];if(b&&d.enemyBoard.includes(b)){const adies=b.atk>=a.def,bdies=a.atk>=b.def;d.log.push(a.name+" combate contra "+b.name+".");if(bdies)d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==b.uid);if(adies)d.playerBoard=d.playerBoard.filter(x=>x.uid!==a.uid)}
-    else{d.enemyHp-=a.atk;d.damageDealt+=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit")}
-    const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor){survivor.exhausted=true;survivor.selected=false}});
+  atk.forEach((a,i)=>{
+    a.exhausted=true;
+    const b=blocks[i];
+    if(b&&d.enemyBoard.includes(b)){
+      b.exhausted=true;
+      d.log.push(a.name+" ("+a.atk+" ATQ) ataca la defensa "+b.def+" de "+b.name+".");
+      if(a.atk>=b.def){d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==b.uid);d.log.push(b.name+" es destruida.")}
+      else{d.playerBoard=d.playerBoard.filter(x=>x.uid!==a.uid);d.log.push(a.name+" no supera la DEF y es destruida.")}
+    } else {
+      d.enemyHp-=a.atk;d.damageDealt+=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit");
+    }
+    const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor)survivor.selected=false;
+  });
 }
 function enemyTurn(){
   const d=state.duel;d.enemyBoard.forEach(c=>c.exhausted=false);d.enemyPowers.forEach(c=>c.exhausted=false);d.enemyPowerPlayed=false;drawLocal("enemy",1);if(d.gameOver)return;
@@ -1058,8 +1081,8 @@ function enemyTurn(){
   const ability=d.enemyHand.find(c=>c.abilityCard&&c.cost<=d.enemyPower);if(ability){d.enemyPower-=ability.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);resolveLocalAbility(ability,"enemy")}
   let safe=20;while(safe--){const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);if(!opts.length)break;opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));const c=opts[0];d.enemyPower-=c.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==c.uid);d.enemyBoard.push(c)}
   const attackers=d.enemyBoard.filter(c=>!c.exhausted),blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
-  attackers.forEach((a,i)=>{const b=blocks[i];if(b&&d.playerBoard.includes(b)){const adies=b.atk>=a.def,bdies=a.atk>=b.def;if(bdies)d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);if(adies)d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid)}
-    else d.playerHp-=a.atk;const survivor=d.enemyBoard.find(x=>x.uid===a.uid);if(survivor)survivor.exhausted=true});
+  attackers.forEach((a,i)=>{a.exhausted=true;const b=blocks[i];if(b&&d.playerBoard.includes(b)){b.exhausted=true;if(a.atk>=b.def)d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);else d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid)}
+    else d.playerHp-=a.atk;});
   if(attackers.length)d.log.push("El Guardián ataca con "+attackers.length+" criatura(s).");
 }
 async function awardTraining(d){
@@ -1084,6 +1107,11 @@ function checkLocalEnd(){
   return false
 }
 
+function duelPower(uid){
+  const d=state.duel;if(!d||d.gameOver||d.phase!==2)return;
+  if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"tapPower",uid});return}
+  tapLocalPower(uid);
+}
 function duelCard(zone,uid){
   const d=state.duel;if(d.online){if(!d.myTurn)return;if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});return}
   if(zone==="hand")localPlay(uid);else if(zone==="player")toggleLocalAttack(uid);
@@ -1123,6 +1151,7 @@ document.addEventListener("click",e=>{
   else if(a==="tradeAccept")acceptTrade();
   else if(a==="tradeCancel")cancelTrade();
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
+  else if(a==="duelPower")duelPower(el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
   else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"})}
