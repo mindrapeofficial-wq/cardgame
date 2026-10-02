@@ -1294,7 +1294,8 @@ function cancelMatch(id){if(state.connected)state.socket.emit("match:cancel",{id
 
 function wireInstance(inst){
   const base=card(inst.cardId);if(!base)return null;
-  return{...base,uid:inst.uid,exhausted:!!inst.exhausted,selected:!!inst.selected,defBonus:Number(inst.defBonus)||0,def:(base.def||0)+(Number(inst.defBonus)||0)}
+  return{...base,uid:inst.uid,exhausted:!!inst.exhausted,selected:!!inst.selected,defBonus:Number(inst.defBonus)||0,damage:Number(inst.damage)||0,
+    summonedTurn:inst.summonedTurn==null?null:Number(inst.summonedTurn),attacksThisTurn:Number(inst.attacksThisTurn)||0,defensesThisTurn:Number(inst.defensesThisTurn)||0}
 }
 function applyOnlineSnapshot(s){
   if(!s)return;
@@ -1308,7 +1309,7 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard,enemyBoard,
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},
+    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:false,attackDeclared:false,blockAssignments:{},attackTargets:previous?.attackTargets||{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
   };
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
@@ -1344,54 +1345,59 @@ function deckBack(count,label){
   return `<div class="duel-deck-back ${total?"":"empty"}" title="${esc(label||"Mazo")} · ${total} cartas" aria-label="${esc(label||"Mazo")} con ${total} cartas"><span>${total}</span></div>`;
 }
 function powerLane(list,label,zone){
-  const cards=list||[],total=powerTotal(cards),d=state.duel;
+  const cards=list||[],total=powerTotal(cards);
   return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${cards.length?cards.map(c=>{
-    const clickable=zone==="playerPower"&&d&&!d.gameOver&&d.phase===2&&(!d.online||d.myTurn)&&!d.defending&&!d.attackDeclared&&!c.exhausted;
-    return `<div class="power-mini ${clickable?"clickable":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelPower" data-uid="'+c.uid+'"':""} style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder"><span>+${powerValue(c)}</span></div>`;
+    return `<div class="power-mini ${c.exhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder automático"><span>+${powerValue(c)}</span></div>`;
   }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
+}
+function currentDef(c){return Math.max(0,(Number(c?.def)||0)+(Number(c?.defBonus)||0)-(Number(c?.damage)||0))}
+function cardCanAttackUi(d,c){
+  if(!d||!c||(Number(c.atk)||0)<=0)return false;
+  if(c.exhausted)return false;
+  if(c.summonedTurn===d.turn&&!c.berserker)return false;
+  return true;
 }
 function battleCards(list,zone){
   if(!list?.length)return'<div class="battle-empty" aria-hidden="true"></div>';
   return list.map(c=>{
     const clickable=duelCardClickable(c,zone);
+    const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
-      : `${c.name} · Ataque ${c.atk} · Defensa ${c.def}`;
+      : `${c.name} · Ataque ${c.atk} · Defensa ${defense}${c.damage?" · Daño "+c.damage:""}`;
     return `<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}" title="${esc(label)}" aria-label="${esc(label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
   const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing))return false;
-  if(d.online&&(d.defending||d.attackDeclared))return false;
   if(d.online&&!d.myTurn)return false;
   const powerPlayed=d.online?d.powerPlayed:d.playerPowerPlayed;
   if(zone==="hand")return(d.phase===2&&c.powerCard&&!powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
-  if(zone==="player")return d.phase===5&&!c.exhausted;
+  if(zone==="player")return d.phase===5&&cardCanAttackUi(d,c);
   return false;
+}
+function renderAttackTargets(d){
+  const attackers=(d.playerBoard||[]).filter(c=>c.selected&&cardCanAttackUi(d,c));
+  if(!attackers.length)return'<div class="turn-wait" style="margin-bottom:8px">Selecciona las criaturas que atacarán.</div>';
+  const defenders=(d.enemyBoard||[]).filter(c=>!c.exhausted);
+  return `<div style="width:100%;margin-bottom:8px"><div class="turn-wait" style="margin-bottom:6px">Elige el objetivo de cada atacante.</div>
+    <div class="grid" style="gap:6px">${attackers.map(a=>{
+      const chosen=d.attackTargets?.[a.uid]||defenders[0]?.uid||"";
+      return `<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-attack-target="${a.uid}" ${defenders.length?"":"disabled"}>${defenders.length?defenders.map(t=>`<option value="${t.uid}" ${chosen===t.uid?"selected":""}>${esc(t.name)} · DEF ${currentDef(t)}</option>`).join(""):'<option value="">Ataque directo</option>'}</select></label>`;
+    }).join("")}</div></div>`;
 }
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
-  if((d.online&&d.defending)||(!d.online&&d.trainingDefending))return renderDefenseControls(d);
-  if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
-  if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}… Tus cartas giradas no pueden defender.</div>`;
+  if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}…</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
-  return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
-}
-function renderDefenseControls(d){
-  const attackers=(d.enemyBoard||[]).filter(c=>c.selected);
-  const assigned=new Set(Object.values(d.blockAssignments||{}));
-  const defenders=(d.playerBoard||[]).filter(c=>!c.exhausted||assigned.has(c.uid));
-  if(!attackers.length)return'<div class="turn-wait">El ataque rival se está resolviendo…</div>';
-  return`<div style="width:100%"><div class="turn-wait" style="margin-bottom:8px">Asigna un defensor a cada atacante o déjalo pasar.</div>
-    <div class="grid" style="gap:6px">${attackers.map(a=>`<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-block-attacker="${a.uid}"><option value="">Sin bloquear</option>${defenders.map(dfc=>`<option value="${dfc.uid}" ${d.blockAssignments?.[a.uid]===dfc.uid?"selected":""}>${esc(dfc.name)} · DEF ${dfc.def}</option>`).join("")}</select></label>`).join("")}</div>
-    <div class="actions" style="margin-top:8px"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="resolveDefense">Resolver defensa</button></div>
-  </div>`;
+  const targets=d.phase===5?renderAttackTargets(d):"";
+  return`<div style="width:100%">${targets}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Resolver ataque":"Siguiente fase"}</button></div></div>`;
 }
 
 function training(){
-  const size=DECK_SIZE;
+  const size=state.profile.deck.length;
   const playerIds=deckValid()?state.profile.deck.slice():[];
-  if(playerIds.length!==DECK_SIZE){toast("Tu mazo debe tener exactamente "+DECK_SIZE+" cartas válidas para entrenar.","bad");go("deck");return}
+  if(!deckValid()){toast(deckRuleMessage()||"Tu mazo no es válido para entrenar.","bad");go("deck");return}
   const lvl=playerLevel();
   const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl);
   const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl);
@@ -1403,26 +1409,51 @@ function training(){
     const top=ranked.slice(0,Math.max(1,Math.ceil(ranked.length*.45)));
     return top[Math.floor(Math.random()*top.length)];
   };
-  const powerTarget=Math.min(size,Math.max(5,Math.round(size*.30)));
+  const powerTarget=Math.min(MAX_POWER_CARDS,Math.max(MIN_POWER_CARDS,Math.round(size*.35)));
   const abilityTarget=abilities.length?Math.min(size-powerTarget,Math.max(2,Math.round(size*.15))):0;
   const creatureTarget=size-powerTarget-abilityTarget;
   for(let i=0;i<powerTarget;i++){const c=pickStrong(powers);if(c)enemy.push(c.id)}
   for(let i=0;i<abilityTarget;i++){const c=pickStrong(abilities);if(c)enemy.push(c.id)}
   for(let i=0;i<creatureTarget;i++){const c=pickStrong(creatures.length?creatures:(abilities.length?abilities:powers));if(c)enemy.push(c.id)}
   while(enemy.length<size){const c=pickStrong([...powers,...abilities,...creatures]);if(!c)break;enemy.push(c.id)}
-  state.duel={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
+
+  const playerStarts=Math.random()<.5;
+  const startedAt=Date.now();
+  const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",trainingDefending:false,blockAssignments:{},gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
-  drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");advanceLocalAutomaticPhases();renderView();
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",trainingDefending:false,blockAssignments:{},attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
+    gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
+    log:["Entrenamiento iniciado. El jugador inicial se decide al azar."]};
+  state.duel=d;
+  drawLocal("player",7);drawLocal("enemy",7);
+  drawLocal(playerStarts?"enemy":"player",1);
+  d.log.push(playerStarts?"Empiezas tú. El Guardián recibe la octava carta inicial.":"Empieza el Guardián. Recibes la octava carta inicial.");
+  state.view="duel";updateChrome();playSound("turn");renderView();
+
+  window.setTimeout(()=>{if(state.duel===d&&!d.gameOver){checkLocalEnd(true);renderView()}},MATCH_LIMIT_MS+50);
+  if(playerStarts)advanceLocalAutomaticPhases();
+  else{d.aiActing=true;d.aiMessage="El Guardián comienza la partida";renderView();void runEnemyTurn(d)}
 }
-function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false}:null}
+function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false,damage:0,defBonus:0,summonedTurn:null,attacksThisTurn:0,defensesThisTurn:0}:null}
 function drawLocal(side,n=1){
-  const d=state.duel;for(let i=0;i<n;i++){const deck=d[side+"Deck"];if(deck.length)d[side+"Hand"].push(deck.pop());else{d.gameOver=true;d.won=side==="enemy";d.log.push(side==="player"?"Te has quedado sin cartas.":"El rival se ha quedado sin cartas.")}}
+  const d=state.duel;
+  for(let i=0;i<n;i++){
+    const deck=d[side+"Deck"];
+    if(!deck.length){d[side+"DeckOut"]=true;break}
+    d[side+"Hand"].push(deck.pop());
+    if(!deck.length){d[side+"DeckOut"]=true;break}
+  }
 }
 function localPlay(uid){
   const d=state.duel,i=d.playerHand.findIndex(c=>c.uid===uid);if(i<0)return;const c=d.playerHand[i];
-  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);c.exhausted=false;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.playerPowerPlayed=true;d.log.push("Pones "+c.name+" en tu zona de Poder.");playSound("power")}
-  else if(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);d.playerBoard.push(c);d.log.push("Invocas "+c.name+".");playSound("summon")}
+  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){
+    d.playerHand.splice(i,1);c.exhausted=false;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.playerPowerPlayed=true;
+    d.log.push("Pones "+c.name+" en tu zona de Poder. Poder disponible: "+d.power+".");playSound("power")
+  }
+  else if(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power){
+    d.power-=c.cost;d.playerHand.splice(i,1);c.summonedTurn=d.turn;c.damage=0;c.attacksThisTurn=0;c.defensesThisTurn=0;d.playerBoard.push(c);
+    d.log.push("Invocas "+c.name+". No puede atacar este turno salvo que tenga Berserker.");playSound("summon")
+  }
   else if(d.phase===4&&c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);resolveLocalAbility(c,"player")}
   advanceLocalAutomaticPhases();
   renderView();
@@ -1437,33 +1468,29 @@ function resolveLocalAbility(c,side){
   else{drawLocal(side,1);d.log.push(c.name+" se resuelve.")}
   checkLocalEnd();
 }
-function tapLocalPower(uid){
-  const d=state.duel,c=d?.playerPowers?.find(x=>x.uid===uid);
-  if(!d||d.phase!==2||!c||c.exhausted)return;
-  c.exhausted=true;
-  d.power+=powerValue(c);
-  d.maxPower=powerTotal(d.playerPowers);
-  d.log.push("Giras "+c.name+" y generas +"+powerValue(c)+" Poder.");
-  playSound("power");
-  advanceLocalAutomaticPhases();
-  renderView();
+function localCanAttack(d,c){
+  return !!(c&&!c.exhausted&&(Number(c.atk)||0)>0&&(c.summonedTurn!==d.turn||c.berserker));
 }
-function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
-
-function localPhaseHasAction(d){
-  if(!d||d.gameOver||d.aiActing||d.trainingDefending)return false;
-  if(d.phase===2){
-    const canPlayPower=!d.playerPowerPlayed&&d.playerHand.some(c=>c.powerCard);
-    const canTapPower=d.playerPowers.some(c=>!c.exhausted);
-    return canPlayPower||canTapPower;
+function localCanDefend(c){return !!(c&&!c.exhausted)}
+function toggleLocalAttack(uid){
+  const d=state.duel,c=d?.playerBoard?.find(x=>x.uid===uid);
+  if(c&&localCanAttack(d,c)){
+    c.selected=!c.selected;
+    d.attackTargets=d.attackTargets||{};
+    if(!c.selected)delete d.attackTargets[c.uid];
+    renderView();
   }
+}
+function localPhaseHasAction(d){
+  if(!d||d.gameOver||d.aiActing)return false;
+  if(d.phase===2)return !d.playerPowerPlayed&&d.playerHand.some(c=>c.powerCard);
   if(d.phase===3)return d.playerHand.some(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.power);
   if(d.phase===4)return d.playerHand.some(c=>c.abilityCard&&c.cost<=d.power);
-  if(d.phase===5)return d.playerBoard.some(c=>!c.exhausted&&(Number(c.atk)||0)>0);
+  if(d.phase===5)return d.playerBoard.some(c=>localCanAttack(d,c));
   return false;
 }
 function startLocalEnemyTurn(d){
-  if(!d||d.gameOver||d.aiActing||d.trainingDefending)return;
+  if(!d||d.gameOver||d.aiActing)return;
   d.aiActing=true;
   d.phase=0;
   d.aiMessage="El Guardián prepara su turno";
@@ -1473,9 +1500,9 @@ function startLocalEnemyTurn(d){
 }
 function advanceLocalAutomaticPhases(){
   const d=state.duel;
-  if(!d||d.online||d.gameOver||d.aiActing||d.trainingDefending)return;
+  if(!d||d.online||d.gameOver||d.aiActing)return;
   let guard=0;
-  while(guard++<8&&!d.gameOver&&!d.aiActing&&!d.trainingDefending){
+  while(guard++<8&&!d.gameOver&&!d.aiActing){
     if(localPhaseHasAction(d))return;
     if(d.phase===5){startLocalEnemyTurn(d);return}
     d.phase++;
@@ -1486,21 +1513,57 @@ function advanceLocalAutomaticPhases(){
     }
     if(d.phase===2){
       d.maxPower=powerTotal(d.playerPowers);
-      d.power=0;
+      d.power=d.maxPower;
     }
   }
 }
+function localHighestLevelAttack(d,side){
+  const list=[...(d[side+"Board"]||[]),...(d[side+"Powers"]||[])];
+  if(!list.length)return 0;
+  const level=Math.max(...list.map(c=>Number(c.level)||0));
+  return Math.max(0,...list.filter(c=>(Number(c.level)||0)===level).map(c=>Number(c.atk)||0));
+}
+function localScore(d,side){
+  return Math.max(0,Number(d[side+"Hp"])||0)+(d[side+"Board"]||[]).length+(d[side+"Powers"]||[]).length+(d[side+"Deck"]||[]).length+localHighestLevelAttack(d,side);
+}
+function resolveLocalTargetedAttack(side,targets={}){
+  const d=state.duel,foe=side==="player"?"enemy":"player";
+  const attackers=(d[side+"Board"]||[]).filter(c=>c.selected&&localCanAttack(d,c));
+  for(const a of attackers){
+    const liveAttacker=d[side+"Board"].find(c=>c.uid===a.uid);if(!liveAttacker)continue;
+    liveAttacker.exhausted=true;liveAttacker.attacksThisTurn=(liveAttacker.attacksThisTurn||0)+1;liveAttacker.selected=false;
+    const available=d[foe+"Board"].filter(localCanDefend);
+    const wanted=targets?.[liveAttacker.uid];
+    const b=(wanted&&available.find(x=>x.uid===wanted))||available[0]||null;
+    if(!b){
+      const dealt=Math.max(0,Number(liveAttacker.atk)||0);
+      d[foe+"Hp"]-=dealt;if(side==="player")d.damageDealt+=dealt;
+      d.log.push(liveAttacker.name+" ataca directamente y causa "+dealt+" PV.");playSound("hit");
+      continue;
+    }
+    const aDef=currentDef(liveAttacker),bDef=currentDef(b),aAtk=Math.max(0,Number(liveAttacker.atk)||0),bAtk=Math.max(0,Number(b.atk)||0);
+    b.exhausted=true;b.defensesThisTurn=(b.defensesThisTurn||0)+1;
+    b.damage=(b.damage||0)+aAtk;liveAttacker.damage=(liveAttacker.damage||0)+bAtk;
+    const overflow=Math.max(0,aAtk-bDef);
+    if(overflow){d[foe+"Hp"]-=overflow;if(side==="player")d.damageDealt+=overflow}
+    d.log.push(liveAttacker.name+" ("+aAtk+" ATQ) combate con "+b.name+" ("+bAtk+" ATQ / "+bDef+" DEF)."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
+    if(currentDef(b)<=0){d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==b.uid);d.log.push(b.name+" es destruida.")}
+    if(currentDef(liveAttacker)<=0){d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);d.log.push(liveAttacker.name+" es destruida por el contraataque.")}
+    if(d[foe+"Hp"]<=0)break;
+  }
+  d.attackTargets={};
+}
 function nextLocalPhase(){
-  const d=state.duel;if(d.gameOver||d.aiActing||d.trainingDefending)return;
+  const d=state.duel;if(d.gameOver||d.aiActing)return;
   if(d.phase===5){
-    resolveLocalAttack();
+    resolveLocalTargetedAttack("player",d.attackTargets||{});
     if(checkLocalEnd())return renderView();
     startLocalEnemyTurn(d);
     return;
   }
   d.phase++;
   if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}
-  if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}
+  if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}
   advanceLocalAutomaticPhases();
   renderView();
 }
@@ -1580,19 +1643,19 @@ function aiBestSummon(d){
     .sort((a,b)=>aiSummonScore(b,d)-aiSummonScore(a,d)||a.cost-b.cost)[0]||null;
 }
 function aiChooseAttackers(d){
-  const ready=d.enemyBoard.filter(c=>!c.exhausted&&(Number(c.atk)||0)>0);
-  const defenders=d.playerBoard.filter(c=>!c.exhausted);
+  const ready=d.enemyBoard.filter(c=>localCanAttack(d,c));
+  const defenders=d.playerBoard.filter(localCanDefend);
   if(!ready.length)return [];
   if(!defenders.length)return ready;
   const totalAtk=ready.reduce((n,c)=>n+(Number(c.atk)||0),0);
-  const maxDef=Math.max(0,...defenders.map(c=>Number(c.def)||0));
+  const maxDef=Math.max(0,...defenders.map(currentDef));
   const maxPlayerAtk=Math.max(0,...defenders.map(c=>Number(c.atk)||0));
   const pressure=d.playerHp<=10||totalAtk>=d.playerHp;
   const overrun=ready.length>defenders.length;
   let chosen=ready.filter(c=>{
-    const atk=Number(c.atk)||0,def=Number(c.def)||0;
-    const canTrade=defenders.some(x=>atk>=(Number(x.def)||0));
-    const canBeStonewalled=defenders.some(x=>(Number(x.def)||0)>atk);
+    const atk=Number(c.atk)||0,def=currentDef(c);
+    const canTrade=defenders.some(x=>atk>=currentDef(x));
+    const canBeStonewalled=defenders.some(x=>currentDef(x)>atk);
     const defensiveAnchor=def>maxPlayerAtk&&atk<=1&&d.enemyHp<=12;
     if(defensiveAnchor&&!pressure)return false;
     if(!canBeStonewalled)return true;
@@ -1604,10 +1667,22 @@ function aiChooseAttackers(d){
   if(!chosen.length&&overrun)chosen=ready;
   return chosen;
 }
+function aiAttackTargets(d,attackers){
+  const targets={},available=d.playerBoard.filter(localCanDefend).slice();
+  for(const a of attackers){
+    if(!available.length)break;
+    available.sort((x,y)=>{
+      const xKill=(Number(a.atk)||0)>=currentDef(x)?1:0,yKill=(Number(a.atk)||0)>=currentDef(y)?1:0;
+      return yKill-xKill||currentDef(x)-currentDef(y)||aiUnitValue(x)-aiUnitValue(y);
+    });
+    const target=available.shift();if(target)targets[a.uid]=target.uid;
+  }
+  return targets;
+}
 async function runEnemyTurn(d){
   try{
     if(!aiStillActive(d))return;
-    d.enemyBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+    d.enemyBoard.forEach(c=>{c.exhausted=false;c.selected=false;c.attacksThisTurn=0;c.defensesThisTurn=0});
     d.enemyPowers.forEach(c=>c.exhausted=false);
     d.enemyPowerPlayed=false;
     d.enemyPower=0;
@@ -1618,7 +1693,7 @@ async function runEnemyTurn(d){
     d.log.push("El Guardián roba una carta.");
     playSound("draw");renderView();
     if(checkLocalEnd())return;
-    await aiPause(550);if(!aiStillActive(d))return;
+    await aiPause(450);if(!aiStillActive(d))return;
 
     d.phase=2;
     d.aiMessage="Fase de Poder";
@@ -1631,42 +1706,25 @@ async function runEnemyTurn(d){
       d.enemyMaxPower=powerTotal(d.enemyPowers);
       d.log.push("El Guardián pone "+p.name+" en su zona de Poder.");
       playSound("power");renderView();
-      await aiPause(500);if(!aiStillActive(d))return;
+      await aiPause(400);if(!aiStillActive(d))return;
     }
-    const readyPowers=d.enemyPowers.filter(c=>!c.exhausted);
-    if(readyPowers.length){
-      readyPowers.forEach(c=>{c.exhausted=true;d.enemyPower+=powerValue(c)});
-      d.enemyPower=Math.min(d.enemyPower,d.enemyMaxPower);
-      d.log.push("El Guardián gira "+readyPowers.length+" carta(s) de Poder y genera "+d.enemyPower+" Poder.");
-      playSound("power");renderView();
-      await aiPause(500);if(!aiStillActive(d))return;
-    }
-
-    d.phase=4;
-    d.aiMessage="Fase táctica";
-    for(let i=0;i<2;i++){
-      const ability=aiBestAbility(d,7);if(!ability)break;
-      d.enemyPower-=ability.cost;
-      d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);
-      d.log.push("El Guardián usa "+ability.name+".");
-      resolveLocalAbility(ability,"enemy");
-      renderView();
-      if(checkLocalEnd())return;
-      await aiPause(500);if(!aiStillActive(d))return;
-    }
+    d.enemyMaxPower=powerTotal(d.enemyPowers);
+    d.enemyPower=d.enemyMaxPower;
+    d.log.push("Los Poderes del Guardián generan automáticamente "+d.enemyPower+" Poder.");
+    renderView();
 
     d.phase=3;
     d.aiMessage="Fase de invocación";
-    let safe=20;
+    let safe=50;
     while(safe--){
       const unit=aiBestSummon(d);if(!unit)break;
       d.enemyPower-=unit.cost;
       d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
-      unit.exhausted=false;unit.selected=false;
+      unit.exhausted=false;unit.selected=false;unit.summonedTurn=d.turn;unit.damage=0;unit.attacksThisTurn=0;unit.defensesThisTurn=0;
       d.enemyBoard.push(unit);
       d.log.push("El Guardián invoca "+unit.name+" ("+unit.atk+"/"+unit.def+").");
       playSound("summon");renderView();
-      await aiPause(380);if(!aiStillActive(d))return;
+      await aiPause(280);if(!aiStillActive(d))return;
     }
 
     d.phase=4;
@@ -1679,17 +1737,7 @@ async function runEnemyTurn(d){
       resolveLocalAbility(ability,"enemy");
       renderView();
       if(checkLocalEnd())return;
-      await aiPause(450);if(!aiStillActive(d))return;
-      const unit=aiBestSummon(d);
-      if(unit){
-        d.enemyPower-=unit.cost;
-        d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
-        unit.exhausted=false;unit.selected=false;
-        d.enemyBoard.push(unit);
-        d.log.push("El Guardián aprovecha el Poder restante e invoca "+unit.name+".");
-        playSound("summon");renderView();
-        await aiPause(350);if(!aiStillActive(d))return;
-      }
+      await aiPause(350);if(!aiStillActive(d))return;
     }
 
     d.phase=5;
@@ -1697,15 +1745,18 @@ async function runEnemyTurn(d){
     const attackers=aiChooseAttackers(d);
     d.enemyBoard.forEach(c=>c.selected=attackers.some(a=>a.uid===c.uid));
     if(attackers.length){
-      d.trainingDefending=true;
-      d.blockAssignments={};
-      d.log.push("El Guardián declara ataque con "+attackers.length+" criatura(s). Elige tus defensores.");
+      const targets=aiAttackTargets(d,attackers);
+      d.log.push("El Guardián declara ataque con "+attackers.length+" criatura(s).");
       renderView();
-      return;
+      await aiPause(450);if(!aiStillActive(d))return;
+      resolveLocalTargetedAttack("enemy",targets);
+      renderView();
+      if(checkLocalEnd())return;
+    }else{
+      d.log.push("El Guardián decide no atacar este turno.");
+      renderView();
     }
-    d.log.push("El Guardián decide no atacar este turno.");
-    renderView();
-    await aiPause(550);
+    await aiPause(450);
     if(aiStillActive(d))void finishEnemyTurn(d);
   }catch(err){
     console.error("Training AI error",err);
@@ -1714,38 +1765,6 @@ async function runEnemyTurn(d){
       void finishEnemyTurn(d);
     }
   }
-}
-function resolveTrainingDefense(){
-  const d=state.duel;
-  if(!d||d.online||!d.trainingDefending||d.gameOver)return;
-  const attackers=d.enemyBoard.filter(c=>c.selected&&!c.exhausted);
-  const used=new Set();
-  for(const a of attackers){
-    a.exhausted=true;
-    const defenderUid=d.blockAssignments?.[a.uid];
-    const b=defenderUid&&!used.has(defenderUid)?d.playerBoard.find(c=>c.uid===defenderUid&&!c.exhausted):null;
-    if(b){
-      used.add(b.uid);b.exhausted=true;
-      d.log.push(b.name+" ("+b.def+" DEF) bloquea a "+a.name+" ("+a.atk+" ATQ).");
-      if(a.atk>=b.def){
-        d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);
-        d.log.push(b.name+" es destruida.");
-      }else{
-        d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid);
-        d.log.push(a.name+" no supera la DEF y es destruida.");
-      }
-    }else{
-      d.playerHp-=a.atk;
-      d.log.push(a.name+" del Guardián causa "+a.atk+" PV.");
-      playSound("hit");
-    }
-  }
-  d.enemyBoard.forEach(c=>c.selected=false);
-  d.trainingDefending=false;
-  d.blockAssignments={};
-  renderView();
-  if(checkLocalEnd())return renderView();
-  void finishEnemyTurn(d);
 }
 async function finishEnemyTurn(d){
   if(state.duel!==d||d.gameOver)return;
@@ -1757,7 +1776,7 @@ async function finishEnemyTurn(d){
   if(state.duel!==d||d.gameOver)return;
   d.turn++;
   d.phase=0;
-  d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+  d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false;c.attacksThisTurn=0;c.defensesThisTurn=0});
   d.playerPowers.forEach(c=>c.exhausted=false);
   d.playerPowerPlayed=false;
   d.maxPower=powerTotal(d.playerPowers);
@@ -1783,25 +1802,48 @@ async function awardTraining(d){
   else toast("+"+r.xpAwarded+" XP"+(r.goldAwarded?" · +"+r.goldAwarded+" oro":""),"good");
   if(state.view==="duel")renderView();
 }
-function checkLocalEnd(){
-  const d=state.duel;if(d.enemyHp<=0||d.playerHp<=0||d.gameOver){
-    if(!d.gameOver){d.gameOver=true;d.won=d.enemyHp<=0;d.log.push(d.won?"Victoria.":"Derrota.")}
-    if(!d.resultApplied){d.resultApplied=true;if(d.won)playSound("win");void awardTraining(d)}
-    return true
+function finalizeLocalResult(d,result,message){
+  if(d.gameOver)return;
+  d.gameOver=true;d.result=result;d.won=result==="win";
+  d.log.push(message);
+}
+function checkLocalEnd(forceScore=false){
+  const d=state.duel;if(!d||d.online)return false;
+  if(!d.gameOver){
+    const timeUp=forceScore||(d.deadlineAt&&Date.now()>=d.deadlineAt);
+    const playerLost=d.playerHp<=0||d.playerDeckOut;
+    const enemyLost=d.enemyHp<=0||d.enemyDeckOut;
+    if(timeUp||(playerLost&&enemyLost)){
+      const ps=localScore(d,"player"),es=localScore(d,"enemy");
+      if(ps===es)finalizeLocalResult(d,"draw","Empate por puntuación: "+ps+" a "+es+".");
+      else if(ps>es)finalizeLocalResult(d,"win","Victoria por puntuación: "+ps+" a "+es+".");
+      else finalizeLocalResult(d,"loss","Derrota por puntuación: "+ps+" a "+es+".");
+    }else if(playerLost)finalizeLocalResult(d,"loss",d.playerDeckOut?"Tu mazo se ha quedado sin cartas.":"Tus PV han llegado a 0.");
+    else if(enemyLost)finalizeLocalResult(d,"win",d.enemyDeckOut?"El mazo rival se ha quedado sin cartas.":"Los PV del rival han llegado a 0.");
   }
-  return false
+  if(d.gameOver){
+    if(!d.resultApplied){d.resultApplied=true;if(d.won)playSound("win");void awardTraining(d)}
+    return true;
+  }
+  return false;
 }
 
-function duelPower(uid){
-  const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing)||d.phase!==2)return;
-  if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"tapPower",uid});return}
-  tapLocalPower(uid);
-}
 function duelCard(zone,uid){
-  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;if(d.online){if(!d.myTurn)return;if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});return}
+  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;
+  if(d.online){
+    if(!d.myTurn)return;
+    if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});
+    else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});
+    return;
+  }
   if(zone==="hand")localPlay(uid);else if(zone==="player")toggleLocalAttack(uid);
 }
-function nextPhase(){const d=state.duel;if(!d||(!d.online&&d.aiActing))return;if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase"})}else nextLocalPhase()}
+function nextPhase(){
+  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;
+  if(d.online){
+    if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase",targets:d.attackTargets||{}});
+  }else nextLocalPhase();
+}
 function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
 function leaveDuel(){state.duel=null;go("home")}
 
@@ -1840,7 +1882,6 @@ document.addEventListener("click",e=>{
   else if(a==="tradeAccept")acceptTrade();
   else if(a==="tradeCancel")cancelTrade();
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
-  else if(a==="duelPower")duelPower(el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
   else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"});else if(d&&!d.online&&d.trainingDefending)resolveTrainingDefense()}
@@ -1865,16 +1906,11 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
-  else if(e.target.matches("[data-block-attacker]")){
-    const d=state.duel,attackerUid=e.target.dataset.blockAttacker,defenderUid=e.target.value||"";
-    if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid,defenderUid});
-    else if(d&&!d.online&&d.trainingDefending){
-      d.blockAssignments=d.blockAssignments||{};
-      if(defenderUid){
-        for(const [aUid,dUid] of Object.entries(d.blockAssignments))if(aUid!==attackerUid&&dUid===defenderUid)delete d.blockAssignments[aUid];
-        d.blockAssignments[attackerUid]=defenderUid;
-      }else delete d.blockAssignments[attackerUid];
-      renderView();
+  else if(e.target.matches("[data-attack-target]")){
+    const d=state.duel,attackerUid=e.target.dataset.attackTarget,targetUid=e.target.value||"";
+    if(d){
+      d.attackTargets=d.attackTargets||{};
+      if(targetUid)d.attackTargets[attackerUid]=targetUid;else delete d.attackTargets[attackerUid];
     }
   }
 });
