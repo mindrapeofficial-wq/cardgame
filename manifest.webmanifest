@@ -1,7 +1,7 @@
 {
-  "name": "Rolplay Reborn",
-  "short_name": "Rolplay",
-  "description": "El clásico juego de cartas Rolplay.net reconstruido para la web.",
+  "name": "ARCANUM TCG",
+  "short_name": "ARCANUM",
+  "description": "ARCANUM TCG, juego de cartas estratégico online.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
