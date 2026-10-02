@@ -534,35 +534,28 @@ function renderDeck(){
 function renderDeckRows(){
   if(!state.profile.deck.length)return'<div class="empty">Tu mazo está vacío. Añade Poder básico infinito y cartas obtenidas en sobres.</div>';
 
-  // Los Poderes se muestran como una sola pila por carta/nivel.
-  // El mazo sigue almacenando cada copia individualmente para que el servidor
-  // pueda validar cantidades, robar cartas y resolver la partida con normalidad.
-  const powerCounts=new Map();
-  const rows=[];
+  // Todas las copias de una misma carta se muestran como una única pila.
+  // Internamente el mazo conserva cada copia por separado para que robo,
+  // validación, guardado y combate sigan funcionando exactamente igual.
+  const stacks=new Map();
   state.profile.deck.forEach((rawId,index)=>{
     const id=Number(rawId),c=card(id);
     if(!c)return;
-    if(c.powerCard){
-      const current=powerCounts.get(id);
-      if(current)current.count+=1;
-      else powerCounts.set(id,{id,count:1,firstIndex:index});
-      return;
-    }
-    rows.push({kind:"single",id,index});
+    const current=stacks.get(id);
+    if(current)current.count+=1;
+    else stacks.set(id,{id,count:1,firstIndex:index});
   });
 
-  for(const stack of powerCounts.values())rows.push({kind:"power",...stack});
-  rows.sort((a,b)=>(a.kind==="power"?a.firstIndex:a.index)-(b.kind==="power"?b.firstIndex:b.index));
-
-  return rows.map(row=>{
-    const c=card(row.id);if(!c)return"";
-    if(row.kind==="power"){
+  return [...stacks.values()]
+    .sort((a,b)=>a.firstIndex-b.firstIndex)
+    .map(row=>{
+      const c=card(row.id);if(!c)return"";
       const basic=isBasicPower(c);
-      const availability=basic?"∞ disponibles":owned(c.id)+" en colección";
-      return`<div class="deck-row power-stack"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>Poder · Nv ${c.level} · ${availability}</small></div><span class="pill deck-stack-count">×${row.count}</span><button class="btn small danger" data-action="removeDeckCard" data-id="${c.id}" title="Quitar una copia">−</button></div>`;
-    }
-    return`<div class="deck-row"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level}</small></div><span class="pill">${c.cost}</span><button class="btn small danger" data-action="removeDeck" data-index="${row.index}">−</button></div>`;
-  }).join("");
+      const extra=c.powerCard
+        ?(basic?"∞ disponibles":owned(c.id)+" en colección")
+        :"Coste "+c.cost;
+      return`<div class="deck-row card-stack"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level} · ${extra}</small></div><span class="pill deck-stack-count">×${row.count}</span><button class="btn small danger" data-action="removeDeckCard" data-id="${c.id}" title="Quitar una copia">−</button></div>`;
+    }).join("");
 }
 async function persistDeck(candidate,successMessage=""){
   if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
