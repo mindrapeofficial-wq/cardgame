@@ -443,7 +443,36 @@ function renderDeck(){
 }
 function renderDeckRows(){
   if(!state.profile.deck.length)return'<div class="empty">Tu mazo está vacío. Añade Poder básico infinito y cartas obtenidas en sobres.</div>';
-  return state.profile.deck.map((id,i)=>{const c=card(id);return c?`<div class="deck-row"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level}${isBasicPower(c)?" · ∞":""}</small></div><span class="pill">${c.cost}</span><button class="btn small danger" data-action="removeDeck" data-index="${i}">−</button></div>`:""}).join("");
+
+  // Los Poderes se muestran como una sola pila por carta/nivel.
+  // El mazo sigue almacenando cada copia individualmente para que el servidor
+  // pueda validar cantidades, robar cartas y resolver la partida con normalidad.
+  const powerCounts=new Map();
+  const rows=[];
+  state.profile.deck.forEach((rawId,index)=>{
+    const id=Number(rawId),c=card(id);
+    if(!c)return;
+    if(c.powerCard){
+      const current=powerCounts.get(id);
+      if(current)current.count+=1;
+      else powerCounts.set(id,{id,count:1,firstIndex:index});
+      return;
+    }
+    rows.push({kind:"single",id,index});
+  });
+
+  for(const stack of powerCounts.values())rows.push({kind:"power",...stack});
+  rows.sort((a,b)=>(a.kind==="power"?a.firstIndex:a.index)-(b.kind==="power"?b.firstIndex:b.index));
+
+  return rows.map(row=>{
+    const c=card(row.id);if(!c)return"";
+    if(row.kind==="power"){
+      const basic=isBasicPower(c);
+      const availability=basic?"∞ disponibles":owned(c.id)+" en colección";
+      return`<div class="deck-row power-stack"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>Poder · Nv ${c.level} · ${availability}</small></div><span class="pill deck-stack-count">×${row.count}</span><button class="btn small danger" data-action="removeDeckCard" data-id="${c.id}" title="Quitar una copia">−</button></div>`;
+    }
+    return`<div class="deck-row"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small>${cardType(c)} · Nv ${c.level}</small></div><span class="pill">${c.cost}</span><button class="btn small danger" data-action="removeDeck" data-index="${row.index}">−</button></div>`;
+  }).join("");
 }
 async function persistDeck(candidate,successMessage=""){
   if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
@@ -509,6 +538,14 @@ async function addDeck(id){
 async function removeDeck(index){
   const next=state.profile.deck.slice();next.splice(Number(index),1);await persistDeck(next);
 }
+async function removeDeckCard(id){
+  id=Number(id);
+  const next=state.profile.deck.slice();
+  const index=next.findIndex(x=>Number(x)===id);
+  if(index<0)return;
+  next.splice(index,1);
+  await persistDeck(next);
+}
 async function clearDeck(){await persistDeck([],"Mazo vaciado.")}
 
 function tierName(key){
@@ -543,7 +580,7 @@ function renderPackOdds(){
     return`<div class="odds-row"><span><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · ${tierName(o.tier)} · ATQ ${c.atk} · DEF ${c.def} · coste ${c.cost}</small></span><strong>${label}%</strong></div>`;
   }).join("");
   return`<div class="grid five odds-summary">${summary}</div><div class="odds-list pack-odds-scroll" style="margin-top:12px">${rows}</div>
-    <p class="muted" style="margin:10px 0 0">Las cartas cercanas al nivel del sobre tienen más peso. Dentro de una misma rareza, una carta más eficiente por ataque, defensa, utilidad o coste recibe ligeramente menos probabilidad. La masa legendaria total es solo del 0,2% por carta extraída cuando el sobre ya puede contener legendarias.</p>`;
+    <p class="muted" style="margin:10px 0 0">Las probabilidades proceden del mismo motor del servidor que realiza cada tirada y tienen en cuenta nivel del sobre, rareza y balance de juego. El Poder básico Nv 1 nunca aparece en sobres.</p>`;
 }
 function renderShop(){
   const lvl=state.packLevel||playerLevel();
@@ -916,6 +953,7 @@ document.addEventListener("click",e=>{
   else if(a==="addDeck"){e.stopPropagation();addDeck(Number(el.dataset.id));closeModal()}
   else if(a==="sellCard"){e.stopPropagation();sellCard(Number(el.dataset.id));closeModal()}
   else if(a==="removeDeck")removeDeck(Number(el.dataset.index));
+  else if(a==="removeDeckCard")removeDeckCard(Number(el.dataset.id));
   else if(a==="autoDeck")autoDeck();
   else if(a==="clearDeck")clearDeck()
   else if(a==="buyPack")buyPack();
