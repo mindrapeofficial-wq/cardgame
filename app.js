@@ -32,6 +32,7 @@ let duelFullscreenForfeitHandled=false;
 let duelFullscreenMatchKey="";
 let duelFullscreenAutoRequested=false;
 let duelAwayReason="";
+let duelLobbyAway=false;
 let duelLastActivityAt=Date.now();
 let duelIdleAllowanceMs=COMBAT_IDLE_BASE_MS;
 let duelIdleWarn90Shown=false;
@@ -354,6 +355,7 @@ function resetDuelFullscreenState(){
   duelFullscreenMatchKey="";
   duelFullscreenAutoRequested=false;
   duelAwayReason="";
+  duelLobbyAway=false;
   duelLastActivityAt=Date.now();
   duelIdleAllowanceMs=COMBAT_IDLE_BASE_MS;
   duelIdleWarn90Shown=false;
@@ -482,7 +484,7 @@ async function requestDuelFullscreen(silent=false){
 }
 function startDuelAwayCountdown(reason="fullscreen"){
   const d=state.duel;
-  if(state.view!=="duel"||!d||d.gameOver)return;
+  if(!d||d.gameOver)return;
   if(!playerLeaveDeadline()){
     duelFullscreenDeadlineAt=Date.now()+COMBAT_LEAVE_GRACE_MS;
     duelFullscreenForfeitHandled=false;
@@ -490,7 +492,9 @@ function startDuelAwayCountdown(reason="fullscreen"){
     if(d.online)emitDuelPresence("away",reason);
     const msg=reason==="inactive"
       ?"Has agotado tu periodo de inactividad. Tienes 120 segundos para volver o realizar una acción."
-      :"Has cerrado la pantalla completa. Vuelve antes de 120 segundos o perderás la partida.";
+      :reason==="lobby"
+        ?"Has vuelto al lobby. Tienes 120 segundos para reanudar la partida o perderás por abandono."
+        :"Has cerrado la pantalla completa. Vuelve antes de 120 segundos o perderás la partida.";
     toast(msg,"bad");
     renderView();
   }
@@ -522,9 +526,9 @@ function forfeitDuelForLeavingScreen(){
 }
 function updateDuelFullscreenCountdown(){
   const d=state.duel;
-  if(state.view!=="duel"||!d||d.gameOver)return;
+  if(!d||d.gameOver)return;
   const leaveDeadline=playerLeaveDeadline();
-  if(!leaveDeadline){
+  if(state.view==="duel"&&!leaveDeadline){
     const idleDeadline=playerIdleDeadline();
     const idleLeft=Math.max(0,idleDeadline-Date.now());
     if(idleLeft<=90*1000&&idleLeft>10*1000&&!duelIdleWarn90Shown){
@@ -543,14 +547,14 @@ function updateDuelFullscreenCountdown(){
       startDuelAwayCountdown("inactive");
     }
   }
-  const el=document.querySelector("[data-duel-fullscreen-countdown]");
   const deadline=playerLeaveDeadline();
+  const els=document.querySelectorAll("[data-duel-fullscreen-countdown],[data-duel-lobby-countdown]");
   if(!deadline){
-    if(el)el.textContent="";
+    els.forEach(el=>{el.textContent=""});
     return;
   }
   const left=Math.max(0,deadline-Date.now());
-  if(el)el.textContent=formatCombatGrace(left);
+  els.forEach(el=>{el.textContent=formatCombatGrace(left)});
   if(left<=0)forfeitDuelForLeavingScreen();
 }
 
@@ -569,7 +573,8 @@ function updateChrome(){
   document.body.classList.toggle("duel-viewport-lock",inCombat);
   if(!inCombat)document.body.classList.remove("duel-log-visible");
   syncDuelOrientation(inCombat);
-  syncDuelFullscreenState(inCombat);
+  if(inCombat)syncDuelFullscreenState(true);
+  else if(!state.duel||state.duel.gameOver)syncDuelFullscreenState(false);
   if(inCombat&&!duelFullscreenAutoRequested){
     duelFullscreenAutoRequested=true;
     requestAnimationFrame(()=>{void requestDuelFullscreen(true)});
@@ -609,8 +614,12 @@ function uniqueOwned(){return Object.keys(state.profile?.collection||{}).filter(
 
 function go(view){
   if(view==="duel"&&!state.duel)return;
+  if(duelLobbyAway&&state.duel&&!state.duel.gameOver&&view!=="duel"&&view!=="home"){
+    toast("Tienes una partida activa. Reanúdala antes de que termine la cuenta atrás.","bad");
+    return;
+  }
   if(state.view==="duel"&&state.duel&&!state.duel.gameOver&&view!=="duel"){
-    toast("Durante el combate no puedes navegar a otras secciones. Si cierras o recargas la página tendrás 2 minutos para volver.","bad");
+    toast("Usa el icono de lobby para salir temporalmente del combate.","bad");
     return;
   }
   closeModal();
@@ -631,7 +640,13 @@ function pageHead(kicker,title,desc,actions=""){
 }
 function renderHome(){
   const deckReady=deckValid(),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
+  const duelDeadline=duelLobbyAway&&state.duel&&!state.duel.gameOver?playerLeaveDeadline():0;
+  const duelLeft=Math.max(0,duelDeadline-Date.now());
+  const activeDuelBanner=duelLobbyAway&&state.duel&&!state.duel.gameOver
+    ? `<section class="lobby-duel-return" aria-live="polite"><div><span class="kicker">Partida en curso</span><b>Abandono en <strong data-duel-lobby-countdown>${formatCombatGrace(duelLeft)}</strong></b><small>Vuelve al combate antes de que termine la cuenta atrás.</small></div><button class="btn primary" data-action="resumeDuelFromLobby">Reanudar partida</button></section>`
+    : "";
   return `<div class="page">
+    ${activeDuelBanner}
     <div class="home-actions">
       ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
       ${matches>0?'<button class="btn" data-action="nav" data-view="play">Unirse a partida</button>':""}
@@ -1620,8 +1635,10 @@ function applyOnlineSnapshot(s){
   removedEnemy.forEach(x=>queueDeathGhost(state.duel,"enemy",x.c,x.index));
   pruneDeathGhosts(state.duel);
   const showDrawOffer=!!s.drawOfferIncoming&&!previous?.drawOfferIncoming;
-  if(state.view!=="duel")state.view="duel";updateChrome();renderView();
-  if(showDrawOffer)requestAnimationFrame(openDrawResponseModal);
+  if(state.duel.gameOver)duelLobbyAway=false;
+  if(!duelLobbyAway&&state.view!=="duel")state.view="duel";
+  updateChrome();renderView();
+  if(showDrawOffer&&state.view==="duel")requestAnimationFrame(openDrawResponseModal);
 }
 
 function formatCombatGrace(ms){
@@ -1641,18 +1658,21 @@ function renderDuel(){
   const opponentDeadline=Number(d.opponentLeaveDeadlineAt??d.opponentDisconnectDeadlineAt)||0;
   const disconnectLeft=Math.max(0,opponentDeadline-Date.now());
   const opponentReason=String(d.opponentLeaveReason||"disconnect");
-  const opponentTitle=opponentReason==="inactive"?"Rival inactivo":opponentReason==="fullscreen"?"Rival fuera de combate":"Rival desconectado";
-  const opponentText=opponentReason==="inactive"?"Lleva más de 3 minutos inactivo. Si no actúa a tiempo, pierde la partida.":opponentReason==="fullscreen"?"Ha cerrado la pantalla completa. Si no vuelve a tiempo, pierde la partida.":"Si no se reconecta a tiempo, pierde la partida.";
+  const opponentTitle=opponentReason==="inactive"?"Rival inactivo":opponentReason==="lobby"?"Rival en el lobby":opponentReason==="fullscreen"?"Rival fuera de combate":"Rival desconectado";
+  const opponentText=opponentReason==="inactive"?"Lleva más de 3 minutos inactivo. Si no actúa a tiempo, pierde la partida.":opponentReason==="lobby"?"Ha vuelto al lobby. Si no reanuda a tiempo, pierde la partida.":opponentReason==="fullscreen"?"Ha cerrado la pantalla completa. Si no vuelve a tiempo, pierde la partida.":"Si no se reconecta a tiempo, pierde la partida.";
   const disconnectWarning=disconnectLeft>0?`<div class="duel-disconnect-warning"><b>${opponentTitle}</b><span>${opponentText} <strong data-combat-grace-countdown>${formatCombatGrace(disconnectLeft)}</strong></span></div>`:"";
   const awayDeadline=playerLeaveDeadline();
   const awayLeft=Math.max(0,awayDeadline-Date.now());
   const awayReason=playerLeaveReason();
-  const awayText=awayReason==="inactive"?"Llevas más de 3 minutos inactivo. Vuelve o realiza una acción":"Has salido de la pantalla completa. Vuelve a la partida";
+  const awayText=awayReason==="inactive"?"Llevas más de 3 minutos inactivo. Vuelve o realiza una acción":awayReason==="lobby"?"Has vuelto al lobby. Reanuda la partida":"Has salido de la pantalla completa. Vuelve a la partida";
   const awayWarning=awayLeft>0?`<div class="duel-disconnect-warning"><b>${awayReason==="inactive"?"Inactividad detectada":"Vuelve a la partida"}</b><span>${awayText} · <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong></span></div>`:"";
   const idleLeft=!awayDeadline?Math.max(0,playerIdleDeadline()-Date.now()):0;
   const idleFinalWarning=idleLeft>0&&idleLeft<=10*1000?`<div class="duel-disconnect-warning"><b>Inactividad</b><span>Realiza una acción en <strong data-duel-idle-countdown>${Math.max(1,Math.ceil(idleLeft/1000))}</strong>s</span></div>`:"";
   const fullscreenButton=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver
     ? '<button class="btn icon ghost duel-fullscreen-button" data-action="enterDuelFullscreen" title="Volver a pantalla completa" aria-label="Volver a pantalla completa">⛶</button>'
+    : "";
+  const lobbyButton=!d.gameOver
+    ? '<button class="btn icon ghost duel-lobby-button" data-action="returnToLobby" title="Volver al lobby" aria-label="Volver al lobby">⌂</button>'
     : "";
   return `<div class="duel-page">
     ${disconnectWarning}
@@ -1660,7 +1680,7 @@ function renderDuel(){
     ${idleFinalWarning}
     <div class="duel-top duel-turn-strip">
       <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
-      ${fullscreenButton}
+      <div class="duel-top-actions">${fullscreenButton}${lobbyButton}</div>
     </div>
     <div class="board">
       <section class="board-zone enemy-zone">
@@ -2322,7 +2342,37 @@ function offerDraw(){
   if(state.connected&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"});
 }
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming){closeModal();state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}}
-function leaveDuel(){state.duel=null;document.body.classList.remove("duel-native-fullscreen");syncDuelFullscreenState(false);go("home")}
+function returnToLobbyFromDuel(){
+  const d=state.duel;
+  if(state.view!=="duel"||!d||d.gameOver)return;
+  duelLobbyAway=true;
+  startDuelAwayCountdown("lobby");
+  closeModal();
+  state.view="home";
+  document.body.classList.remove("duel-native-fullscreen","duel-log-visible");
+  syncDuelOrientation(false);
+  const exit=document.exitFullscreen||document.webkitExitFullscreen;
+  if(fullscreenElement()&&exit){
+    try{
+      const result=exit.call(document);
+      if(result&&typeof result.catch==="function")result.catch(()=>{});
+    }catch{}
+  }
+  updateChrome();
+  renderView();
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function resumeDuelFromLobby(){
+  const d=state.duel;
+  if(!d||d.gameOver)return;
+  duelLobbyAway=false;
+  state.view="duel";
+  markDuelActivity("return");
+  updateChrome();
+  renderView();
+  void requestDuelFullscreen(false);
+}
+function leaveDuel(){duelLobbyAway=false;state.duel=null;document.body.classList.remove("duel-native-fullscreen");syncDuelFullscreenState(false);go("home")}
 
 document.addEventListener("click",e=>{
   const authTab=e.target.closest("[data-auth-mode]");
@@ -2368,6 +2418,8 @@ document.addEventListener("click",e=>{
   else if(a==="acceptDraw")respondDraw(true);
   else if(a==="rejectDraw")respondDraw(false);
   else if(a==="enterDuelFullscreen"){markDuelActivity("return");void requestDuelFullscreen(false);}
+  else if(a==="returnToLobby")returnToLobbyFromDuel();
+  else if(a==="resumeDuelFromLobby")resumeDuelFromLobby();
   else if(a==="resumeDuelActivity")markDuelActivity("return");
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
