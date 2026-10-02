@@ -997,9 +997,9 @@ function battleCards(list,zone){
   return list.map(c=>{
     const clickable=duelCardClickable(c,zone);
     const label=c.powerCard
-      ? \`${c.name} · Poder +${powerValue(c)}\`
-      : \`${c.name} · Ataque ${c.atk} · Defensa ${c.def}\`;
-    return \`<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}" title="${esc(label)}" aria-label="${esc(label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>\`;
+      ? `${c.name} · Poder +${powerValue(c)}`
+      : `${c.name} · Ataque ${c.atk} · Defensa ${c.def}`;
+    return `<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}" title="${esc(label)}" aria-label="${esc(label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
