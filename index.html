@@ -3,81 +3,138 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rolplay · Prototipo de duelo</title>
+<meta name="theme-color" content="#1b110a">
+<title>Rolplay · Restauración web</title>
 <style>
-:root{
-  --bg:#07101a;--panel:#0d1824;--panel2:#111f2d;--line:#28435d;--text:#dcecff;
-  --muted:#88a3bd;--accent:#7ac7ff;--gold:#e0b85d;--danger:#ff7f7f;--ok:#8fe3ae;
-}
-*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 50% -20%,#172b42 0,#07101a 45%,#040910 100%);
-color:var(--text);font:14px/1.35 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;min-height:100vh}
-button{font:inherit;color:var(--text);background:#0c1722;border:1px solid #31516d;border-radius:6px;padding:8px 12px;cursor:pointer}
-button:hover:not(:disabled){border-color:var(--accent);background:#102236} button:disabled{opacity:.42;cursor:not-allowed}
-.app{max-width:1320px;margin:auto;padding:14px}.top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
-.brand{font-weight:800;letter-spacing:.12em;color:#fff;font-size:18px}.sub{color:var(--muted);font-size:12px;margin-top:2px}
-.stats{display:flex;gap:8px;flex-wrap:wrap}.pill{background:#0b1621;border:1px solid var(--line);padding:6px 9px;border-radius:999px}
-.phases{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0}.phase{padding:8px 6px;text-align:center;border:1px solid #20394f;color:#6f8aa2;background:#09131d;border-radius:5px}
-.phase.active{color:#fff;border-color:var(--accent);box-shadow:0 0 0 1px rgba(122,199,255,.16) inset;background:#11243a}
-.board{display:grid;grid-template-columns:1fr;gap:10px}.zone{background:linear-gradient(180deg,rgba(14,26,39,.94),rgba(8,16,25,.94));border:1px solid var(--line);border-radius:8px;padding:10px}
-.zonehead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.zonehead b{letter-spacing:.04em}.enemy .zonehead{color:#ffb4b4}
-.row{display:flex;gap:8px;overflow-x:auto;min-height:142px;padding:3px 1px 7px}
-.card{width:118px;min-width:118px;height:132px;background:linear-gradient(145deg,#172b3f,#0c1722 70%);border:1px solid #395d78;border-radius:8px;padding:8px;display:flex;flex-direction:column;justify-content:space-between;position:relative}
-.card.playable{cursor:pointer;box-shadow:0 0 0 1px rgba(143,227,174,.25) inset}.card.playable:hover{border-color:var(--ok);transform:translateY(-2px)}
-.card.selected{outline:2px solid var(--gold)}.card.exhausted{opacity:.52;filter:saturate(.6)}.card .name{font-weight:700;font-size:12px;line-height:1.15}.meta{font-size:10px;color:var(--muted)}
-.nums{display:flex;justify-content:space-between;font-size:11px}.atk{color:#ffb26f}.def{color:#84c8ff}.cost{position:absolute;right:6px;top:6px;background:#102d46;border:1px solid #3a789f;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;color:#bce7ff;font-weight:800}
-.placeholder{color:#50677b;display:grid;place-items:center;width:100%;min-height:120px;border:1px dashed #20394f;border-radius:7px}
-.handwrap{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:10px}.panel{background:#09131d;border:1px solid var(--line);border-radius:8px;padding:10px}
-.log{height:145px;overflow:auto;font-size:11px;color:#9eb6ca;white-space:pre-line}.log .bad{color:var(--danger)}.log .good{color:var(--ok)}
-.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.grow{flex:1}.status{color:#9ab4ca;font-size:12px}
-.error{display:none;margin-top:8px;padding:8px;border:1px solid #803f48;background:#231116;color:#ffb8c0;border-radius:5px}
-.help{font-size:11px;color:#7892a8;margin-top:6px}
-@media(max-width:800px){.handwrap{grid-template-columns:1fr}.phases{grid-template-columns:repeat(3,1fr)}.top{align-items:flex-start;flex-direction:column}.card{width:108px;min-width:108px}}
+:root{--ink:#f4e8c8;--muted:#c9b78e;--gold:#d6ae58;--gold2:#8d6327;--panel:#21170f;--panel2:#322217;--line:#6d522f;--red:#8a2e26;--green:#51734c;--blue:#425b73}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#17100b url('2013/Page-BgTexture.jpg') center top/cover fixed;color:var(--ink);font:14px/1.4 Verdana,Arial,sans-serif}
+body:before{content:"";position:fixed;inset:0;background:rgba(18,10,6,.35);pointer-events:none}
+button,input,select{font:inherit}button{color:#f6e7bd;border:1px solid #826338;background:linear-gradient(#49301d,#24170e);padding:8px 12px;border-radius:3px;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.08)}
+button:hover:not(:disabled){border-color:#d0a858;filter:brightness(1.12)}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:linear-gradient(#7b4e24,#3e2512);border-color:#d0a858}.danger{background:linear-gradient(#6b2c27,#341413)}
+input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8px;border-radius:2px}
+.hidden{display:none!important}.app{position:relative;max-width:1260px;margin:auto;padding:14px}.legacy-header{height:155px;background:#2b1c10 url('2013/Header.jpg') center/cover no-repeat;border:1px solid #725735;box-shadow:0 8px 25px #0008;position:relative;overflow:hidden}
+.legacy-header:after{content:"ROLPLAY";position:absolute;left:28px;bottom:17px;font:700 36px Georgia,serif;letter-spacing:.08em;color:#f6e8bd;text-shadow:0 2px 5px #000}.legacy-header .tag{position:absolute;right:18px;bottom:14px;background:#170f0bc9;border:1px solid #725735;padding:7px 10px;color:#dcc99d;font-size:11px}
+.window{background:linear-gradient(180deg,#2e2015f2,#17100bf4);border:1px solid #725735;box-shadow:0 12px 32px #0009}.titlebar{min-height:37px;padding:9px 12px;background:#332215 url('2013/BlockHeader.png') center/cover;border-bottom:1px solid #73552f;color:#f3dfaa;font-family:Georgia,serif;font-size:16px;letter-spacing:.03em}
+.login{max-width:470px;margin:24px auto}.loginbody{padding:20px}.field{display:grid;gap:6px;margin:10px 0}.login-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.small{font-size:11px;color:var(--muted)}.notice{padding:9px 11px;background:#15100c;border:1px solid #5f4a31;color:#cdbb95;margin:10px 0}
+.shell{margin-top:12px}.account{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:#160f0a;border:1px solid #725735}.account .spacer{flex:1}.badge{border:1px solid #654b2c;background:#2a1c12;padding:5px 8px}.nav{display:flex;gap:4px;padding:7px;background:#1b120c;border:1px solid #725735;border-top:0;overflow:auto}.nav button.active{border-color:#e0b968;background:linear-gradient(#69431f,#33200f)}
+.view{margin-top:10px}.grid2{display:grid;grid-template-columns:1.4fr .8fr;gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.panel{background:#21160fef;border:1px solid #6e5230}.panelbody{padding:11px}.room{display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border-bottom:1px solid #4c3926}.room:last-child{border-bottom:0}.room h3{margin:0 0 4px;font:700 17px Georgia,serif}.room p{margin:0;color:#c6b48f;font-size:12px}.room .state{color:#bba471;font-size:11px;text-align:right}
+.playerlist{display:grid;gap:5px}.player{padding:6px 8px;background:#18100b;border:1px solid #4f3b27}.chatlog{height:180px;overflow:auto;background:#100b07;border:1px inset #5c452c;padding:8px;font-size:12px}.chatrow{display:flex;gap:6px;margin-top:6px}.chatrow input{flex:1}
+.toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:9px}.toolbar .spacer{flex:1}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:8px}.card{min-height:194px;position:relative;background:linear-gradient(#352515,#17100b);border:1px solid #775b36;overflow:hidden;box-shadow:0 5px 12px #0006}.card:hover{border-color:#d6ae58}.cardart{height:104px;background:#0f0b08 center/cover no-repeat;border-bottom:1px solid #5e4529;position:relative}.cardart:after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 55%,#17100be8)}.cardname{font:700 13px Georgia,serif;padding:7px 7px 2px}.cardmeta{font-size:10px;color:#c9b78e;padding:0 7px 7px}.cardstats{display:flex;justify-content:space-between;padding:5px 7px;border-top:1px solid #493621;font-size:11px}.cost{position:absolute;right:6px;top:6px;width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#1b3145;border:1px solid #88a5bf;color:white;font-weight:bold;z-index:2}.qty{position:absolute;left:5px;top:5px;background:#120d09df;border:1px solid #7a5b34;padding:2px 5px;font-size:10px;z-index:2}.card button{width:calc(100% - 12px);margin:0 6px 6px;padding:5px}
+.r-common{border-color:#715b43}.r-rare{border-color:#55789d}.r-epic{border-color:#815b9b}.r-legendary{border-color:#bd8f36}.pack{padding:18px;text-align:center;background:radial-gradient(circle,#5b3b1f,#1e140d 70%);border:1px solid #8d6937}.pack h2{font:700 24px Georgia,serif;margin:0 0 6px}.opened{margin-top:10px}
+.decksummary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}.meter{padding:6px 8px;border:1px solid #60482d;background:#17100b}.decklist{max-height:510px;overflow:auto}.deckline{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:7px;border-bottom:1px solid #483522}.deckline small{color:#ad9c7d}
+.duelhead{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.vitals{display:flex;gap:6px;flex-wrap:wrap}.phasebar{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:8px 0}.phase{padding:7px 4px;text-align:center;border:1px solid #544027;background:#160f0a;color:#8f8066;font-size:11px}.phase.active{color:#fff0c9;border-color:#d0a858;background:#51341a}.battle{display:grid;gap:8px}.zone{background:#17100bea;border:1px solid #664d2f;padding:8px}.zone.enemy{background:#1d1010e8}.zonehead{display:flex;justify-content:space-between;margin-bottom:6px;color:#dbc698}.battlecards{display:flex;gap:7px;overflow-x:auto;min-height:142px}.battlecard{width:110px;min-width:110px;height:136px;background:#2a1c11;border:1px solid #715635;position:relative;display:flex;flex-direction:column}.battlecard .miniart{height:70px;background:center/cover no-repeat;border-bottom:1px solid #5e452f}.battlecard .n{font:700 11px Georgia,serif;padding:5px}.battlecard .s{margin-top:auto;padding:4px 5px;font-size:10px;display:flex;justify-content:space-between}.battlecard.playable,.battlecard.selectable{cursor:pointer;border-color:#b68a47}.battlecard.selected{outline:2px solid #e2bd67}.battlecard.exhausted{opacity:.47;filter:grayscale(.65)}.empty{display:grid;place-items:center;min-width:100%;min-height:118px;border:1px dashed #4c3927;color:#7f715e}
+.duelbottom{display:grid;grid-template-columns:1fr 300px;gap:8px}.log{height:175px;overflow:auto;background:#0e0907;border:1px inset #5a4329;padding:8px;font-size:11px;white-space:pre-line}.good{color:#9ecb8f}.bad{color:#e39083}.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}.status{font-size:11px;color:#b5a282}.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.shot{background:#130d09;border:1px solid #60482d;padding:6px}.shot img{width:100%;display:block}
+@media(max-width:850px){.grid2,.duelbottom{grid-template-columns:1fr}.grid3,.gallery{grid-template-columns:1fr}.phasebar{grid-template-columns:repeat(3,1fr)}.legacy-header{height:115px}.legacy-header:after{font-size:28px}.legacy-header .tag{display:none}.cards{grid-template-columns:repeat(auto-fill,minmax(125px,1fr))}}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="top">
-    <div><div class="brand">ROLPLAY · PROTOTIPO WEB</div><div class="sub">Duelo funcional restaurado sobre el catálogo original</div></div>
-    <div class="stats">
-      <span class="pill">Tus PV <b id="php">30</b></span>
-      <span class="pill">Poder <b id="ppow">1/1</b></span>
-      <span class="pill">PV rival <b id="ehp">30</b></span>
-      <span class="pill">Turno <b id="turn">1</b></span>
+  <header class="legacy-header"><div class="tag">Restauración web del cliente clásico · archivo histórico local</div></header>
+
+  <section id="loginView" class="window login">
+    <div class="titlebar">Conexión a Rolplay</div>
+    <div class="loginbody">
+      <div class="notice">El servidor Winsock original ya no se utiliza. Esta restauración conserva el archivo histórico y ejecuta el juego en el navegador.</div>
+      <div class="field"><label>Usuario</label><input id="loginName" value="Invitado" maxlength="18" autocomplete="username"></div>
+      <div class="field"><label>Contraseña</label><input id="loginPass" type="password" value="" autocomplete="current-password" placeholder="No necesaria en modo local"></div>
+      <div class="login-actions"><button id="enterGame" class="primary">Entrar al juego</button><button id="enterGuest">Entrar como invitado</button></div>
+      <p class="small">Tus monedas, colección y mazo se guardan únicamente en este navegador.</p>
     </div>
-  </div>
+  </section>
 
-  <div class="phases" id="phases"></div>
+  <main id="gameShell" class="shell hidden">
+    <div class="account">
+      <b id="accountName">Invitado</b>
+      <span class="badge">Monedas: <b id="coins">100</b></span>
+      <span class="badge">Victorias: <b id="wins">0</b></span>
+      <span class="badge">Derrotas: <b id="losses">0</b></span>
+      <span class="spacer"></span>
+      <span class="small">285 cartas recuperadas</span>
+      <button id="logout">Salir</button>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-view="salon" class="active">Salón</button>
+      <button data-view="tienda">Tienda</button>
+      <button data-view="coleccion">Colección</button>
+      <button data-view="mazos">Mazos</button>
+      <button data-view="duelo">Duelo</button>
+      <button data-view="archivo">Archivo 2013</button>
+    </nav>
 
-  <div class="board">
-    <section class="zone enemy">
-      <div class="zonehead"><b>CAMPO RIVAL</b><span id="enemyCount"></span></div>
-      <div class="row" id="enemyBoard"></div>
-    </section>
-
-    <section class="zone">
-      <div class="zonehead"><b>TU CAMPO</b><span id="playerCount"></span></div>
-      <div class="row" id="playerBoard"></div>
-    </section>
-
-    <div class="handwrap">
-      <section class="zone">
-        <div class="zonehead"><b>TU MANO</b><span id="deckCount"></span></div>
-        <div class="row" id="hand"></div>
-        <div class="help" id="help"></div>
-      </section>
-
-      <aside class="panel">
-        <b>REGISTRO DE DUELO</b>
-        <div class="log" id="log"></div>
-        <div class="actions">
-          <button id="restart">Reiniciar duelo</button>
-          <span class="grow"></span>
-          <button id="next">Siguiente fase →</button>
+    <section class="view" id="view-salon">
+      <div class="grid2">
+        <div class="panel">
+          <div class="titlebar">Salones de juego</div>
+          <div class="room"><div><h3>Salón de Novatos</h3><p>Partidas de entrenamiento y primeros mazos.</p></div><div class="state">modo local<br><button data-start="starter">Entrenar</button></div></div>
+          <div class="room"><div><h3>Salón General</h3><p>La estructura de salas del cliente clásico, preparada para el servidor moderno.</p></div><div class="state">multijugador pendiente<br><button data-start="deck">Duelo local</button></div></div>
+          <div class="room"><div><h3>Salón Veteranos</h3><p>Reserva para reglas completas, intercambio y ranking.</p></div><div class="state">en restauración</div></div>
         </div>
-        <div class="error" id="error"></div>
-      </aside>
-    </div>
-  </div>
+        <div class="panel">
+          <div class="titlebar">Usuarios y chat</div>
+          <div class="panelbody">
+            <div class="playerlist"><div class="player">● <span id="selfPlayer">Invitado</span></div><div class="player">○ Guardián de entrenamiento</div></div>
+            <div class="chatlog" id="chatLog"><div><b>Sistema:</b> Bienvenido al salón restaurado de Rolplay.</div></div>
+            <div class="chatrow"><input id="chatInput" placeholder="Escribe un mensaje local…"><button id="chatSend">Enviar</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-tienda">
+      <div class="grid2">
+        <div class="pack">
+          <h2>Sobre de cartas</h2>
+          <p>5 cartas aleatorias del catálogo original.</p>
+          <p><b>20 monedas</b></p>
+          <button id="buyPack" class="primary">Comprar y abrir</button>
+          <p class="small">Empiezas con 100 monedas, igual que en la descripción histórica conservada del juego.</p>
+        </div>
+        <div class="panel"><div class="titlebar">Último sobre</div><div class="panelbody"><div id="openedPack" class="cards opened"><div class="small">Todavía no has abierto ningún sobre.</div></div></div></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-coleccion">
+      <div class="panel"><div class="titlebar">Colección</div><div class="panelbody">
+        <div class="toolbar"><input id="collectionSearch" placeholder="Buscar carta…"><select id="collectionFilter"><option value="owned">Solo poseídas</option><option value="all">Catálogo completo</option></select><span class="spacer"></span><span id="collectionCount" class="small"></span></div>
+        <div id="collectionCards" class="cards"></div>
+      </div></div>
+    </section>
+
+    <section class="view hidden" id="view-mazos">
+      <div class="grid2">
+        <div class="panel"><div class="titlebar">Constructor de mazo</div><div class="panelbody">
+          <div class="decksummary"><span class="meter">Cartas: <b id="deckSize">0</b>/30</span><span class="meter">Coste medio: <b id="deckAvg">0</b></span></div>
+          <div id="deckList" class="decklist"></div>
+          <div class="actions"><button id="autoDeck">Crear mazo automático</button><button id="clearDeck" class="danger">Vaciar</button><button id="playDeck" class="primary">Jugar con este mazo</button></div>
+          <p class="small">El constructor es funcional; los límites exactos del cliente antiguo se seguirán ajustando con el manual recuperado.</p>
+        </div></div>
+        <div class="panel"><div class="titlebar">Cartas disponibles</div><div class="panelbody"><div id="deckPool" class="cards"></div></div></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-duelo">
+      <div class="duelhead">
+        <div><b>Duelo de entrenamiento</b><div id="duelStatus" class="status">Prepara tu mazo y comienza.</div></div>
+        <div class="vitals"><span class="badge">Tus PV <b id="php">30</b></span><span class="badge">Poder <b id="ppow">1/1</b></span><span class="badge">PV rival <b id="ehp">30</b></span><span class="badge">Turno <b id="turn">1</b></span></div>
+      </div>
+      <div id="phases" class="phasebar"></div>
+      <div class="battle">
+        <div class="zone enemy"><div class="zonehead"><b>Campo rival</b><span id="enemyCount"></span></div><div id="enemyBoard" class="battlecards"></div></div>
+        <div class="zone"><div class="zonehead"><b>Tu campo</b><span id="playerCount"></span></div><div id="playerBoard" class="battlecards"></div></div>
+        <div class="duelbottom">
+          <div class="zone"><div class="zonehead"><b>Tu mano</b><span id="deckCount"></span></div><div id="hand" class="battlecards"></div><div id="help" class="status"></div></div>
+          <div class="panel"><div class="titlebar">Registro de duelo</div><div class="panelbody"><div id="log" class="log"></div><div class="actions"><button id="restart">Reiniciar</button><span style="flex:1"></span><button id="next" class="primary">Siguiente fase</button></div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-archivo">
+      <div class="panel"><div class="titlebar">Archivo visual conservado</div><div class="panelbody">
+        <p class="small">Capturas originales conservadas en el backup de 2013. Se usan como referencia para acercar progresivamente la restauración al cliente histórico.</p>
+        <div class="gallery"><div class="shot"><img src="2013/screenshot.jpg" alt="Captura histórica 1"></div><div class="shot"><img src="2013/screenshot2.jpg" alt="Captura histórica 2"></div><div class="shot"><img src="2013/screenshot3.jpg" alt="Captura histórica 3"></div></div>
+      </div></div>
+    </section>
+  </main>
 </div>
 
 <script type="text/plain" id="cards-data">name;rarity;quantity;level
@@ -368,254 +425,225 @@ Keatahn;100;2;50
 Poder x 20;100;2;50
 </script>
 <script>
-(() => {
-  "use strict";
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
+var SAVE_KEY="rolplay-restoration-v2";
+var profile=null, duel=null, CATALOG=[];
 
-  const PHASES = ["Inicio","Poder","Invocación","Combate","Bloqueo","Daño"];
-  const $ = id => document.getElementById(id);
-  let state;
+function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
+function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))}
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
+function normalize(s){return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
+function rarityTier(v){v=Number(v)||1;if(v>90)return["Legendaria","legendary"];if(v>60)return["Épica","epic"];if(v>25)return["Rara","rare"];return["Común","common"]}
+function isPowerName(n){return /^Poder(\b|\s+x)/i.test(n)}
+function isAbilityName(n){return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(n)}
+function parseCards(){
+  var lines=$("cards-data").textContent.trim().split(/\r?\n/).filter(Boolean);
+  CATALOG=lines.slice(1).map(function(line,i){
+    var p=line.split(";"),name=p[0],rar=Number(p[1])||1,qty=Number(p[2])||1,lv=Number(p[3])||1;
+    var power=isPowerName(name),ability=isAbilityName(name);
+    return {id:i+1,name:name,rarity:rar,quantity:qty,level:lv,powerCard:power,abilityCard:ability,
+      cost:power?0:Math.max(1,Math.min(10,Math.ceil(lv/5))),
+      atk:(power||ability)?0:Math.max(1,Math.ceil(lv*.52)+Math.floor(rar/30)),
+      def:(power||ability)?0:Math.max(1,Math.ceil(lv*.40)+Math.floor((101-rar)/40))};
+  });
+}
+function cardById(id){return CATALOG.find(function(c){return c.id===Number(id)})}
+function cardImage(c){
+  var s=normalize(c.name).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").trim().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+  return "legacy-assets/imagenes/crt_"+s+".jpg";
+}
+function defaultProfile(name){
+  return {name:name||"Invitado",coins:100,wins:0,losses:0,collection:{},deck:[]};
+}
+function loadProfile(name){
+  try{var raw=localStorage.getItem(SAVE_KEY);if(raw){var x=JSON.parse(raw);if(x&&x.collection&&x.deck)return x}}catch(e){}
+  return defaultProfile(name);
+}
+function saveProfile(){localStorage.setItem(SAVE_KEY,JSON.stringify(profile));renderAccount()}
+function owned(id){return Number(profile.collection[id]||0)}
+function cloneCard(c){var x={};Object.keys(c).forEach(function(k){x[k]=c[k]});x.uid=uid();x.exhausted=false;x.selected=false;return x}
 
-  function parseCards(){
-    const raw = $("cards-data").textContent.trim();
-    const lines = raw.split(/\r?\n/).filter(Boolean);
-    if(lines.length < 2) throw new Error("El catálogo de cartas está vacío.");
-    return lines.slice(1).map((line,idx)=>{
-      const [name,rarity,quantity,level] = line.split(";");
-      const lv = Number(level)||1, rar = Number(rarity)||1;
-      const powerCard = /^Poder\b/i.test(name);
-      return {
-        id: idx + 1, name, rarity: rar, quantity:Number(quantity)||1, level:lv,
-        cost: powerCard ? 0 : Math.max(1,Math.min(10,Math.ceil(lv/5))),
-        atk: powerCard ? 0 : Math.max(1,Math.ceil(lv*.55)+Math.floor(rar/28)),
-        def: powerCard ? 1 : Math.max(1,Math.ceil(lv*.42)+Math.floor((100-rar)/38)),
-        powerCard
-      };
-    });
+function enter(name){
+  profile=loadProfile(name||"Invitado");
+  if(name&&profile.name==="Invitado")profile.name=name;
+  $("loginView").classList.add("hidden");$("gameShell").classList.remove("hidden");
+  renderAccount();showView("salon");renderCollection();renderDeck();
+}
+function renderAccount(){
+  if(!profile)return;
+  $("accountName").textContent=profile.name;$("selfPlayer").textContent=profile.name;$("coins").textContent=profile.coins;$("wins").textContent=profile.wins;$("losses").textContent=profile.losses;
+}
+function showView(name){
+  document.querySelectorAll(".view").forEach(function(v){v.classList.add("hidden")});
+  var target=$("view-"+name);if(target)target.classList.remove("hidden");
+  document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});
+  if(name==="coleccion")renderCollection();if(name==="mazos")renderDeck();if(name==="duelo"&& !duel)startDuel("deck");
+}
+function cardHtml(c,qty,action,label){
+  var rt=rarityTier(c.rarity),q=qty?'<span class="qty">x'+qty+"</span>":"";
+  return '<article class="card r-'+rt[1]+'">'+q+'<div class="cardart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"><span class="cost">'+c.cost+'</span></div><div class="cardname">'+esc(c.name)+'</div><div class="cardmeta">Nv '+c.level+' · '+rt[0]+'</div><div class="cardstats"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div>'+(action?'<button data-action="'+action+'" data-card="'+c.id+'">'+label+'</button>':"")+"</article>";
+}
+function weightedCard(){
+  var r=Math.random()*100;
+  var pool;
+  if(r<4)pool=CATALOG.filter(function(c){return c.rarity>90});
+  else if(r<18)pool=CATALOG.filter(function(c){return c.rarity>60&&c.rarity<=90});
+  else if(r<48)pool=CATALOG.filter(function(c){return c.rarity>25&&c.rarity<=60});
+  else pool=CATALOG.filter(function(c){return c.rarity<=25});
+  return pool[Math.floor(Math.random()*pool.length)]||CATALOG[Math.floor(Math.random()*CATALOG.length)];
+}
+function buyPack(){
+  if(profile.coins<20){alert("No tienes monedas suficientes.");return}
+  profile.coins-=20;var got=[];
+  for(var i=0;i<5;i++){var c=weightedCard();profile.collection[c.id]=(profile.collection[c.id]||0)+1;got.push(c)}
+  saveProfile();
+  $("openedPack").innerHTML=got.map(function(c){return cardHtml(c,0,"adddeck","Añadir al mazo")}).join("");
+  bindCardActions($("openedPack"));renderCollection();renderDeck();
+}
+function renderCollection(){
+  if(!profile)return;
+  var q=normalize($("collectionSearch").value||""),all=$("collectionFilter").value==="all";
+  var list=CATALOG.filter(function(c){return (all||owned(c.id)>0)&&(!q||normalize(c.name).indexOf(q)>=0)});
+  $("collectionCount").textContent=list.length+" visibles · "+Object.keys(profile.collection).reduce(function(n,k){return n+Number(profile.collection[k]||0)},0)+" cartas poseídas";
+  $("collectionCards").innerHTML=list.length?list.map(function(c){return cardHtml(c,owned(c.id),owned(c.id)>countInDeck(c.id)?"adddeck":"",owned(c.id)>countInDeck(c.id)?"Añadir al mazo":"Sin copias libres")}).join(""):'<div class="notice">Tu colección está vacía. Visita la tienda y abre un sobre.</div>';
+  bindCardActions($("collectionCards"));
+}
+function countInDeck(id){return profile.deck.filter(function(x){return Number(x)===Number(id)}).length}
+function addDeck(id){
+  if(profile.deck.length>=30)return;
+  if(owned(id)<=countInDeck(id))return;
+  profile.deck.push(Number(id));saveProfile();renderDeck();renderCollection();
+}
+function removeDeckIndex(i){profile.deck.splice(i,1);saveProfile();renderDeck();renderCollection()}
+function autoDeck(){
+  var pool=[];
+  Object.keys(profile.collection).forEach(function(k){for(var i=0;i<profile.collection[k];i++)pool.push(Number(k))});
+  if(!pool.length){alert("Necesitas abrir al menos un sobre.");return}
+  pool.sort(function(a,b){return cardById(a).level-cardById(b).level});
+  profile.deck=pool.slice(0,30);saveProfile();renderDeck();renderCollection();
+}
+function renderDeck(){
+  if(!profile)return;
+  $("deckSize").textContent=profile.deck.length;
+  var avg=profile.deck.length?profile.deck.reduce(function(s,id){return s+cardById(id).cost},0)/profile.deck.length:0;
+  $("deckAvg").textContent=avg.toFixed(1);
+  $("deckList").innerHTML=profile.deck.length?profile.deck.map(function(id,i){var c=cardById(id);return '<div class="deckline"><span>'+esc(c.name)+' <small>Nv '+c.level+'</small></span><b>'+c.cost+'</b><button data-remove="'+i+'">−</button></div>'}).join(""):'<div class="notice">El mazo está vacío.</div>';
+  $("deckList").querySelectorAll("[data-remove]").forEach(function(b){b.onclick=function(){removeDeckIndex(Number(b.dataset.remove))}});
+  var pool=CATALOG.filter(function(c){return owned(c.id)>countInDeck(c.id)}).slice(0,80);
+  $("deckPool").innerHTML=pool.length?pool.map(function(c){return cardHtml(c,owned(c.id)-countInDeck(c.id),"adddeck","Añadir")}).join(""):'<div class="small">No quedan copias libres en tu colección.</div>';
+  bindCardActions($("deckPool"));
+}
+function bindCardActions(root){
+  root.querySelectorAll("[data-action=adddeck]").forEach(function(b){b.onclick=function(){addDeck(Number(b.dataset.card))}});
+}
+
+function makeTrainingDeck(useProfile){
+  var arr=[];
+  if(useProfile&&profile.deck.length>=10)arr=profile.deck.map(function(id){return cloneCard(cardById(id))});
+  else {
+    var low=CATALOG.filter(function(c){return c.level<=10&&!c.abilityCard});
+    for(var i=0;i<30;i++)arr.push(cloneCard(low[Math.floor(Math.random()*low.length)]));
   }
+  return shuffle(arr);
+}
+function draw(who,n){
+  n=n||1;for(var i=0;i<n;i++){var d=duel[who+"Deck"];if(d.length)duel[who+"Hand"].push(d.pop())}
+}
+function log(msg,cls){
+  var d=document.createElement("div");if(cls)d.className=cls;d.textContent=msg;$("log").appendChild(d);$("log").scrollTop=$("log").scrollHeight;
+}
+function startDuel(mode){
+  var use=mode!=="starter";
+  duel={turn:1,phase:0,playerHp:30,enemyHp:30,maxPower:1,power:1,enemyMaxPower:1,enemyPower:1,
+    playerDeck:makeTrainingDeck(use),enemyDeck:makeTrainingDeck(false),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],blocks:[],gameOver:false};
+  $("log").innerHTML="";draw("player",5);draw("enemy",5);log("Duelo iniciado. Endereza tus cartas y avanza por las fases.","good");renderDuel();showView("duelo");
+}
+function battleCard(c,zone){
+  var d=document.createElement("div");d.className="battlecard";if(c.exhausted)d.classList.add("exhausted");if(c.selected)d.classList.add("selected");
+  var playable=zone==="hand"&&!duel.gameOver&&((duel.phase===2&&c.powerCard)||(duel.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=duel.power)||(duel.phase===4&&c.abilityCard&&c.cost<=duel.power));
+  var selectable=zone==="playerBoard"&&duel.phase===5&&!c.exhausted&&!duel.gameOver;
+  if(playable)d.classList.add("playable");if(selectable)d.classList.add("selectable");
+  d.innerHTML='<div class="miniart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"></div><div class="n">'+esc(c.name)+'</div><div class="s"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div><span class="cost">'+c.cost+"</span>";
+  if(playable)d.onclick=function(){playHand(c.uid)};if(selectable)d.onclick=function(){toggleAttack(c.uid)};return d;
+}
+function renderBattleRow(id,cards,zone){
+  var el=$(id);el.innerHTML="";if(!cards.length){el.innerHTML='<div class="empty">Sin cartas</div>';return}cards.forEach(function(c){el.appendChild(battleCard(c,zone))});
+}
+function renderDuel(){
+  if(!duel)return;
+  $("php").textContent=Math.max(0,duel.playerHp);$("ehp").textContent=Math.max(0,duel.enemyHp);$("ppow").textContent=duel.power+"/"+duel.maxPower;$("turn").textContent=duel.turn;
+  $("deckCount").textContent="Mazo "+duel.playerDeck.length+" · Mano "+duel.playerHand.length;$("enemyCount").textContent=duel.enemyBoard.length+" cartas";$("playerCount").textContent=duel.playerBoard.length+" cartas";
+  $("phases").innerHTML="";PHASES.forEach(function(p,i){var d=document.createElement("div");d.className="phase"+(i===duel.phase?" active":"");d.textContent=(i+1)+". "+p;$("phases").appendChild(d)});
+  renderBattleRow("enemyBoard",duel.enemyBoard,"enemy");renderBattleRow("playerBoard",duel.playerBoard,"playerBoard");renderBattleRow("hand",duel.playerHand,"hand");
+  var help=["Endereza las cartas utilizadas en el turno anterior.","Roba una carta del mazo.","Juega cartas de Poder.","Invoca criaturas pagando Poder.","Usa efectos recuperados: vida, veneno, drenaje, escudo, Poder Mental y Poderador.","Selecciona atacantes y pulsa Resolver ataque."][duel.phase];
+  $("help").textContent=help;$("duelStatus").textContent="Turno "+duel.turn+" · "+PHASES[duel.phase];
+  $("next").disabled=duel.gameOver;$("next").textContent=duel.phase===5?"Resolver ataque":"Siguiente fase";
+}
+function playHand(id){
+  var i=duel.playerHand.findIndex(function(c){return c.uid===id});if(i<0)return;var c=duel.playerHand[i];
+  if(c.powerCard&&duel.phase===2){duel.power=Math.min(duel.maxPower,duel.power+Math.max(1,Math.round(c.level/5)));duel.playerHand.splice(i,1);log("Canalizas "+c.name+".","good")}
+  else if(c.abilityCard&&duel.phase===4&&c.cost<=duel.power){duel.power-=c.cost;duel.playerHand.splice(i,1);resolveAbility(c,true)}
+  else if(!c.powerCard&&!c.abilityCard&&duel.phase===3&&c.cost<=duel.power){duel.power-=c.cost;duel.playerHand.splice(i,1);duel.playerBoard.push(c);log("Invocas "+c.name+" por "+c.cost+" Poder.")}
+  renderDuel();
+}
+function resolveAbility(c,player){
+  var n=normalize(c.name),me=player?"player":"enemy",foe=player?"enemy":"player";
+  if(n.indexOf("fuente de vida")===0){duel[me+"Hp"]+=3;log((player?"Usas ":"El rival usa ")+c.name+": +3 PV.",player?"good":"bad")}
+  else if(n.indexOf("veneno")===0){duel[foe+"Hp"]-=3;log((player?"Usas ":"El rival usa ")+c.name+": 3 PV de daño.",player?"good":"bad")}
+  else if(n.indexOf("drenador")===0){duel[foe+"Hp"]-=2;duel[me+"Hp"]+=2;log((player?"Usas ":"El rival usa ")+c.name+": drena 2 PV.",player?"good":"bad")}
+  else if(n.indexOf("poder mental")===0){draw(me,1);log((player?"Usas ":"El rival usa ")+c.name+": robas una carta.",player?"good":"bad")}
+  else if(n.indexOf("poderador")===0){duel[me+"Power"]=Math.min(duel[me+"MaxPower"],duel[me+"Power"]+2);log((player?"Usas ":"El rival usa ")+c.name+": recupera Poder.",player?"good":"bad")}
+  else if(n.indexOf("escudal")===0||n.indexOf("barrera mistica")===0){var b=duel[me+"Board"][0];if(b)b.def+=3;log((player?"Usas ":"El rival usa ")+c.name+": refuerza defensa.",player?"good":"bad")}
+  else {draw(me,1);log((player?"Usas ":"El rival usa ")+c.name+".",player?"good":"bad")}
+}
+function toggleAttack(id){var c=duel.playerBoard.find(function(x){return x.uid===id});if(!c)return;c.selected=!c.selected;renderDuel()}
+function prepareBlocks(){
+  duel.blocks=[];var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted}),def=duel.enemyBoard.slice().sort(function(a,b){return b.def-a.def});
+  atk.forEach(function(a,i){if(def[i])duel.blocks.push({a:a.uid,b:def[i].uid})});
+}
+function resolvePlayerAttack(){
+  prepareBlocks();var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted});
+  atk.forEach(function(a){
+    var link=duel.blocks.find(function(x){return x.a===a.uid});
+    if(link){var b=duel.enemyBoard.find(function(x){return x.uid===link.b});if(b){log(a.name+" combate contra "+b.name+".");if(a.atk>b.def){duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==b.uid});log(b.name+" cae.","good")}if(b.atk>a.def){duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==a.uid});log(a.name+" cae.","bad")}}}
+    else{duel.enemyHp-=a.atk;log(a.name+" causa "+a.atk+" PV al rival.","good")}
+    var s=duel.playerBoard.find(function(x){return x.uid===a.uid});if(s){s.exhausted=true;s.selected=false}
+  });
+}
+function aiPlay(){
+  duel.enemyMaxPower=Math.min(10,duel.enemyMaxPower+1);duel.enemyPower=duel.enemyMaxPower;duel.enemyBoard.forEach(function(c){c.exhausted=false});draw("enemy",1);
+  var powers=duel.enemyHand.filter(function(c){return c.powerCard});if(powers[0]){duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==powers[0].uid});duel.enemyPower=Math.min(duel.enemyMaxPower,duel.enemyPower+2)}
+  var ability=duel.enemyHand.find(function(c){return c.abilityCard&&c.cost<=duel.enemyPower});if(ability){duel.enemyPower-=ability.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==ability.uid});resolveAbility(ability,false)}
+  var safe=12;while(safe--){var opts=duel.enemyHand.filter(function(c){return !c.powerCard&&!c.abilityCard&&c.cost<=duel.enemyPower});if(!opts.length)break;opts.sort(function(a,b){return(b.atk+b.def)-(a.atk+a.def)});var c=opts[0];duel.enemyPower-=c.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==c.uid});duel.enemyBoard.push(c)}
+  var attackers=duel.enemyBoard.filter(function(c){return !c.exhausted}),blocks=duel.playerBoard.slice().sort(function(a,b){return b.def-a.def});
+  attackers.forEach(function(a,i){var b=blocks[i];if(b){if(a.atk>b.def)duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==b.uid});if(b.atk>a.def)duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==a.uid})}else duel.playerHp-=a.atk;var s=duel.enemyBoard.find(function(x){return x.uid===a.uid});if(s)s.exhausted=true});
+  if(attackers.length)log("El rival ataca con "+attackers.length+" criatura(s).","bad");
+}
+function checkEnd(){
+  if(duel.enemyHp<=0||duel.playerHp<=0){duel.gameOver=true;var win=duel.enemyHp<=0;log(win?"VICTORIA. Has ganado el duelo.":"DERROTA. Tus PV han llegado a cero.",win?"good":"bad");if(win){profile.wins++;profile.coins+=10}else profile.losses++;saveProfile();return true}return false
+}
+function nextPhase(){
+  if(!duel||duel.gameOver)return;
+  if(duel.phase===5){resolvePlayerAttack();if(checkEnd()){renderDuel();return}aiPlay();if(checkEnd()){renderDuel();return}duel.turn++;duel.phase=0;duel.playerBoard.forEach(function(c){c.exhausted=false;c.selected=false});duel.power=duel.maxPower;log("Comienza tu turno "+duel.turn+".");renderDuel();return}
+  duel.phase++;
+  if(duel.phase===1){draw("player",1);log("Robas una carta.")}
+  if(duel.phase===2){duel.maxPower=Math.min(10,duel.maxPower+1);duel.power=duel.maxPower;log("Tu reserva de Poder sube a "+duel.maxPower+".")}
+  renderDuel();
+}
 
-  const CATALOG = parseCards();
-
-  function clone(c){ return {...c, uid: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2), exhausted:false, selected:false}; }
-  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-
-  function makeDeck(){
-    const pool = [];
-    CATALOG.forEach(c=>{
-      const weight = Math.max(1, Math.min(5, Math.round((101-c.rarity)/25)));
-      for(let i=0;i<weight;i++) pool.push(c);
-    });
-    return shuffle(Array.from({length:36},()=>clone(pool[Math.floor(Math.random()*pool.length)])));
-  }
-
-  function draw(who,n=1){
-    for(let i=0;i<n;i++){
-      if(!state[who+"Deck"].length) continue;
-      state[who+"Hand"].push(state[who+"Deck"].pop());
-    }
-  }
-
-  function log(msg, cls=""){
-    const div=document.createElement("div");
-    if(cls) div.className=cls;
-    div.textContent=msg;
-    $("log").appendChild(div);
-    $("log").scrollTop=$("log").scrollHeight;
-  }
-
-  function reset(){
-    state = {
-      turn:1, phase:0, playerHp:30, enemyHp:30,
-      maxPower:1, power:1, enemyMaxPower:1, enemyPower:1,
-      playerDeck:makeDeck(), enemyDeck:makeDeck(),
-      playerHand:[], enemyHand:[], playerBoard:[], enemyBoard:[],
-      blocks:[], gameOver:false
-    };
-    $("log").innerHTML="";
-    $("error").style.display="none";
-    draw("player",5); draw("enemy",5);
-    log("Duelo iniciado. El catálogo se carga dentro del propio juego, sin peticiones externas.", "good");
-    render();
-  }
-
-  function cardEl(c, zone){
-    const d=document.createElement("div");
-    d.className="card";
-    if(c.exhausted) d.classList.add("exhausted");
-    if(c.selected) d.classList.add("selected");
-
-    const playable = zone==="hand" && state.phase===2 && !state.gameOver && (c.powerCard || c.cost<=state.power);
-    const selectable = zone==="playerBoard" && state.phase===3 && !c.exhausted && !state.gameOver;
-    if(playable || selectable) d.classList.add("playable");
-
-    d.innerHTML = `
-      <div class="cost">${c.cost}</div>
-      <div class="name">${escapeHtml(c.name)}</div>
-      <div class="meta">Nv ${c.level} · Rareza ${c.rarity}</div>
-      <div class="nums"><span class="atk">ATQ ${c.atk}</span><span class="def">DEF ${c.def}</span></div>`;
-
-    if(playable) d.onclick=()=>playCard(c.uid);
-    if(selectable) d.onclick=()=>toggleAttack(c.uid);
-    return d;
-  }
-
-  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
-
-  function renderRow(elId, cards, zone){
-    const el=$(elId); el.innerHTML="";
-    if(!cards.length){ const p=document.createElement("div"); p.className="placeholder"; p.textContent="Sin cartas"; el.appendChild(p); return; }
-    cards.forEach(c=>el.appendChild(cardEl(c,zone)));
-  }
-
-  function render(){
-    $("php").textContent=Math.max(0,state.playerHp);
-    $("ehp").textContent=Math.max(0,state.enemyHp);
-    $("ppow").textContent=state.power+"/"+state.maxPower;
-    $("turn").textContent=state.turn;
-    $("deckCount").textContent="Mazo: "+state.playerDeck.length+" · Mano: "+state.playerHand.length;
-    $("enemyCount").textContent=state.enemyBoard.length+" en mesa";
-    $("playerCount").textContent=state.playerBoard.length+" en mesa";
-
-    const phases=$("phases"); phases.innerHTML="";
-    PHASES.forEach((p,i)=>{ const x=document.createElement("div"); x.className="phase"+(i===state.phase?" active":""); x.textContent=(i+1)+". "+p; phases.appendChild(x); });
-
-    renderRow("enemyBoard",state.enemyBoard,"enemyBoard");
-    renderRow("playerBoard",state.playerBoard,"playerBoard");
-    renderRow("hand",state.playerHand,"hand");
-
-    const help = [
-      "Inicio: prepara el turno.",
-      "Poder: recuperas y aumentas tu Poder.",
-      "Invocación: pulsa una carta iluminada para jugarla.",
-      "Combate: pulsa tus unidades para marcarlas como atacantes.",
-      "Bloqueo: el rival asigna defensores automáticamente.",
-      "Daño: se resuelve el combate y comienza el turno rival."
-    ][state.phase];
-    $("help").textContent=help;
-    $("next").disabled=state.gameOver;
-    $("next").textContent=state.phase===5?"Resolver daño →":"Siguiente fase →";
-  }
-
-  function playCard(uid){
-    const idx=state.playerHand.findIndex(c=>c.uid===uid); if(idx<0) return;
-    const c=state.playerHand[idx];
-    if(c.powerCard){
-      state.power=Math.min(state.maxPower, state.power+Math.max(1,Math.round(c.level/5)));
-      state.playerHand.splice(idx,1);
-      log("Usas "+c.name+" y recuperas Poder.", "good");
-    } else if(c.cost<=state.power){
-      state.power-=c.cost;
-      state.playerHand.splice(idx,1);
-      state.playerBoard.push(c);
-      log("Invocas "+c.name+" por "+c.cost+" Poder.");
-    }
-    render();
-  }
-
-  function toggleAttack(uid){
-    const c=state.playerBoard.find(x=>x.uid===uid); if(!c) return;
-    c.selected=!c.selected;
-    log((c.selected?"Atacará ":"Retiras del ataque a ")+c.name+".");
-    render();
-  }
-
-  function aiSummon(){
-    let safety=10;
-    while(safety-->0){
-      const options=state.enemyHand.filter(c=>!c.powerCard && c.cost<=state.enemyPower);
-      if(!options.length) break;
-      options.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
-      const c=options[0];
-      state.enemyPower-=c.cost;
-      state.enemyHand=state.enemyHand.filter(x=>x.uid!==c.uid);
-      state.enemyBoard.push(c);
-      log("El rival invoca "+c.name+".");
-    }
-  }
-
-  function prepareBlocks(){
-    state.blocks=[];
-    const attackers=state.playerBoard.filter(c=>c.selected && !c.exhausted);
-    const available=[...state.enemyBoard].sort((a,b)=>b.def-a.def);
-    attackers.forEach((a,i)=>{
-      if(available[i]) state.blocks.push({a:a.uid,b:available[i].uid});
-    });
-    if(attackers.length) log("El rival prepara "+Math.min(attackers.length,available.length)+" bloqueo(s).");
-  }
-
-  function resolvePlayerAttack(){
-    const attackers=state.playerBoard.filter(c=>c.selected && !c.exhausted);
-    for(const a of attackers){
-      const link=state.blocks.find(x=>x.a===a.uid);
-      if(link){
-        const b=state.enemyBoard.find(x=>x.uid===link.b);
-        if(!b) continue;
-        const ad=a.atk-b.def, bd=b.atk-a.def;
-        log(a.name+" choca con "+b.name+".");
-        if(ad>0){ state.enemyBoard=state.enemyBoard.filter(x=>x.uid!==b.uid); log(b.name+" cae.", "good"); }
-        if(bd>0){ state.playerBoard=state.playerBoard.filter(x=>x.uid!==a.uid); log(a.name+" cae.", "bad"); }
-      } else {
-        state.enemyHp-=a.atk;
-        log(a.name+" inflige "+a.atk+" PV al rival.", "good");
-      }
-      const still=state.playerBoard.find(x=>x.uid===a.uid);
-      if(still){ still.exhausted=true; still.selected=false; }
-    }
-  }
-
-  function aiTurn(){
-    if(state.enemyHp<=0 || state.playerHp<=0) return;
-    state.enemyMaxPower=Math.min(10,state.enemyMaxPower+1);
-    state.enemyPower=state.enemyMaxPower;
-    draw("enemy",1);
-    aiSummon();
-
-    const attackers=state.enemyBoard.filter(c=>!c.exhausted);
-    const blockers=[...state.playerBoard].sort((a,b)=>b.def-a.def);
-    attackers.forEach((a,i)=>{
-      const b=blockers[i];
-      if(b){
-        const ad=a.atk-b.def, bd=b.atk-a.def;
-        if(ad>0) state.playerBoard=state.playerBoard.filter(x=>x.uid!==b.uid);
-        if(bd>0) state.enemyBoard=state.enemyBoard.filter(x=>x.uid!==a.uid);
-      } else state.playerHp-=a.atk;
-      const still=state.enemyBoard.find(x=>x.uid===a.uid); if(still) still.exhausted=true;
-    });
-    if(attackers.length) log("El rival ataca con "+attackers.length+" unidad(es).", "bad");
-  }
-
-  function checkEnd(){
-    if(state.enemyHp<=0 || state.playerHp<=0){
-      state.gameOver=true;
-      log(state.enemyHp<=0 ? "VICTORIA. El rival ha caído." : "DERROTA. Tus PV han llegado a cero.", state.enemyHp<=0?"good":"bad");
-    }
-  }
-
-  function nextPhase(){
-    if(state.gameOver) return;
-    if(state.phase===3) prepareBlocks();
-    if(state.phase===5){
-      resolvePlayerAttack(); checkEnd();
-      if(!state.gameOver){ aiTurn(); checkEnd(); }
-      if(!state.gameOver){
-        state.turn++;
-        state.phase=0;
-        state.maxPower=Math.min(10,state.maxPower+1);
-        state.power=state.maxPower;
-        state.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
-        state.enemyBoard.forEach(c=>c.exhausted=false);
-        draw("player",1);
-        log("Comienza tu turno "+state.turn+".");
-      }
-      render(); return;
-    }
-    state.phase++;
-    if(state.phase===1) state.power=state.maxPower;
-    render();
-  }
-
-  $("restart").addEventListener("click",reset);
-  $("next").addEventListener("click",nextPhase);
-  reset();
+$("enterGame").onclick=function(){enter(($("loginName").value||"Invitado").trim())};$("enterGuest").onclick=function(){enter("Invitado")};
+$("logout").onclick=function(){$("gameShell").classList.add("hidden");$("loginView").classList.remove("hidden")};
+document.querySelectorAll("#nav button").forEach(function(b){b.onclick=function(){showView(b.dataset.view)}});
+document.querySelectorAll("[data-start]").forEach(function(b){b.onclick=function(){startDuel(b.dataset.start)}});
+$("buyPack").onclick=buyPack;$("collectionSearch").oninput=renderCollection;$("collectionFilter").onchange=renderCollection;
+$("autoDeck").onclick=autoDeck;$("clearDeck").onclick=function(){profile.deck=[];saveProfile();renderDeck();renderCollection()};$("playDeck").onclick=function(){startDuel("deck")};
+$("restart").onclick=function(){startDuel(profile.deck.length>=10?"deck":"starter")};$("next").onclick=nextPhase;
+$("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;var d=document.createElement("div");d.innerHTML="<b>"+esc(profile.name)+":</b> "+esc(v);$("chatLog").appendChild(d);$("chatInput").value="";$("chatLog").scrollTop=$("chatLog").scrollHeight};
+$("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter")$("chatSend").click()});
+parseCards();
 })();
 </script>
 </body>
