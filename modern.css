@@ -4597,3 +4597,85 @@ html.arcanum-tcg-android-app .shell.duel-mode .duel-turn-strip{
     visibility:visible!important;
   }
 }
+
+
+/* === MOBILE COMPACT DECK HUD 2026-10-02 === */
+/* Mobile only: shrink both deck HUDs so deck + player name + PV + HP bar
+   fit cleanly inside the combat viewport. Desktop/web geometry is untouched. */
+@media (orientation:landscape) and (max-width:1180px){
+  .shell.duel-mode .board{
+    --duel-deck-rail-width:clamp(50px,10.5dvh,68px)!important;
+    --duel-field-card-width:clamp(30px,10.8dvh,48px)!important;
+    --duel-hand-card-width:clamp(30px,10.8dvh,48px)!important;
+  }
+
+  .shell.duel-mode .enemy-zone{
+    grid-template-columns:minmax(58px,15%) minmax(0,1fr) var(--duel-deck-rail-width)!important;
+  }
+
+  .shell.duel-mode .player-hand-layout{
+    grid-template-columns:minmax(0,1fr) var(--duel-deck-rail-width)!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail{
+    width:var(--duel-deck-rail-width)!important;
+    min-width:var(--duel-deck-rail-width)!important;
+    max-width:var(--duel-deck-rail-width)!important;
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .enemy-deck-rail .duel-deck-back,
+  .shell.duel-mode .player-deck-rail .duel-deck-back{
+    width:clamp(30px,10.8dvh,48px)!important;
+    min-width:clamp(30px,10.8dvh,48px)!important;
+    max-width:clamp(30px,10.8dvh,48px)!important;
+    flex:0 0 clamp(30px,10.8dvh,48px)!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail .duel-deck-column{
+    gap:1px!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail .deck-player-meta{
+    width:100%!important;
+    min-width:0!important;
+    max-width:100%!important;
+    margin-top:2px!important;
+    gap:1px!important;
+    line-height:1!important;
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail .deck-player-meta b{
+    width:100%!important;
+    max-width:100%!important;
+    font-size:clamp(4.5px,1.15dvh,6.5px)!important;
+    line-height:1!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail .deck-player-meta>span{
+    width:100%!important;
+    max-width:100%!important;
+    font-size:clamp(4.5px,1.1dvh,6px)!important;
+    line-height:1!important;
+    white-space:nowrap!important;
+  }
+
+  .shell.duel-mode .duel-deck-rail .deck-hp-bar{
+    width:92%!important;
+    min-width:0!important;
+    height:3px!important;
+    min-height:3px!important;
+    margin:1px auto 0!important;
+  }
+
+  .shell.duel-mode .duel-deck-back span{
+    min-width:14px!important;
+    height:14px!important;
+    padding:0 2px!important;
+    font-size:6px!important;
+  }
+}
