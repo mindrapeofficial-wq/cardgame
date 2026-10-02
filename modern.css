@@ -2400,11 +2400,14 @@ body.duel-log-visible .duel-log-keyboard{display:block}
 
 /* === ARCANUM POWER STACKS 2026-10-02 === */
 .power-lane{
-  overflow:hidden!important;
+  overflow:visible!important;
+  padding-right:12px!important;
 }
 .power-lane-cards{
   min-width:0;
   max-width:100%;
+  box-sizing:border-box;
+  padding:8px 10px 8px 0;
   flex-wrap:wrap;
   row-gap:7px;
   overflow:visible;
