@@ -170,6 +170,7 @@ function uniqueOwned(){return Object.keys(state.profile?.collection||{}).filter(
 
 function go(view){
   if(view==="duel"&&!state.duel)return;
+  closeModal();
   state.view=view;updateChrome();renderView();
   window.scrollTo({top:0,behavior:"smooth"});
 }
