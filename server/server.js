@@ -203,8 +203,29 @@ function powerValue(card) {
 function publicUser(socketId, user) {
   return { socketId, name: user.name, level: user.level, elo: Number(user.elo) || 1000, status: user.status, wins: user.wins };
 }
+function uniqueUserEntries() {
+  const byAccount = new Map();
+  for (const [sid, user] of users.entries()) {
+    const accountKey = String(user && user.accountId || "").trim() || ("socket:" + sid);
+    byAccount.set(accountKey, [sid, user]);
+  }
+  return [...byAccount.values()];
+}
 function emitUsers() {
-  io.emit("lobby:users", [...users.entries()].map(([sid, u]) => publicUser(sid, u)));
+  io.emit("lobby:users", uniqueUserEntries().map(([sid, u]) => publicUser(sid, u)));
+}
+function onlineUserCount() {
+  return uniqueUserEntries().length;
+}
+function disconnectDuplicateAccountSockets(socket, user) {
+  const accountId = String(user && user.accountId || "");
+  if (!accountId) return;
+  for (const [sid, other] of [...users.entries()]) {
+    if (sid === socket.id || String(other && other.accountId || "") !== accountId) continue;
+    users.delete(sid);
+    const oldSocket = io.sockets.sockets.get(sid);
+    if (oldSocket) oldSocket.disconnect(true);
+  }
 }
 function publicMatch(match) {
   return {
@@ -982,12 +1003,12 @@ function resumeCombatForUser(socket, user) {
 app.get("/", (_req, res) => {
   res.json({
     service: "rolplay-restoration-server",
-    online: users.size,
+    online: onlineUserCount(),
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.7.0"
+    version: "0.7.1"
   });
 });
-app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
+app.get("/health", (_req, res) => res.json({ ok: true, online: onlineUserCount(), matches: matches.size, cards: CATALOG.length }));
 app.get("/state", (_req, res) => res.json({
   users: [...users.entries()].map(([sid, u]) => publicUser(sid, u)),
   matches: [...matches.values()].map(publicMatch)
@@ -1014,7 +1035,8 @@ io.on("connection", socket => {
     };
     users.set(socket.id, user);
     const resumedMatch = resumeCombatForUser(socket, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.7.0", cards: CATALOG.length });
+    disconnectDuplicateAccountSockets(socket, user);
+    socket.emit("server:ready", { socketId: socket.id, version: "0.7.1", cards: CATALOG.length });
     emitUsers();
     emitMatches();
     if (resumedMatch) {
