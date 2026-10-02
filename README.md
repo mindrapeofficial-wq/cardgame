@@ -20,8 +20,12 @@ Rolplay Reborn now has a complete playable loop:
 - installable PWA shell
 - offline collection, deck building and AI training
 - 285 recovered catalogue cards with 285/285 original artwork mapping
-- starter deck for new local profiles
-- persistent browser profiles
+- persistent username/password accounts
+- a new account starts at Level 1 with 0 collectible cards
+- Level 1 basic Power is infinite and does not consume collection copies
+- new accounts start with 100 gold, enough for five 20-gold packs
+- pack contents are server-generated and capped to the player's current level
+- persistent server-side collection, deck, gold, wins, losses, level and XP
 - collection search and filtering
 - 20–50 card deck builder with validation and automatic construction
 - card shop and pack opening
@@ -38,6 +42,7 @@ Rolplay Reborn now has a complete playable loop:
 - conceding and disconnect handling
 - player-to-player card + gold exchanges with two-party locking
 - local guild-merchant exchange fallback
+- gradual Level 1–50 XP progression and visible XP bar
 - profile statistics, settings and historical archive
 
 ## Architecture
@@ -77,3 +82,23 @@ The repository keeps the recovered original material for reference:
 The original navigation, card catalogue, artwork, sounds, economy concepts, six turn phases, deck exhaustion, exchanges and other documented mechanics are being restored from the archived client/manual.
 
 Some combat statistics and advanced card effects are still reconstructed from the available catalogue rather than fully decoded from the original executable. They are playable, but exact historical balance remains a separate reverse-engineering milestone.
+
+
+## Canonical new-player progression
+
+The current progression rules are authoritative:
+
+- Level 1
+- 0 collectible cards
+- 100 starting gold
+- 20 gold per five-card pack
+- infinite Level 1 basic Power
+- pack cards can never exceed the player's current level
+- a deck may use unlimited copies of the basic Level 1 Power
+- all non-basic cards require owned copies and must be at or below player level
+
+XP required to advance from a level follows:
+
+`100 + 35 × (level - 1) + 5 × (level - 1)²`
+
+Examples: 100 XP from Level 1→2, 140 from 2→3, 190 from 3→4, 250 from 4→5, and 320 from 5→6.
