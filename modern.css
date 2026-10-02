@@ -1837,3 +1837,72 @@ a{color:#d8b94f}
   .turn-wait{padding:4px 6px}
 }
 
+
+
+/* Transición de destrucción de cartas: mantiene la baja visible antes de retirarla del campo */
+.battle-card.dying{
+  pointer-events:none;
+  z-index:8;
+  margin-inline:0!important;
+  opacity:1;
+  filter:none;
+  transform:none;
+  animation:arcanum-card-death 900ms cubic-bezier(.2,.72,.22,1) forwards;
+  will-change:transform,opacity,filter;
+}
+.battle-card.dying::before{
+  content:"";
+  position:absolute;
+  inset:-7px;
+  z-index:2;
+  border-radius:12px;
+  pointer-events:none;
+  background:radial-gradient(circle at 50% 48%,rgba(255,235,164,.34) 0%,rgba(212,175,55,.18) 34%,rgba(0,0,0,0) 72%);
+  opacity:0;
+  animation:arcanum-card-death-flash 900ms ease-out forwards;
+}
+.battle-card.dying .battle-art{
+  box-shadow:inset 0 0 0 1px rgba(212,175,55,.52),0 0 24px rgba(212,175,55,.16);
+}
+.battle-death-label{
+  position:absolute;
+  left:50%;
+  top:50%;
+  z-index:3;
+  transform:translate(-50%,-50%);
+  padding:5px 9px;
+  border:1px solid rgba(212,175,55,.72);
+  border-radius:999px;
+  background:rgba(0,0,0,.86);
+  color:#f1d783;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  animation:arcanum-card-death-label 900ms ease-out forwards;
+}
+@keyframes arcanum-card-death{
+  0%{opacity:1;transform:translate3d(0,0,0) scale(1) rotate(0);filter:brightness(1) saturate(1)}
+  10%{opacity:1;transform:translate3d(-5px,0,0) scale(1.035) rotate(-1deg);filter:brightness(1.7) saturate(.75)}
+  20%{opacity:1;transform:translate3d(5px,0,0) scale(1.01) rotate(1deg);filter:brightness(1.28) saturate(.55)}
+  38%{opacity:1;transform:translate3d(0,1px,0) scale(.97) rotate(0);filter:grayscale(.48) brightness(.72) contrast(1.16)}
+  68%{opacity:.72;transform:translate3d(0,8px,0) scale(.90) rotate(-1.5deg);filter:grayscale(.82) brightness(.48) blur(.5px)}
+  100%{opacity:0;transform:translate3d(0,20px,0) scale(.72) rotate(-4deg);filter:grayscale(1) brightness(.22) blur(2px)}
+}
+@keyframes arcanum-card-death-flash{
+  0%,3%{opacity:0}
+  10%{opacity:1}
+  32%{opacity:.45}
+  68%,100%{opacity:0}
+}
+@keyframes arcanum-card-death-label{
+  0%,18%{opacity:0;transform:translate(-50%,-46%) scale(.88)}
+  28%,55%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  82%,100%{opacity:0;transform:translate(-50%,-58%) scale(.94)}
+}
+@media (prefers-reduced-motion:reduce){
+  .battle-card.dying{animation-duration:320ms}
+  .battle-card.dying::before,.battle-death-label{animation-duration:320ms}
+}
