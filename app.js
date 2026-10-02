@@ -658,12 +658,9 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard:(s.playerBoard||[]).map(wireInstance).filter(Boolean),enemyBoard:(s.enemyBoard||[]).map(wireInstance).filter(Boolean),
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},log:s.log||[],resultApplied:previous?.resultApplied||false
+    gameOver:!!s.gameOver,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},
+    damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
   };
-  if(state.duel.gameOver&&!state.duel.resultApplied){
-    state.duel.resultApplied=true;if(s.won){state.profile.wins++;state.profile.coins+=10;playSound("win")}else state.profile.losses++;
-    saveProfile();
-  }
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
 }
 
