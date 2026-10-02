@@ -337,7 +337,7 @@ function go(view){
 }
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
-  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,profile:renderProfile,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
   root.innerHTML=(renderers[state.view]||renderHome)();
 }
 
@@ -373,6 +373,227 @@ function renderHome(){
           <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
         </div>
       </section>
+    </div>
+  </div>`;
+}
+
+function renderManual(){
+  return `<div class="page manual-page">
+    ${pageHead("Reglamento","Manual de ARCANUM TCG","Reglas, combate, construcción de mazos, progresión, economía y competición. Este apartado reúne el reglamento vigente del juego.",
+      '<button class="btn" data-action="nav" data-view="deck">Construir mazo</button><button class="btn primary" data-action="nav" data-view="play">Ir a jugar</button>')}
+    <section class="manual-hero panel">
+      <div class="manual-hero-copy">
+        <div class="kicker">Referencia rápida</div>
+        <h2>Lo esencial antes de jugar</h2>
+        <p>Necesitas un mazo válido de <b>exactamente 20 cartas</b>. Cada jugador comienza con <b>30 PV</b> y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional antes de su primer turno.</p>
+      </div>
+      <div class="manual-fast-grid">
+        <div class="stat-card"><small>Mazo</small><strong>20</strong><span class="muted">cartas exactas</span></div>
+        <div class="stat-card"><small>Vida inicial</small><strong>30</strong><span class="muted">PV</span></div>
+        <div class="stat-card"><small>Mano inicial</small><strong>7</strong><span class="muted">+1 al segundo jugador</span></div>
+        <div class="stat-card"><small>Fases</small><strong>6</strong><span class="muted">por turno</span></div>
+      </div>
+    </section>
+
+    <nav class="manual-index panel" aria-label="Índice del manual">
+      <a href="#manual-preparacion">1. Preparación</a>
+      <a href="#manual-turno">2. Turno y fases</a>
+      <a href="#manual-cartas">3. Tipos de carta</a>
+      <a href="#manual-combate">4. Combate</a>
+      <a href="#manual-final">5. Fin de partida</a>
+      <a href="#manual-mazos">6. Mazos</a>
+      <a href="#manual-progresion">7. Progresión</a>
+      <a href="#manual-tienda">8. Sobres y rarezas</a>
+      <a href="#manual-mercado">9. Intercambios</a>
+      <a href="#manual-elo">10. Ranking ELO</a>
+      <a href="#manual-nivel1">11. Nivel 1</a>
+      <a href="#manual-tablero">12. Tablero y formato</a>
+    </nav>
+
+    <div class="manual-sections">
+      <details id="manual-preparacion" class="manual-section panel" open>
+        <summary><span><b>1. Preparación de la partida</b><small>Cómo comienza un duelo</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>Cada jugador entra con un mazo válido de <b>20 cartas exactas</b>.</li>
+            <li>Cada jugador comienza con <b>30 puntos vitales</b>.</li>
+            <li>La mano inicial es de <b>7 cartas</b>.</li>
+            <li>El jugador que empieza se selecciona <b>aleatoriamente</b>.</li>
+            <li>El jugador que no empieza recibe <b>una carta adicional</b> antes de su primer turno.</li>
+            <li>El mazo se baraja antes de repartir.</li>
+          </ul>
+          <div class="manual-note"><b>Importante:</b> si el mazo se queda sin cartas disponibles, la partida termina.</div>
+        </div>
+      </details>
+
+      <details id="manual-turno" class="manual-section panel" open>
+        <summary><span><b>2. Turno y seis fases</b><small>Las fases sin acciones disponibles avanzan automáticamente</small></span></summary>
+        <div class="manual-body">
+          <div class="manual-phase-grid">
+            <div><b>1. Reagrupación</b><span>Se enderezan tus cartas giradas y vuelven a estar disponibles.</span></div>
+            <div><b>2. Robo</b><span>Robas una carta de tu mazo.</span></div>
+            <div><b>3. Poder</b><span>Puedes bajar como máximo <b>1 carta de Poder por turno</b> y girar Poderes disponibles para generar recursos.</span></div>
+            <div><b>4. Invocación</b><span>Invocas criaturas pagando su coste de Poder.</span></div>
+            <div><b>5. Habilidades</b><span>Juegas hechizos o habilidades que puedas pagar.</span></div>
+            <div><b>6. Ataque</b><span>Seleccionas las criaturas que atacan. Al atacar se giran y no pueden defender hasta tu próximo turno.</span></div>
+          </div>
+          <p>Cuando una fase no contiene ninguna acción posible para el jugador, el juego pasa automáticamente a la siguiente. Esto evita turnos muertos y acelera el ritmo de la partida.</p>
+        </div>
+      </details>
+
+      <details id="manual-cartas" class="manual-section panel">
+        <summary><span><b>3. Tipos de carta</b><small>Criaturas, Poder y habilidades</small></span></summary>
+        <div class="manual-body">
+          <div class="grid three">
+            <div class="manual-rule"><b>Criaturas</b><p>Tienen Ataque y Defensa, pueden atacar, bloquear y ocupar el campo de batalla.</p></div>
+            <div class="manual-rule"><b>Poder</b><p>Genera el recurso usado para invocar y activar cartas. El Poder de nivel 1 es básico e infinito para todos los jugadores.</p></div>
+            <div class="manual-rule"><b>Habilidades / hechizos</b><p>Producen efectos directos como daño, curación, robo de cartas o modificación de Poder.</p></div>
+          </div>
+          <p>Las cartas muestran su información directamente en el diseño. Una criatura <b>2/3</b> tiene 2 de Ataque y 3 de Defensa.</p>
+        </div>
+      </details>
+
+      <details id="manual-combate" class="manual-section panel" open>
+        <summary><span><b>4. Combate, ataque y defensa</b><small>El Ataque de la atacante se compara con la Defensa de la bloqueadora</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>Declarar un ataque <b>gira</b> la criatura atacante. Permanece girada hasta la siguiente Reagrupación.</li>
+            <li>Una criatura girada <b>no puede defender</b>.</li>
+            <li>Cuando una criatura defiende, también se <b>gira</b>, impidiendo que bloquee múltiples ataques en el mismo turno.</li>
+            <li>En un bloqueo se compara el <b>ATQ de la atacante</b> contra la <b>DEF de la defensora</b>.</li>
+            <li>Si el ATQ alcanza o supera la DEF, la defensora es destruida. Si el ATQ no alcanza la DEF, la atacante es destruida.</li>
+            <li>Si un ataque no es bloqueado, el daño se aplica <b>solo al rival</b>.</li>
+          </ul>
+          <div class="manual-example"><b>Ejemplo:</b> una criatura 2/3 ataca a otra 2/3. Se compara 2 ATQ contra 3 DEF. Como 2 no supera 3, la atacante pierde el combate.</div>
+          <div class="manual-note"><b>Poderes:</b> al entrar al campo no se giran automáticamente. Solo se giran cuando el jugador pulsa sobre ellos para activar su Poder.</div>
+        </div>
+      </details>
+
+      <details id="manual-final" class="manual-section panel">
+        <summary><span><b>5. Fin de la partida</b><small>Victoria, derrota y desempate</small></span></summary>
+        <div class="manual-body">
+          <p>La partida termina cuando ocurre cualquiera de estas situaciones:</p>
+          <ul>
+            <li>Los puntos vitales de un jugador llegan a <b>0</b>.</li>
+            <li>La pila de cartas disponibles del mazo de un jugador llega a <b>0</b>.</li>
+            <li>Un jugador se rinde, abandona o es descalificado.</li>
+            <li>La partida supera los <b>40 minutos</b>.</li>
+          </ul>
+          <p>Si al finalizar existe incertidumbre sobre el ganador, se usa este puntaje de desempate:</p>
+          <div class="manual-formula">PV restantes + cartas en el campo de batalla + cartas restantes en el mazo + ATQ base de la carta de mayor nivel en tu campo</div>
+          <p class="muted">Para el último término se usa el Ataque base de la carta, sin bonificaciones temporales.</p>
+        </div>
+      </details>
+
+      <details id="manual-mazos" class="manual-section panel">
+        <summary><span><b>6. Construcción de mazos</b><small>El único formato activo es de 20 cartas</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>No existen actualmente formatos de 30 ni 40 cartas.</li>
+            <li>Solo se puede iniciar o aceptar una partida con un mazo de <b>20 cartas válidas</b>.</li>
+            <li>Solo puedes incluir cartas cuyo nivel sea igual o inferior a tu nivel de jugador.</li>
+            <li>Las cartas coleccionables requieren que poseas suficientes copias.</li>
+            <li>El <b>Poder básico Nv 1</b> tiene copias infinitas y puede añadirse al mazo sin consumir colección.</li>
+            <li>Puedes guardar hasta <b>12 mazos</b>.</li>
+          </ul>
+          <button class="btn" data-action="nav" data-view="deck">Abrir constructor de mazos</button>
+        </div>
+      </details>
+
+      <details id="manual-progresion" class="manual-section panel">
+        <summary><span><b>7. Cuenta, nivel y recompensas</b><small>Progresión de nivel 1 a 50</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>Una cuenta nueva comienza en <b>Nivel 1</b>, sin cartas coleccionables, con Poder básico Nv 1 infinito y <b>100 de oro</b>.</li>
+            <li>El nivel máximo actual es <b>50</b>.</li>
+            <li>Subir de nivel amplía el nivel máximo de cartas y sobres que puedes utilizar.</li>
+            <li>Las derrotas PvP pueden reducir la XP de la barra actual, pero <b>nunca hacen perder un nivel ya alcanzado</b>.</li>
+          </ul>
+          <div class="grid three">
+            <div class="reward-card win"><div class="kicker">Victoria PvP</div><strong>+15 oro</strong><span>+40 XP contra rival del mismo nivel</span></div>
+            <div class="reward-card draw"><div class="kicker">Empate PvP</div><strong>+5 oro</strong><span>+8 XP contra rival del mismo nivel</span></div>
+            <div class="reward-card loss"><div class="kicker">Derrota PvP</div><strong>0 oro</strong><span>−15 XP contra rival del mismo nivel</span></div>
+          </div>
+          <p>La XP se ajusta por diferencia de nivel: victoria entre +20 y +70, empate entre +3 y +20 y derrota entre −5 y −30. El entrenamiento contra IA ofrece recompensas menores y nunca resta XP.</p>
+        </div>
+      </details>
+
+      <details id="manual-tienda" class="manual-section panel">
+        <summary><span><b>8. Sobres, niveles y rarezas</b><small>La colección se obtiene principalmente en la tienda</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>Cada sobre cuesta actualmente <b>20 de oro</b> y contiene <b>5 cartas</b>.</li>
+            <li>Puedes comprar sobres desde nivel 1 hasta tu nivel actual.</li>
+            <li>Un sobre nunca entrega una carta de nivel superior al nivel del propio sobre.</li>
+            <li>El Poder básico Nv 1 <b>no aparece en sobres</b> porque ya es infinito.</li>
+            <li>Las rarezas actuales son: <b>Común, Poco común, Rara, Épica y Legendaria</b>.</li>
+            <li>Las probabilidades exactas se calculan en el servidor según nivel, rareza y balance, y pueden consultarse antes de abrir cada sobre.</li>
+          </ul>
+          <button class="btn" data-action="nav" data-view="shop">Ver tienda y probabilidades</button>
+        </div>
+      </details>
+
+      <details id="manual-mercado" class="manual-section panel">
+        <summary><span><b>9. Mercado e intercambios</b><small>Venta por oro, anuncios e intercambio directo</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>Puedes publicar una carta a cambio de <b>oro</b> o indicar qué carta buscas a cambio.</li>
+            <li>Los anuncios quedan guardados y pueden aceptarse aunque el vendedor no esté conectado.</li>
+            <li>Una carta anunciada queda reservada hasta cancelar el anuncio o completar la operación.</li>
+            <li>El Poder básico Nv 1 no puede venderse ni intercambiarse.</li>
+            <li>Cada jugador puede mantener hasta <b>30 anuncios activos</b>.</li>
+            <li>También existe intercambio directo en tiempo real con cartas y oro, que requiere aceptación de ambos jugadores.</li>
+          </ul>
+          <button class="btn" data-action="nav" data-view="trade">Abrir intercambios</button>
+        </div>
+      </details>
+
+      <details id="manual-elo" class="manual-section panel">
+        <summary><span><b>10. Ranking y sistema ELO</b><small>Clasificación PvP basada en el cálculo FIDE</small></span></summary>
+        <div class="manual-body">
+          <p>El ranking usa la fórmula <b>K × (resultado real − resultado esperado)</b>. Victoria = 1, empate = 0,5 y derrota = 0. El resultado se redondea al entero más cercano.</p>
+          <ul>
+            <li><b>K=40</b> durante las primeras 30 partidas puntuadas.</li>
+            <li><b>K=20</b> después, mientras el jugador no haya alcanzado 2400 ELO.</li>
+            <li><b>K=10</b> desde el momento en que se alcanza 2400 ELO.</li>
+            <li>Para jugadores por debajo de 2650, las diferencias superiores a 400 puntos se calculan como 400.</li>
+            <li>Solo las partidas <b>PvP online</b> son puntuadas para ELO.</li>
+          </ul>
+          <button class="btn" data-action="nav" data-view="ranking">Ver ranking</button>
+        </div>
+      </details>
+
+      <details id="manual-nivel1" class="manual-section panel">
+        <summary><span><b>11. Criaturas de Nivel 1 conocidas</b><small>Valores base actuales de Ataque, Defensa y coste</small></span></summary>
+        <div class="manual-body">
+          <div class="manual-table-wrap"><table class="manual-table">
+            <thead><tr><th>Carta</th><th>ATQ</th><th>DEF</th><th>Coste de Poder</th></tr></thead>
+            <tbody>
+              <tr><td>Duende</td><td>1</td><td>1</td><td>1</td></tr>
+              <tr><td>Elfo Bardo</td><td>0</td><td>2</td><td>2</td></tr>
+              <tr><td>Guerrero Menor</td><td>1</td><td>1</td><td>2</td></tr>
+              <tr><td>Dophan</td><td>2</td><td>1</td><td>3</td></tr>
+              <tr><td>Gorad Menor</td><td>1</td><td>2</td><td>3</td></tr>
+              <tr><td>Mimit</td><td>0</td><td>3</td><td>3</td></tr>
+              <tr><td>Mel</td><td>1</td><td>1</td><td>2</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </details>
+
+      <details id="manual-tablero" class="manual-section panel">
+        <summary><span><b>12. Tablero, zonas y formato físico</b><small>Cómo se organiza el campo</small></span></summary>
+        <div class="manual-body">
+          <ul>
+            <li>El tablero distingue <b>mazo, mano, zona de Poder y campo de batalla</b>.</li>
+            <li>Las criaturas y amuletos ocupan el área principal del campo. Los hechizos o habilidades disponen de su zona de resolución.</li>
+            <li>El diseño no necesita repetir fuera de la carta el nombre, Ataque o Defensa porque esa información ya está impresa en la propia carta.</li>
+            <li>Todas las cartas y sus huecos deben conservar la proporción oficial <b>10 : 14,2</b>.</li>
+            <li>El reverso oficial se utiliza para cartas ocultas, mano rival y mazos.</li>
+          </ul>
+          <p>Durante una partida, las cartas giradas representan acciones ya utilizadas. El estado visual debe coincidir siempre con el estado real del juego.</p>
+        </div>
+      </details>
     </div>
   </div>`;
 }
@@ -974,7 +1195,7 @@ function openMobileMenu(){
     <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
-    <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="manual"><span class="quick-icon">?</span><span><b>Manual</b><small class="muted" style="display:block">Reglas y referencia</small></span></button>\n    <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
   </div></div></div></div>`;
 }
 function closeModal(){$("modalRoot").innerHTML=""}
