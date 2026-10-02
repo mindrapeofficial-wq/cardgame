@@ -1,4 +1,4 @@
-const CACHE="rolplay-reborn-v7";
+const CACHE="rolplay-reborn-v8";
 const CORE=["./","index.html","modern.css","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg"];
 const FRESH=new Set(["/","/index.html","/modern.css","/app.js","/cards.csv","/legacy-assets/image-index.json"]);
 
