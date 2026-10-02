@@ -79,3 +79,5 @@ body.ve-enabled.ve-move-mode .ve-target,
 body.ve-enabled.ve-move-mode .ve-target *{cursor:move!important}
 body.ve-enabled.ve-move-mode .ve-target{touch-action:none}
 body.ve-enabled .ve-target.ve-dragging{outline-style:solid!important;filter:brightness(1.04)}
+
+.ve-css-export{margin-top:7px}
