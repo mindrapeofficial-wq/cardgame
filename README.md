@@ -119,3 +119,15 @@ Level 1 pack slots use explicit server-side probabilities based on historical ra
 This gives a per-slot category distribution of 80% Common, 15% Uncommon and 5% Rare. Basic Level 1 Power has a 0% pack drop rate because it is infinite by rule.
 
 For Level 1, all collectible creatures currently cost 1 Power. The four common creatures are 1 ATK / 3 DEF, Mimit shares that stat line but preserves its higher historical rarity signal, Dophan is 2 ATK / 2 DEF, and Gorad Menor is 3 ATK / 2 DEF. Gorad therefore receives the lowest drop chance within the tier because it is the strongest offensive efficiency at this level.
+
+
+## All-level pack system
+
+- Players can select any pack level from 1 up to their current player level.
+- A Level N pack never drops a card above Level N.
+- Older cards remain possible, but their weight decays exponentially with distance from the selected pack level.
+- Rarity modifies the raw weight: Common ×1.00, Uncommon ×0.75, Rare ×0.48, Epic ×0.22.
+- Legendary cards are detected from historical rarity plus gameplay efficiency against nearby cards of the same role.
+- Once legendary cards are unlocked, the entire legendary pool is capped at 0.2% per card draw, shared among all eligible legendary cards.
+- Strength, defense, Power cost, role, and special-card multipliers make stronger cards slightly less likely within their rarity.
+- The shop displays the exact server-calculated odds for the selected pack level.
