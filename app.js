@@ -1439,9 +1439,21 @@ function deckBack(count,label){
   return `<div class="duel-deck-back ${total?"":"empty"}" title="${esc(label||"Mazo")} · ${total} cartas" aria-label="${esc(label||"Mazo")} con ${total} cartas"><span>${total}</span></div>`;
 }
 function powerLane(list,label,zone){
-  const cards=list||[],total=powerTotal(cards);
-  return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${cards.length?cards.map(c=>{
-    return `<div class="power-mini ${c.exhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder automático"><span>+${powerValue(c)}</span></div>`;
+  const cards=list||[],total=powerTotal(cards),groups=[],byType=new Map();
+  for(const c of cards){
+    const key=norm(c?.name||"")+"::"+powerValue(c);
+    let group=byType.get(key);
+    if(!group){
+      group={sample:c,count:0,exhausted:0};
+      byType.set(key,group);
+      groups.push(group);
+    }
+    group.count++;
+    if(c.exhausted)group.exhausted++;
+  }
+  return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${groups.length?groups.map(group=>{
+    const c=group.sample,count=group.count,value=powerValue(c),stackPower=count*value,allExhausted=group.exhausted===count;
+    return `<div class="power-mini power-stack ${allExhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · ${count} carta${count===1?"":"s"} · +${stackPower} Poder automático">${count>1?`<b class="power-stack-count">×${count}</b>`:""}<span>+${value}</span></div>`;
   }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
 }
 function currentDef(c){return Math.max(0,(Number(c?.def)||0)+(Number(c?.defBonus)||0))}
