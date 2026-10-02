@@ -2431,3 +2431,70 @@ body.duel-log-visible .duel-log-keyboard{display:block}
   line-height:1;
   font-weight:950;
 }
+
+
+/* === DUEL FEEDBACK: ataque declarado + cartas jugables === */
+.hand-zone .battle-card.hand-playable{
+  border-color:rgba(238,197,104,.92)!important;
+  box-shadow:0 0 0 1px rgba(238,197,104,.30),0 0 24px rgba(218,166,63,.28),0 10px 24px rgba(0,0,0,.42)!important;
+  filter:brightness(1.08) saturate(1.05);
+  animation:handPlayablePulse 1.55s ease-in-out infinite;
+}
+.hand-zone .battle-card.hand-playable:hover{
+  filter:brightness(1.14) saturate(1.08);
+  box-shadow:0 0 0 2px rgba(244,207,126,.52),0 0 32px rgba(218,166,63,.38),0 12px 28px rgba(0,0,0,.48)!important;
+}
+.hand-zone .battle-card.hand-playable::before{
+  content:"";
+  position:absolute;
+  inset:-35% -70%;
+  z-index:2;
+  pointer-events:none;
+  background:linear-gradient(105deg,transparent 38%,rgba(255,235,183,.18) 48%,rgba(255,245,215,.42) 50%,rgba(255,235,183,.18) 52%,transparent 62%);
+  transform:translateX(-46%);
+  animation:handPlayableSweep 2.2s ease-in-out infinite;
+}
+.battle-card.attacked{
+  opacity:.88!important;
+  filter:grayscale(.08) saturate(1.16)!important;
+  border-color:rgba(214,156,66,.92)!important;
+  box-shadow:0 0 0 2px rgba(214,156,66,.48),0 0 28px rgba(194,116,34,.34),0 8px 22px rgba(0,0,0,.42)!important;
+  animation:attackDeclaredPulse .72s ease-out 1;
+}
+.battle-attack-label{
+  position:absolute;
+  left:7px;
+  top:7px;
+  z-index:4;
+  padding:3px 6px;
+  border-radius:999px;
+  border:1px solid rgba(255,214,128,.78);
+  background:rgba(73,33,14,.90);
+  color:#ffe0a0;
+  box-shadow:0 2px 9px rgba(0,0,0,.45),0 0 14px rgba(221,145,50,.28);
+  font-size:8px;
+  line-height:1;
+  font-weight:950;
+  letter-spacing:.08em;
+  text-shadow:0 1px 2px #000;
+  pointer-events:none;
+}
+@keyframes handPlayablePulse{
+  0%,100%{box-shadow:0 0 0 1px rgba(238,197,104,.24),0 0 18px rgba(218,166,63,.20),0 10px 24px rgba(0,0,0,.42)}
+  50%{box-shadow:0 0 0 2px rgba(238,197,104,.48),0 0 30px rgba(218,166,63,.38),0 10px 24px rgba(0,0,0,.42)}
+}
+@keyframes handPlayableSweep{
+  0%,58%{transform:translateX(-46%);opacity:0}
+  68%{opacity:1}
+  100%{transform:translateX(46%);opacity:0}
+}
+@keyframes attackDeclaredPulse{
+  0%{box-shadow:0 0 0 0 rgba(233,176,78,.72),0 0 0 rgba(194,116,34,0)}
+  45%{box-shadow:0 0 0 6px rgba(233,176,78,.26),0 0 34px rgba(194,116,34,.52)}
+  100%{box-shadow:0 0 0 2px rgba(214,156,66,.48),0 0 28px rgba(194,116,34,.34)}
+}
+@media (prefers-reduced-motion:reduce){
+  .hand-zone .battle-card.hand-playable,
+  .hand-zone .battle-card.hand-playable::before,
+  .battle-card.attacked{animation:none!important}
+}
