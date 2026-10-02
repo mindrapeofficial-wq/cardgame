@@ -1054,7 +1054,7 @@ function training(){
   state.duel={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
     playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",trainingDefending:false,blockAssignments:{},gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
-  drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");renderView();
+  drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");advanceLocalAutomaticPhases();renderView();
 }
 function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false}:null}
 function drawLocal(side,n=1){
@@ -1065,6 +1065,7 @@ function localPlay(uid){
   if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);c.exhausted=false;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.playerPowerPlayed=true;d.log.push("Pones "+c.name+" en tu zona de Poder.");playSound("power")}
   else if(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);d.playerBoard.push(c);d.log.push("Invocas "+c.name+".");playSound("summon")}
   else if(d.phase===4&&c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);resolveLocalAbility(c,"player")}
+  advanceLocalAutomaticPhases();
   renderView();
 }
 function resolveLocalAbility(c,side){
@@ -1084,25 +1085,63 @@ function tapLocalPower(uid){
   d.power+=powerValue(c);
   d.maxPower=powerTotal(d.playerPowers);
   d.log.push("Giras "+c.name+" y generas +"+powerValue(c)+" Poder.");
-  playSound("power");renderView();
+  playSound("power");
+  advanceLocalAutomaticPhases();
+  renderView();
 }
 function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
+
+function localPhaseHasAction(d){
+  if(!d||d.gameOver||d.aiActing||d.trainingDefending)return false;
+  if(d.phase===2){
+    const canPlayPower=!d.playerPowerPlayed&&d.playerHand.some(c=>c.powerCard);
+    const canTapPower=d.playerPowers.some(c=>!c.exhausted);
+    return canPlayPower||canTapPower;
+  }
+  if(d.phase===3)return d.playerHand.some(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.power);
+  if(d.phase===4)return d.playerHand.some(c=>c.abilityCard&&c.cost<=d.power);
+  if(d.phase===5)return d.playerBoard.some(c=>!c.exhausted);
+  return false;
+}
+function startLocalEnemyTurn(d){
+  if(!d||d.gameOver||d.aiActing||d.trainingDefending)return;
+  d.aiActing=true;
+  d.aiMessage="El Guardián prepara su turno";
+  d.log.push("Tu turno ha terminado. Ahora juega el Guardián.");
+  renderView();
+  void runEnemyTurn(d);
+}
+function advanceLocalAutomaticPhases(){
+  const d=state.duel;
+  if(!d||d.online||d.gameOver||d.aiActing||d.trainingDefending)return;
+  let guard=0;
+  while(guard++<8&&!d.gameOver&&!d.aiActing&&!d.trainingDefending){
+    if(localPhaseHasAction(d))return;
+    if(d.phase===5){startLocalEnemyTurn(d);return}
+    d.phase++;
+    if(d.phase===1){
+      drawLocal("player",1);
+      playSound("draw");
+      if(checkLocalEnd())return;
+    }
+    if(d.phase===2){
+      d.maxPower=powerTotal(d.playerPowers);
+      d.power=0;
+    }
+  }
+}
 function nextLocalPhase(){
   const d=state.duel;if(d.gameOver||d.aiActing||d.trainingDefending)return;
   if(d.phase===5){
     resolveLocalAttack();
     if(checkLocalEnd())return renderView();
-
-    d.aiActing=true;
-    d.aiMessage="El Guardián prepara su turno";
-    d.log.push("Tu ataque ha terminado. Ahora juega el Guardián.");
-    renderView();
-    void runEnemyTurn(d);
+    startLocalEnemyTurn(d);
     return;
   }
   d.phase++;
   if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}
   if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}
+  advanceLocalAutomaticPhases();
   renderView();
 }
 
@@ -1362,6 +1401,7 @@ async function finishEnemyTurn(d){
   d.aiMessage="";
   d.log.push("Comienza tu turno "+d.turn+". Tus cartas se enderezan.");
   playSound("turn");
+  advanceLocalAutomaticPhases();
   renderView();
 }
 async function awardTraining(d){
