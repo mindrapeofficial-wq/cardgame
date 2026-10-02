@@ -1562,11 +1562,11 @@ function renderProfile(){
 
 function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c),basic=isBasicPower(c),locked=c.level>playerLevel(),free=freeCopies(c.id);
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
 }
 
 function openMobileMenu(){
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" style="max-width:420px" onclick="event.stopPropagation()"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal" style="max-width:420px"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
     <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
@@ -1798,7 +1798,7 @@ function openDrawResponseModal(){
   const d=state.duel;
   if(!d?.online||!d.drawOfferIncoming||d.gameOver)return;
   const root=$("modalRoot");if(!root)return;
-  root.innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal duel-draw-response-modal" onclick="event.stopPropagation()"><div class="modal-head"><b>¿Aceptar tablas?</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="actions duel-draw-response-buttons"><button class="btn" data-action="rejectDraw">Rechazar</button><button class="btn primary" data-action="acceptDraw">Aceptar</button></div></div></div></div>`;
+  root.innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal duel-draw-response-modal"><div class="modal-head"><b>¿Aceptar tablas?</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="actions duel-draw-response-buttons"><button class="btn" data-action="rejectDraw">Rechazar</button><button class="btn primary" data-action="acceptDraw">Aceptar</button></div></div></div></div>`;
 }
 function drawButton(){
   const d=state.duel;if(!d||d.gameOver||!d.online)return;
@@ -2454,6 +2454,7 @@ function resumeDuelFromLobby(){
 function leaveDuel(){duelLobbyAway=false;state.duel=null;document.body.classList.remove("duel-native-fullscreen");syncDuelFullscreenState(false);go("home")}
 
 document.addEventListener("click",e=>{
+  if(e.target?.matches?.("[data-modal-backdrop]")){closeModal();return}
   const authTab=e.target.closest("[data-auth-mode]");
   if(authTab){setAuthMode(authTab.dataset.authMode);return}
   const el=e.target.closest("[data-action]");if(!el)return;
@@ -2541,6 +2542,7 @@ document.addEventListener("keydown",e=>{
   if(tag==="INPUT"||tag==="TEXTAREA"||tag==="SELECT"||e.target?.isContentEditable)return;
   if(e.target?.closest?.("#ve-root"))return;
   if(e.key==="Escape"){
+    if($("modalRoot")?.childElementCount){closeModal();return}
     document.body.classList.remove("duel-log-visible");
     return;
   }
