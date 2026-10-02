@@ -9,6 +9,7 @@ const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
 const LAST_USER_KEY="rolplay.last.username";
 const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
 const CARD_BACK_IMAGE="assets/arcanum-card-back.webp";
+const DECK_SIZE=20;
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
@@ -33,7 +34,7 @@ const $=id=>document.getElementById(id);
 const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
   socket:null,connected:false,connecting:false,users:[],matches:[],chat:[],
-  collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:30,
+  collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:DECK_SIZE,
   savedDecks:[],activeDeckId:null,deckName:"",decksLoading:false,
   duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
   authMode:"login",authBusy:false,offlineSession:false,
@@ -284,8 +285,8 @@ function winrate(){
   const total=(state.profile?.wins||0)+(state.profile?.draws||0)+(state.profile?.losses||0);
   return total?Math.round(state.profile.wins/total*100):0;
 }
-function deckValid(size=20){
-  if(!state.profile||!state.activeDeckId||state.profile.deck.length<size)return false;
+function deckValid(){
+  if(!state.profile||!state.activeDeckId||state.profile.deck.length!==DECK_SIZE)return false;
   const count={};
   for(const id of state.profile.deck){
     const c=card(id);if(!c||c.level>playerLevel())return false;
@@ -316,7 +317,7 @@ function pageHead(kicker,title,desc,actions=""){
   return `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`;
 }
 function renderHome(){
-  const deckReady=deckValid(20),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
+  const deckReady=deckValid(),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
   return `<div class="page">
     <div class="home-actions">
       ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
@@ -331,7 +332,7 @@ function renderHome(){
       <div class="stat-card"><small>Jugadores conectados</small><strong>${state.users.length}</strong><span class="muted">salón en tiempo real</span></div>
       <div class="stat-card"><small>Partidas abiertas</small><strong>${matches}</strong><span class="muted">retos esperando rival</span></div>
       <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}</strong><span class="muted">${collectionTotal()} cartas · Poder básico ∞</span></div>
-      <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"mínimo 20 cartas"}</span></div>
+      <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"requiere exactamente 20 cartas"}</span></div>
     </div>
     <div class="grid two" style="margin-top:14px">
       <section class="panel">
@@ -361,21 +362,21 @@ function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
   return `<div class="page">
     ${pageHead("Competición","Jugar","Crea un reto, entra en una partida existente o entrena contra la IA.",
-      '<button class="btn" data-action="training">Entrenamiento</button>')}
+      '<button class="btn" data-action="training" '+(deckValid()?"":"disabled")+' >Entrenamiento</button>')}
     <div class="grid two">
       <section class="panel">
-        <div class="panel-head"><h2>Crear partida</h2><span class="pill">${state.profile.deck.length} cartas en tu mazo</span></div>
+        <div class="panel-head"><h2>Crear partida</h2><span class="pill ${deckValid()?"good":"bad"}">${state.profile.deck.length}/${DECK_SIZE} cartas</span></div>
         <div class="panel-body">
           <div class="grid two">
-            <div class="field"><label>Tamaño de baraja</label><select class="select" id="matchSize"><option>20</option><option selected>30</option><option>40</option><option>50</option></select></div>
+            <div class="field"><label>Formato</label><div class="input" aria-label="Formato de mazo">Mazo estándar · ${DECK_SIZE} cartas</div></div>
             <div class="field"><label>Quién empieza</label><select class="select" id="matchStart"><option value="normal">Creador</option><option value="random">Aleatorio</option></select></div>
           </div>
-          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid(20))?"":"disabled"}>Crear reto online</button><span class="muted">${!state.activeDeckId?"Guarda y selecciona un mazo antes de jugar.":!deckValid(20)?"El mazo activo necesita al menos 20 cartas válidas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
+          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid())?"":"disabled"}>Crear reto online</button><span class="muted">${!state.activeDeckId?"Guarda y selecciona un mazo antes de jugar.":!deckValid()?"El mazo activo debe tener exactamente "+DECK_SIZE+" cartas válidas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
         </div>
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training">Iniciar entrenamiento</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo de 20 cartas sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
       </section>
     </div>
     <section class="panel reward-panel" style="margin-top:14px">
@@ -404,7 +405,7 @@ function renderMatches(list){
   if(!list.length)return'<div class="empty">No hay retos abiertos. Puedes crear el primero.</div>';
   return list.map(m=>{
     const mine=state.socket&&m.hostSocketId===state.socket.id;
-    return `<div class="match-row"><div class="match-player"><div class="avatar">${initial(m.player)}</div><div>${esc(m.player)}<div class="muted" style="font-size:11px">Nivel ${m.level||1}</div></div></div><b>${m.deckSize}</b><span class="pill">${m.start==="random"?"Aleatorio":"Normal"}</span><span class="good">Esperando</span>${mine?'<button class="btn small danger" data-action="cancelMatch" data-id="'+m.id+'">Cancelar</button>':'<button class="btn small primary" data-action="joinMatch" data-id="'+m.id+'" data-size="'+m.deckSize+'">Unirse</button>'}</div>`;
+    return `<div class="match-row"><div class="match-player"><div class="avatar">${initial(m.player)}</div><div>${esc(m.player)}<div class="muted" style="font-size:11px">Nivel ${m.level||1}</div></div></div><b>${DECK_SIZE} cartas</b><span class="pill">${m.start==="random"?"Aleatorio":"Normal"}</span><span class="good">Esperando</span>${mine?'<button class="btn small danger" data-action="cancelMatch" data-id="'+m.id+'">Cancelar</button>':'<button class="btn small primary" data-action="joinMatch" data-id="'+m.id+'" data-size="'+m.deckSize+'">Unirse</button>'}</div>`;
   }).join("");
 }
 
@@ -512,8 +513,8 @@ function renderDeck(){
   const active=currentSavedDeck();
   const deckOptions=state.savedDecks.map(d=>`<option value="${d.id}" ${d.id===state.activeDeckId?"selected":""}>${esc(d.name)} · ${d.cards?.length||0} cartas</option>`).join("");
   return `<div class="page">
-    ${pageHead("Estrategia","Constructor de mazos","Guarda varios mazos con nombre y elige cuál quieres usar para jugar.",
-      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir</button>'+(active&&count>=20?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':'')+'<button class="btn danger" data-action="clearDeck">Vaciar</button>')}
+    ${pageHead("Estrategia","Constructor de mazos","Todos los mazos de ARCANUM TCG tienen exactamente 20 cartas.",
+      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir 20</button>'+(active&&deckValid()?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':'')+'<button class="btn danger" data-action="clearDeck">Vaciar</button>')}
     <section class="panel deck-library" style="margin-bottom:12px">
       <div class="panel-head"><h2>Mis mazos</h2><span class="pill">${state.savedDecks.length}/12 guardados</span></div>
       <div class="panel-body">
@@ -530,11 +531,11 @@ function renderDeck(){
     </section>
     <div class="deck-layout">
       <section class="panel">
-        <div class="panel-head"><h2>Mazo activo</h2><span class="pill ${count>=20?"good":"bad"}">${count} cartas</span></div>
+        <div class="panel-head"><h2>Mazo activo</h2><span class="pill ${count===DECK_SIZE?"good":"bad"}">${count}/${DECK_SIZE} cartas</span></div>
         <div class="panel-body">
           <div class="grid two"><div class="stat-card"><small>Coste medio</small><strong>${avg.toFixed(1)}</strong></div><div class="stat-card"><small>Poderes</small><strong>${state.profile.deck.filter(id=>card(id)?.powerCard).length}</strong></div></div>
-          <div class="field" style="margin:14px 0"><label>Objetivo para autoconstrucción</label><select class="select" id="deckTarget"><option ${target===20?"selected":""}>20</option><option ${target===30?"selected":""}>30</option><option ${target===40?"selected":""}>40</option><option ${target===50?"selected":""}>50</option></select></div>
-          <div class="deck-meter"><span style="width:${Math.min(100,count/50*100)}%"></span></div>
+          <div class="field" style="margin:14px 0"><label>Formato del mazo</label><div class="input">20 cartas exactas</div></div>
+          <div class="deck-meter"><span style="width:${Math.min(100,count/DECK_SIZE*100)}%"></span></div>
           <p class="muted" style="font-size:11px">Poder básico Nv 1: ∞ · Cartas utilizables: nivel ${playerLevel()} o inferior.</p>
           <div class="deck-list" style="margin-top:12px">${renderDeckRows()}</div>
         </div>
@@ -571,7 +572,7 @@ function renderDeckRows(){
 }
 async function persistDeck(candidate,successMessage=""){
   if(!sessionToken){toast("Necesitas una sesión activa para guardar el mazo.","bad");return false}
-  candidate=candidate.map(Number).slice(0,50);
+  candidate=candidate.map(Number).slice(0,DECK_SIZE);
   const version=++deckWriteVersion;
 
   // Actualización optimista: el jugador ve la carta entrar al mazo en el mismo clic.
@@ -607,7 +608,7 @@ async function persistDeck(candidate,successMessage=""){
   return deckWriteQueue;
 }
 async function autoDeck(){
-  const target=state.deckTarget;
+  const target=DECK_SIZE;
   const basics=state.catalog.filter(c=>isBasicPower(c)&&c.level<=playerLevel());
   const available=[];
   for(const [id,q] of Object.entries(state.profile.collection)){
@@ -625,11 +626,11 @@ async function autoDeck(){
   for(const id of nonBasicPowers.slice(deck.filter(id=>card(id)?.powerCard&&!isBasicPower(card(id))).length)){if(deck.length>=target)break;deck.push(id)}
   bi=0;while(deck.length<target&&basics.length){deck.push(basics[bi++%basics.length].id)}
   if(deck.length<20){toast("No hay suficientes cartas disponibles para construir un mazo.","bad");return}
-  await persistDeck(deck.slice(0,50),"Mazo construido y guardado.");
+  await persistDeck(deck.slice(0,DECK_SIZE),"Mazo de 20 cartas construido y guardado.");
 }
 async function addDeck(id){
   const c=card(id);if(!c||c.level>playerLevel())return;
-  if(state.profile.deck.length>=50){toast("El límite es 50 cartas.","bad");return}
+  if(state.profile.deck.length>=DECK_SIZE){toast("El mazo ya tiene las 20 cartas permitidas.","bad");return}
   if(!isBasicPower(c)&&freeCopies(id)<=0){toast("No tienes una copia libre de esa carta.","bad");return}
   const basic=isBasicPower(c);
   await persistDeck([...state.profile.deck,Number(id)],basic?"Poder añadido al mazo.":"Carta añadida al mazo.");
@@ -833,7 +834,7 @@ function renderProfile(){
 
 function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c),basic=isBasicPower(c),locked=c.level>playerLevel(),free=freeCopies(c.id);
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_SIZE&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
 }
 
 function openMobileMenu(){
@@ -903,14 +904,14 @@ function connectOnline(){
 }
 
 function createMatch(){
-  const size=Number($("matchSize")?.value)||30,start=$("matchStart")?.value||"normal";
+  const start=$("matchStart")?.value||"normal";
   if(!state.connected){toast("No hay conexión con el servidor.","bad");return}
-  if(!deckValid(size)){toast("Tu mazo necesita al menos "+size+" cartas válidas para este reto.","bad");return}
-  state.socket.emit("match:create",{deckSize:size,start});playSound("click");
+  if(!deckValid()){toast("Tu mazo debe tener exactamente "+DECK_SIZE+" cartas válidas para jugar.","bad");return}
+  state.socket.emit("match:create",{deckSize:DECK_SIZE,start});playSound("click");
 }
-function joinMatch(id,size){
-  size=Number(size)||30;if(!state.connected)return;
-  if(!deckValid(size)){toast("Necesitas "+size+" cartas válidas para entrar.","bad");return}
+function joinMatch(id){
+  if(!state.connected)return;
+  if(!deckValid()){toast("Necesitas un mazo válido de exactamente "+DECK_SIZE+" cartas para entrar.","bad");return}
   state.socket.emit("match:join",{id});
 }
 function cancelMatch(id){if(state.connected)state.socket.emit("match:cancel",{id})}
@@ -1004,9 +1005,9 @@ function renderDefenseControls(d){
 }
 
 function training(){
-  const size=Math.max(20,Math.min(30,state.profile.deck.length||30));
-  const playerIds=deckValid(20)?state.profile.deck.slice(0,size):[];
-  if(playerIds.length<20){toast("Tu mazo necesita al menos 20 cartas válidas para entrenar.","bad");go("deck");return}
+  const size=DECK_SIZE;
+  const playerIds=deckValid()?state.profile.deck.slice():[];
+  if(playerIds.length!==DECK_SIZE){toast("Tu mazo debe tener exactamente "+DECK_SIZE+" cartas válidas para entrenar.","bad");go("deck");return}
   const lvl=playerLevel();
   const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl);
   const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl);
@@ -1130,7 +1131,7 @@ document.addEventListener("click",e=>{
   else if(a==="mobileMenu")openMobileMenu();
   else if(a==="training")training();
   else if(a==="createMatch")createMatch();
-  else if(a==="joinMatch")joinMatch(el.dataset.id,el.dataset.size);
+  else if(a==="joinMatch")joinMatch(el.dataset.id);
   else if(a==="cancelMatch")cancelMatch(el.dataset.id);
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
@@ -1172,7 +1173,6 @@ document.addEventListener("input",e=>{
 document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
-  else if(e.target.id==="deckTarget"){state.deckTarget=Number(e.target.value)||30}
   else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
