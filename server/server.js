@@ -1185,7 +1185,7 @@ io.on("connection", socket => {
     const presence = cleanText(payload && payload.state, 16);
     if (presence === "away") {
       const rawReason = cleanText(payload && payload.reason, 24);
-      const reason = rawReason === "fullscreen" || rawReason === "inactive" ? rawReason : "fullscreen";
+      const reason = rawReason === "fullscreen" || rawReason === "inactive" || rawReason === "lobby" ? rawReason : "fullscreen";
       startCombatLeaveGrace(match, side, reason);
     } else if (presence === "active") {
       markCombatActivity(match, side);
