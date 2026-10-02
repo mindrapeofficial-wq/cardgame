@@ -440,18 +440,18 @@
    (replaces the wide halo and the light sweep that spilled onto neighbouring cards). */
 .shell .hand-zone .battle-card.hand-playable{
   border-color:rgba(240,201,110,.95)!important;
-  box-shadow:0 0 6px rgba(240,201,110,.3),0 8px 18px rgba(0,0,0,.42)!important;
-  outline:1.5px solid rgba(240,201,110,.6);outline-offset:0;
-  filter:none;
+  box-shadow:0 0 8px rgba(255,214,120,.5),0 8px 18px rgba(0,0,0,.42)!important;
+  outline:2px solid rgba(255,214,120,.8);outline-offset:0;
+  filter:brightness(1.05);
   animation:arcPlayableRim 2.4s ease-in-out infinite;
 }
 .shell .hand-zone .battle-card.hand-playable:hover{
-  filter:brightness(1.06);
-  outline-color:rgba(246,214,138,1);
-  box-shadow:0 0 9px rgba(240,201,110,.45),0 10px 22px rgba(0,0,0,.46)!important;
+  filter:brightness(1.1);
+  outline-color:rgba(255,236,170,1);
+  box-shadow:0 0 11px rgba(255,214,120,.65),0 10px 22px rgba(0,0,0,.46)!important;
 }
 .shell .hand-zone .battle-card.hand-playable::before{display:none}
-@keyframes arcPlayableRim{0%,100%{outline-color:rgba(240,201,110,.45)}50%{outline-color:rgba(250,222,150,1)}}
+@keyframes arcPlayableRim{0%,100%{outline-color:rgba(255,210,110,.7)}50%{outline-color:rgba(255,240,185,1)}}
 @media (prefers-reduced-motion:reduce){.shell .hand-zone .battle-card.hand-playable{animation:none}}
 
 /* Phase bar: the steps have a fixed height with a tiny line-height, which left the label at
