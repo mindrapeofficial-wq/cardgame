@@ -113,6 +113,33 @@ async function settleTradeProfiles(trade) {
     return { ok: false, error: "trade_network_error" };
   }
 }
+async function settleMatchProfiles(match) {
+  const game = match.duel;
+  if (!game || !game.gameOver || game.rewardSettled) return null;
+  game.rewardSettled = true;
+  try {
+    const response = await fetch(ROLPLAY_API_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "settle_match",
+        matchKey: match.id,
+        sessionA: match.hostSessionToken,
+        sessionB: match.guestSessionToken,
+        outcome: game.winner
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      game.rewardSettled = false;
+      return null;
+    }
+    return data;
+  } catch {
+    game.rewardSettled = false;
+    return null;
+  }
+}
 function cleanText(value, max = 300) {
   return String(value || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
 }
@@ -194,16 +221,19 @@ function beginTurn(game, side) {
 }
 function checkEnd(game) {
   if (game.gameOver) return true;
-  let winner = null;
-  if (game.hp.a <= 0 || game.deckOut.a) winner = "b";
-  if (game.hp.b <= 0 || game.deckOut.b) winner = "a";
-  if (winner) {
-    game.gameOver = true;
-    game.winner = winner;
-    gameLog(game, winner === "a" ? "El jugador A gana el duelo." : "El jugador B gana el duelo.");
-    return true;
+  const aLost = game.hp.a <= 0 || game.deckOut.a;
+  const bLost = game.hp.b <= 0 || game.deckOut.b;
+  if (!aLost && !bLost) return false;
+
+  game.gameOver = true;
+  if (aLost && bLost) {
+    game.winner = "draw";
+    gameLog(game, "El duelo termina en empate.");
+  } else {
+    game.winner = aLost ? "b" : "a";
+    gameLog(game, game.winner === "a" ? "El jugador A gana el duelo." : "El jugador B gana el duelo.");
   }
-  return false;
+  return true;
 }
 function resolveAbility(game, side, inst) {
   const card = BY_ID.get(inst.cardId);
@@ -314,7 +344,7 @@ function initDuel(match) {
     powerPlayed: { a: false, b: false },
     pendingAttack: null,
     damage: { a: 0, b: 0 },
-    rewardRequested: { a: false, b: false },
+    rewardSettled: false,
     deckOut: { a: false, b: false },
     gameOver: false,
     winner: null,
@@ -355,7 +385,8 @@ function snapshotFor(match, socketId) {
     playerPowers: game.powers[side],
     enemyPowers: game.powers[foe],
     gameOver: game.gameOver,
-    won: game.gameOver ? game.winner === side : null,
+    result: game.gameOver ? (game.winner === "draw" ? "draw" : game.winner === side ? "win" : "loss") : null,
+    won: game.gameOver ? (game.winner === "draw" ? null : game.winner === side) : null,
     defending: !!(game.pendingAttack && game.pendingAttack.defenderSide === side),
     attackDeclared: !!(game.pendingAttack && game.pendingAttack.attackerSide === side),
     blockAssignments: game.pendingAttack ? { ...game.pendingAttack.blocks } : {},
@@ -364,39 +395,45 @@ function snapshotFor(match, socketId) {
     log: game.log.slice(-35)
   };
 }
-async function rewardSide(match, side) {
+async function settleMatchReward(match) {
   const game = match.duel;
-  if (!game || !game.gameOver || game.rewardRequested[side]) return;
-  game.rewardRequested[side] = true;
-  const socketId = side === "a" ? match.hostSocketId : match.guestSocketId;
-  const user = users.get(socketId);
-  if (!user || !user.sessionToken) return;
-  const result = await awardProfile(user.sessionToken, {
-    rewardKey: "online:" + match.id + ":" + user.accountId,
-    win: game.winner === side,
-    damage: Math.min(30, Math.max(0, game.damage[side] || 0)),
-    mode: "online"
-  });
-  if (result && result.profile) {
-    user.level = result.profile.level;
-    user.wins = result.profile.wins;
-    io.to(socketId).emit("profile:update", {
-      profile: result.profile,
-      xpAwarded: result.xpAwarded || 0,
-      goldAwarded: result.goldAwarded || 0
+  if (!game || !game.gameOver || game.rewardSettled) return;
+  const result = await settleMatchProfiles(match);
+  if (!result) return;
+
+  const aUser = users.get(match.hostSocketId);
+  const bUser = users.get(match.guestSocketId);
+  if (aUser && result.profileA) {
+    aUser.level = result.profileA.level;
+    aUser.wins = result.profileA.wins;
+    aUser.draws = result.profileA.draws || 0;
+    io.to(match.hostSocketId).emit("profile:update", {
+      profile: result.profileA,
+      xpAwarded: result.rewardA?.xp || 0,
+      goldAwarded: result.rewardA?.gold || 0,
+      matchResult: result.rewardA?.result || null
     });
-    emitUsers();
   }
+  if (bUser && result.profileB) {
+    bUser.level = result.profileB.level;
+    bUser.wins = result.profileB.wins;
+    bUser.draws = result.profileB.draws || 0;
+    io.to(match.guestSocketId).emit("profile:update", {
+      profile: result.profileB,
+      xpAwarded: result.rewardB?.xp || 0,
+      goldAwarded: result.rewardB?.gold || 0,
+      matchResult: result.rewardB?.result || null
+    });
+  }
+  emitUsers();
 }
 function emitDuel(match) {
   if (!match.duel) return;
   if (match.hostSocketId) io.to(match.hostSocketId).emit("duel:snapshot", snapshotFor(match, match.hostSocketId));
   if (match.guestSocketId) io.to(match.guestSocketId).emit("duel:snapshot", snapshotFor(match, match.guestSocketId));
-  if (match.duel.gameOver) {
-    void rewardSide(match, "a");
-    void rewardSide(match, "b");
-  }
+  if (match.duel.gameOver) void settleMatchReward(match);
 }
+
 function playCard(match, side, uid) {
   const game = match.duel;
   const index = game.hand[side].findIndex(c => c.uid === uid);
@@ -525,7 +562,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.3.0"
+    version: "0.4.0"
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -553,7 +590,7 @@ io.on("connection", socket => {
       status: "Disponible"
     };
     users.set(socket.id, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.3.0", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: "0.4.0", cards: CATALOG.length });
     emitUsers();
     emitMatches();
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
@@ -616,6 +653,10 @@ io.on("connection", socket => {
       guestDeck: [],
       hostLevel: user.level,
       guestLevel: 1,
+      hostSessionToken: user.sessionToken,
+      guestSessionToken: "",
+      hostAccountId: user.accountId,
+      guestAccountId: "",
       duel: null,
       createdAt: Date.now()
     };
@@ -657,6 +698,8 @@ io.on("connection", socket => {
     match.guestSocketId = socket.id;
     match.guestDeck = user.deck.slice(0, match.deckSize);
     match.guestLevel = user.level;
+    match.guestSessionToken = user.sessionToken;
+    match.guestAccountId = user.accountId;
     socket.join(mid);
     initDuel(match);
 
