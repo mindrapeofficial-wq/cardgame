@@ -131,3 +131,34 @@ For Level 1, all collectible creatures currently cost 1 Power. The four common c
 - Once legendary cards are unlocked, the entire legendary pool is capped at 0.2% per card draw, shared among all eligible legendary cards.
 - Strength, defense, Power cost, role, and special-card multipliers make stronger cards slightly less likely within their rarity.
 - The shop displays the exact server-calculated odds for the selected pack level.
+
+
+## PvP rewards and XP changes
+
+Competitive match rewards are server-authoritative and settled atomically for both accounts.
+
+### Gold
+
+- Win: +15 gold
+- Draw: +5 gold
+- Loss: +0 gold
+
+### XP
+
+Against an opponent of the same level:
+
+- Win: +40 XP
+- Draw: +8 XP
+- Loss: -15 XP
+
+Level difference modifies XP:
+
+- Win: `40 + 4 × (opponent level - player level)`, clamped to +20..+70
+- Draw: `8 + 2 × (opponent level - player level)`, clamped to +3..+20
+- Loss: `-(15 + 3 × (player level - opponent level))`, with penalty clamped to -5..-30
+
+A PvP loss can reduce the XP bar of the current level, but never causes de-leveling. XP cannot fall below 0 inside the current level.
+
+Draws are persisted as a separate statistic. A simultaneous defeat condition for both players resolves as a draw.
+
+Training rewards are intentionally much smaller and never remove XP.
