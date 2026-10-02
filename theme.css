@@ -423,3 +423,22 @@
 @media (max-width:850px){
   .shell:not(.duel-mode) .topbar-title{overflow:visible!important;line-height:0!important}
 }
+
+/* Card zoom (hold right-click / long-press on a card). Applies everywhere, including combat.
+   pointer-events:none so releasing the button or finger always reaches the page. */
+.card-zoom{
+  position:fixed;inset:0;z-index:10000;display:grid;place-items:center;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.45),rgba(0,0,0,.78));
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:opacity .12s ease,visibility 0s linear .12s;
+}
+.card-zoom.open{opacity:1;visibility:visible;transition:opacity .12s ease}
+.card-zoom img{
+  display:block;width:min(86vw,calc(84vh * 0.7042));height:auto;
+  filter:drop-shadow(0 24px 48px rgba(0,0,0,.75)) drop-shadow(0 0 28px rgba(210,172,90,.25));
+  transform:scale(.92);transition:transform .14s ease-out;
+}
+.card-zoom.open img{transform:scale(1)}
+/* No iOS callout or text selection while holding a card. */
+.game-card,.battle-card,.power-mini,.deck-row img,.trade-item img{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+@media (prefers-reduced-motion:reduce){.card-zoom,.card-zoom img{transition:none}}

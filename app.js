@@ -863,6 +863,7 @@ function renderManual(){
             <div class="reward-card loss"><div class="kicker">Derrota PvP</div><strong>0 oro</strong><span>−15 XP contra rival del mismo nivel</span></div>
           </div>
           <p>La XP se ajusta por diferencia de nivel: victoria entre +20 y +70, empate entre +3 y +20 y derrota entre −5 y −30. El entrenamiento contra IA no concede XP, no modifica el ELO y no registra victorias, empates ni derrotas; una victoria de entrenamiento puede otorgar una pequeña recompensa de oro.</p>
+          <p>Victoria: ±4 XP por cada nivel de diferencia, mínimo +20 y máximo +70. Empate: ±2 XP por nivel, mínimo +3 y máximo +20. Derrota: pierdes menos contra rivales superiores y más contra rivales inferiores, entre −5 y −30 XP.</p>
         </div>
       </details>
 
@@ -986,21 +987,6 @@ function renderPlay(){
         <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
       </section>
     </div>
-    <section class="panel reward-panel" style="margin-top:14px">
-      <div class="panel-head"><h2>Recompensas PvP</h2><span class="pill">Servidor autoritativo</span></div>
-      <div class="panel-body">
-        <div class="grid three">
-          <div class="reward-card win"><div class="kicker">Victoria</div><strong>+15 oro</strong><span>+40 XP contra rival de tu mismo nivel</span></div>
-          <div class="reward-card draw"><div class="kicker">Empate</div><strong>+5 oro</strong><span>+8 XP contra rival de tu mismo nivel</span></div>
-          <div class="reward-card loss"><div class="kicker">Derrota</div><strong>0 oro</strong><span>−15 XP contra rival de tu mismo nivel</span></div>
-        </div>
-        <div class="reward-rules">
-          <b>Ajuste por diferencia de nivel</b>
-          <p>Victoria: ±4 XP por cada nivel de diferencia, mínimo +20 y máximo +70. Empate: ±2 XP por nivel, mínimo +3 y máximo +20. Derrota: pierdes menos contra rivales superiores y más contra rivales inferiores, entre −5 y −30 XP.</p>
-          <p>Una derrota nunca te hace bajar de nivel: solo puede reducir la barra de XP del nivel actual hasta 0.</p>
-        </div>
-      </div>
-    </section>
     <section class="panel" style="margin-top:14px">
       <div class="panel-head"><h2>Retos disponibles</h2><span class="pill">${waiting.length} abiertos</span></div>
       <div class="panel-body"><div class="match-list">${renderMatches(waiting)}</div></div>
@@ -2628,5 +2614,53 @@ window.setInterval(()=>{
   updateDuelFullscreenCountdown();
   checkDecisionClock();
 },1000);
+
+// Card zoom: hold the right mouse button (desktop) or long-press (touch) on a card to enlarge it;
+// releasing hides it. A long-press never triggers the card's normal tap action.
+const CARD_ZOOM_HOSTS=".game-card,.battle-card,.power-mini,.deck-row,.trade-item";
+const LONG_PRESS_MS=380;
+let cardZoomEl=null,cardZoomOpen=false,longPressTimer=0,longPress=null,swallowNextClick=false;
+function cardZoomSource(target){
+  const host=target instanceof Element?target.closest(CARD_ZOOM_HOSTS):null;if(!host)return"";
+  const art=host.matches(".power-mini")?host:host.querySelector(".card-art,.battle-art,img");if(!art)return"";
+  if(art.tagName==="IMG")return art.currentSrc||art.src||"";
+  const m=getComputedStyle(art).backgroundImage.match(/url\(["']?(.*?)["']?\)/);
+  return m?m[1]:"";
+}
+function showCardZoom(src){
+  if(!src||/card-back/.test(src))return false;
+  if(!cardZoomEl){
+    cardZoomEl=document.createElement("div");cardZoomEl.className="card-zoom";cardZoomEl.setAttribute("aria-hidden","true");
+    cardZoomEl.innerHTML='<img alt="">';document.body.appendChild(cardZoomEl);
+  }
+  cardZoomEl.querySelector("img").src=src;cardZoomEl.classList.add("open");cardZoomOpen=true;
+  return true;
+}
+function hideCardZoom(){
+  clearTimeout(longPressTimer);longPress=null;
+  if(!cardZoomOpen)return;
+  cardZoomOpen=false;cardZoomEl?.classList.remove("open");
+}
+document.addEventListener("pointerdown",e=>{
+  swallowNextClick=false;
+  if(e.pointerType==="mouse"){
+    if(e.button===2)showCardZoom(cardZoomSource(e.target));
+    return;
+  }
+  const src=cardZoomSource(e.target);if(!src)return;
+  longPress={id:e.pointerId,x:e.clientX,y:e.clientY};
+  clearTimeout(longPressTimer);
+  longPressTimer=setTimeout(()=>{if(longPress&&showCardZoom(src)){swallowNextClick=true;try{navigator.vibrate?.(12)}catch{}}},LONG_PRESS_MS);
+});
+document.addEventListener("pointermove",e=>{
+  // Moving the finger before the zoom opens is a scroll, not a long-press.
+  if(longPress&&!cardZoomOpen&&e.pointerId===longPress.id&&Math.hypot(e.clientX-longPress.x,e.clientY-longPress.y)>10){clearTimeout(longPressTimer);longPress=null}
+},{passive:true});
+document.addEventListener("pointerup",hideCardZoom);
+document.addEventListener("pointercancel",hideCardZoom);
+window.addEventListener("blur",hideCardZoom);
+document.addEventListener("contextmenu",e=>{if(cardZoomSource(e.target))e.preventDefault()});
+document.addEventListener("click",e=>{if(swallowNextClick){swallowNextClick=false;e.preventDefault();e.stopPropagation()}},true);
+
 boot();
 })();
