@@ -970,8 +970,8 @@ function renderDuel(){
       <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
       <section class="board-zone"><div class="zone-title"><span>Tu campo</span><span>${phase}</span></div>${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
-        <section class="board-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
-        <section class="panel"><div class="panel-head"><h3>Registro</h3><span class="pill">${phase}</span></div><div class="panel-body"><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></section>
+        <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
+        <details class="duel-log-drawer"><summary><span>Registro de combate</span><span class="duel-log-phase">${phase}</span></summary><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></details>
       </div>
     </div>
   </div>`;
@@ -993,10 +993,13 @@ function powerLane(list,label,zone){
   }).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
 }
 function battleCards(list,zone){
-  if(!list?.length)return'<div class="empty" style="min-width:100%">Sin cartas</div>';
+  if(!list?.length)return'<div class="battle-empty" aria-hidden="true"></div>';
   return list.map(c=>{
     const clickable=duelCardClickable(c,zone);
-    return `<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div><div class="battle-name">${esc(c.name)}</div><div class="battle-stats"><span>${c.powerCard?"P +"+powerValue(c):"ATQ "+c.atk}</span><span>${c.powerCard?"":"DEF "+c.def}</span></div></article>`;
+    const label=c.powerCard
+      ? \`${c.name} · Poder +${powerValue(c)}\`
+      : \`${c.name} · Ataque ${c.atk} · Defensa ${c.def}\`;
+    return \`<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}" title="${esc(label)}" aria-label="${esc(label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>\`;
   }).join("");
 }
 function duelCardClickable(c,zone){
