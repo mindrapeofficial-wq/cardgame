@@ -4093,7 +4093,12 @@ html.duel-viewport-lock #appShell.duel-mode,
   border-color:#d4af37!important;
   background:#17130b!important;
 }
+.duel-turn-strip{position:relative!important;justify-content:center!important}
 .duel-top-actions{
+  position:absolute!important;
+  right:8px!important;
+  top:50%!important;
+  transform:translateY(-50%)!important;
   display:flex!important;
   align-items:center!important;
   justify-content:flex-end!important;
