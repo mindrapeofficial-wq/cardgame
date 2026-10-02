@@ -59,3 +59,16 @@ body.ve-enabled .ve-badge{
 @media(max-width:700px){
   body.ve-enabled #ve-root{right:8px;top:8px;width:min(330px,calc(100vw - 16px));max-height:55vh}
 }
+
+.ve-file{display:none}
+.ve-image-preview{
+  height:112px;margin:0 0 7px;border:1px solid #303741;border-radius:10px;
+  background-color:#0b0e12;background-position:center;background-repeat:no-repeat;background-size:contain;
+  display:flex;align-items:center;justify-content:center;text-align:center;padding:12px;
+  color:#7f8996;font-size:10px;overflow:hidden
+}
+.ve-image-preview:not(.empty){color:transparent}
+.ve-image-url-row{grid-template-columns:minmax(0,1.55fr) minmax(95px,.45fr)}
+.ve-status{min-height:14px;margin-top:7px;font-size:10px;color:#9ba2ad}
+.ve-status.good{color:#8ecb9a}
+.ve-status.bad{color:#e39aa1}
