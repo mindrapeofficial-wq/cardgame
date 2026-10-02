@@ -13,6 +13,7 @@ var mode="select";
 var root=null;
 var styleEl=null;
 var badge=null;
+var dragState=null;
 
 function loadRules(){
   try{rules=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")||{}}catch(e){rules={}}
@@ -226,12 +227,7 @@ function setProp(prop,value){
   if(!Object.keys(r).length)delete rules[selector];
   applyRules();saveRules();refreshPanel();
 }
-function normalizeSize(v){
-  v=String(v||"").trim();
-  if(!v)return"";
-  if(/^-?\d+(\.\d+)?$/.test(v))return v+"px";
-  return v;
-}
+function pxValue(v){var n=parseFloat(String(v||"").trim());return Number.isFinite(n)?n:0}\nfunction nudgeSelected(dx,dy){\n  if(!selected)return;\n  var selector=selectorFor(selected),r=getRule(selector),computed=getComputedStyle(selected);\n  if((r.position||computed.position||"static")==="static")r.position="relative";\n  r.left=(pxValue(r.left||computed.left)+dx)+"px";\n  r.top=(pxValue(r.top||computed.top)+dy)+"px";\n  applyRules();saveRules();refreshPanel();setStatus("Posición actualizada.","good");\n}\nfunction normalizeSize(v){\n  v=String(v||"").trim();\n  if(!v)return"";\n  if(/^-?\\d+(\\.\\d+)?$/.test(v))return v+"px";\n  return v;\n}
 function select(el){
   if(selected)selected.classList.remove("ve-target");
   selected=el;
@@ -316,7 +312,7 @@ function updateModeButtons(){
   root.querySelectorAll("[data-ve-mode]").forEach(function(b){
     b.classList.toggle("active",b.getAttribute("data-ve-mode")===mode);
   });
-  document.body.classList.toggle("ve-select-mode",mode==="select");
+  document.body.classList.toggle("ve-select-mode",mode==="select");\n  document.body.classList.toggle("ve-move-mode",mode==="move");
 }
 function exportCss(){
   var text="/* ARCANUM visual overrides */\n"+cssText()+"\n";
@@ -395,7 +391,7 @@ function build(){
     '<div class="ve-section">'+
       '<span class="ve-label">Guardar / exportar</span>'+
       '<div class="ve-actions"><button class="ve-btn primary" data-ve-save>Guardar</button><button class="ve-btn" data-ve-export-css>Exportar CSS</button><button class="ve-btn" data-ve-export-json>Exportar diseño</button><button class="ve-btn danger" data-ve-reset>Restablecer todo</button></div>'+
-      '<div class="ve-help">Guardar conserva los cambios en este navegador. Exportar diseño crea un archivo que puedes pasarme para convertirlo en el diseño oficial del juego.</div>'+
+      '<div class="ve-help">Guardar conserva los cambios solo en este navegador. Para publicarlos, usa Exportar diseño y pásame ese archivo: lo integro en el repositorio y Render publica la versión oficial.</div>'+
     '</div>'+
     '<div class="ve-section"><button class="ve-btn" data-ve-close>Cerrar editor</button><div class="ve-help">Atajo: Ctrl + Shift + D</div></div>';
   document.body.appendChild(root);
