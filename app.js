@@ -608,6 +608,11 @@ function updateChrome(){
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
 }
+// Power cards granted by the levels crossed between two levels (original "Plus/Poder" rewards).
+function levelRewardsText(fromLevel,toLevel){
+  const got=Object.entries(RULES.LEVEL_POWER_REWARDS).filter(([lv])=>Number(lv)>fromLevel&&Number(lv)<=toLevel).map(([,name])=>"2 × "+name);
+  return got.length?" Recibes "+got.join(" y ")+".":"";
+}
 function playerLevel(){return clamp(Number(state.profile?.level)||1,1,50)}
 function xpPercent(){if(!state.profile||playerLevel()>=50)return 100;return clamp(Math.round((state.profile.xp/Math.max(1,state.profile.xpRequired))*100),0,100)}
 function winrate(){
@@ -742,11 +747,11 @@ function renderManual(){
       <div class="manual-hero-copy">
         <div class="kicker">Referencia rápida</div>
         <h2>Lo esencial antes de jugar</h2>
-        <p>Necesitas un mazo válido de <b>20 a 50 cartas</b>, con un mínimo de <b>7 cartas de Poder</b> y un máximo de 40. Cada jugador comienza con <b>30 PV</b> y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional, por lo que comienza con 8.</p>
+        <p>Necesitas un mazo válido de <b>20 a 50 cartas</b>, con un mínimo de <b>7 cartas de Poder</b> y un máximo de 40. Cada jugador comienza con <b>30 PV</b> más la bonificación de su nivel (hasta +13) y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional, por lo que comienza con 8.</p>
       </div>
       <div class="manual-fast-grid">
         <div class="stat-card"><small>Mazo</small><strong>20+</strong><span class="muted">máximo 50 cartas</span></div>
-        <div class="stat-card"><small>Vida inicial</small><strong>30</strong><span class="muted">PV</span></div>
+        <div class="stat-card"><small>Vida inicial</small><strong>30+</strong><span class="muted">PV + bonus de nivel</span></div>
         <div class="stat-card"><small>Mano inicial</small><strong>7</strong><span class="muted">+1 al segundo jugador</span></div>
         <div class="stat-card"><small>Fases</small><strong>6</strong><span class="muted">por turno</span></div>
       </div>
@@ -866,6 +871,8 @@ function renderManual(){
             <li>Una cuenta nueva comienza en <b>Nivel 1</b>, sin cartas coleccionables, con Poder básico Nv 1 infinito y <b>100 de oro</b>.</li>
             <li>El nivel máximo actual es <b>50</b>.</li>
             <li>Subir de nivel amplía el nivel máximo de cartas y sobres que puedes utilizar.</li>
+            <li>Cada nivel te da <b>vida extra</b> al empezar los duelos: +2 PV desde el nivel 2, +4 desde el 10, +8 desde el 16, +9 desde el 20, +10 desde el 25, +11 desde el 36, +12 desde el 40 y +13 desde el 46.</li>
+            <li>Al alcanzar ciertos niveles recibes <b>2 cartas de Poder avanzadas</b>: Poder x 3 (nivel 5), x 4 (7), x 5 (10), x 6 (13), x 7 (15), x 10 (20), x 15 (25) y x 20 (50).</li>
             <li>Las derrotas PvP pueden reducir la XP de la barra actual, pero <b>nunca hacen perder un nivel ya alcanzado</b>.</li>
           </ul>
           <div class="grid three">
@@ -1594,7 +1601,7 @@ function connectOnline(){
       const goldText=gold?(" · +"+gold+" oro"):"";
       const eloText=elo?(" · "+(elo>0?"+":"")+elo+" ELO"):" · 0 ELO";
       const resultText=m.matchResult==="win"?"Victoria":m.matchResult==="draw"?"Empate":m.matchResult==="loss"?"Derrota":"Recompensa";
-      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! "+resultText+": "+xpText+goldText+eloText,"good")}
+      if(playerLevel()>oldLevel){playSound("win");toast("¡Nivel "+playerLevel()+" alcanzado! "+resultText+": "+xpText+goldText+eloText+"."+levelRewardsText(oldLevel,playerLevel()),"good")}
       else toast(resultText+": "+xpText+goldText+eloText,(xp<0||elo<0)?"bad":"good");
       updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
@@ -1675,7 +1682,7 @@ function applyOnlineSnapshot(s){
   const removedPlayer=(previous?.playerBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextPlayerUids.has(x.c.uid));
   const removedEnemy=(previous?.enemyBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextEnemyUids.has(x.c.uid));
   state.duel={online:true,matchId:s.matchId,myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
-    playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
+    playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,playerMaxHp:Number(s.playerMaxHp)||30,enemyMaxHp:Number(s.enemyMaxHp)||30,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
     enemyPower:Number(s.enemyPower)||0,enemyMaxPower:Number(s.enemyMaxPower)||0,playerDeckCount:Number(s.playerDeckCount)||0,enemyDeckCount:Number(s.enemyDeckCount)||0,
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard,enemyBoard,
@@ -1762,7 +1769,7 @@ function renderDuel(){
         ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
         <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
         <div class="duel-deck-rail enemy-deck-rail">
-          <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
+          <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de ${d.enemyMaxHp||30} puntos de vida"><i style="width:${clamp(d.enemyHp/(d.enemyMaxHp||30)*100,0,100)}%"></i></div></div></div>
         </div>
       </section>
       <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -1773,7 +1780,7 @@ function renderDuel(){
           <div class="player-hand-layout">
             <div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div>
             <div class="duel-deck-rail player-deck-rail">
-              <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div>
+              <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de ${d.playerMaxHp||30} puntos de vida"><i style="width:${clamp(d.playerHp/(d.playerMaxHp||30)*100,0,100)}%"></i></div></div></div>
             </div>
           </div>
           <div class="duel-controls"><div class="duel-controls-left">${duelControls(d)}</div>${duelMatchActions(d)}</div>
@@ -1926,7 +1933,7 @@ function training(){
 
   const playerStarts=Math.random()<.5;
   const startedAt=Date.now();
-  const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
+  const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:RULES.startingHp(lvl),enemyHp:RULES.startingHp(lvl),playerMaxHp:RULES.startingHp(lvl),enemyMaxHp:RULES.startingHp(lvl),power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
     playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",pendingAttack:null,defending:false,attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
     gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
@@ -2352,7 +2359,7 @@ async function awardTraining(d){
     return;
   }
   applyProfile(r.profile);updateChrome();
-  if(playerLevel()>oldLevel){playSound("win");toast("¡Subes a Nivel "+playerLevel()+"! Tus próximos sobres ya pueden incluir cartas de ese nivel.","good")}
+  if(playerLevel()>oldLevel){playSound("win");toast("¡Subes a Nivel "+playerLevel()+"! Tus próximos sobres ya pueden incluir cartas de ese nivel."+levelRewardsText(oldLevel,playerLevel()),"good")}
   else if(r.goldAwarded)toast("+"+r.goldAwarded+" oro · entrenamiento sin XP, ELO ni estadísticas PvP","good");
   else toast("Entrenamiento completado · sin XP, ELO ni estadísticas PvP","good");
   if(state.view==="duel")renderView();

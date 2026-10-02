@@ -19,7 +19,7 @@ const SETTLEMENT_HEADERS = Object.freeze({ "content-type": "application/json", "
 const rules = require("../rules.js");
 const {
   DECK_MIN, DECK_MAX, MIN_POWER_CARDS, MAX_POWER_CARDS, MAX_POWER_POINTS,
-  MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS, powerValue
+  MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS, powerValue, startingHp
 } = rules;
 
 const CATALOG = rules.parseCatalog(fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8"));
@@ -490,7 +490,9 @@ function initDuel(match) {
     turn: 1,
     active: Math.random() < 0.5 ? "b" : "a",
     phase: 0,
-    hp: { a: 30, b: 30 },
+    // Each player starts with the base life plus the original per-level bonus.
+    hp: { a: startingHp(match.hostLevel), b: startingHp(match.guestLevel) },
+    maxHp: { a: startingHp(match.hostLevel), b: startingHp(match.guestLevel) },
     deck: {
       a: sanitizeDeck(match.hostDeck, match.hostLevel),
       b: sanitizeDeck(match.guestDeck, match.guestLevel)
@@ -551,6 +553,8 @@ function snapshotFor(match, socketId) {
     turn: game.turn,
     playerHp: game.hp[side],
     enemyHp: game.hp[foe],
+    playerMaxHp: game.maxHp ? game.maxHp[side] : 30,
+    enemyMaxHp: game.maxHp ? game.maxHp[foe] : 30,
     power: game.availablePower[side],
     maxPower: totalPower(game, side),
     powerPlayed: !!game.powerPlayed[side],
