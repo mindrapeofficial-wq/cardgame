@@ -389,14 +389,72 @@ function exportCss(){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
 }
-function exportJson(){
-  var payload={version:2,styles:rules,images:imageRules};
-  var blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
-  var a=document.createElement("a");
-  a.href=URL.createObjectURL(blob);
-  a.download="arcanum-visual-design.json";
-  document.body.appendChild(a);a.click();a.remove();
-  setTimeout(function(){URL.revokeObjectURL(a.href)},1000);
+async function exportJson(){
+  var payload={version:3,exportedAt:new Date().toISOString(),styles:rules,images:imageRules};
+  var json=JSON.stringify(payload,null,2);
+  var blob=new Blob([json],{type:"application/json;charset=utf-8"});
+  var fileName="arcanum-visual-design.json";
+
+  if(window.showSaveFilePicker){
+    try{
+      var handle=await window.showSaveFilePicker({
+        suggestedName:fileName,
+        types:[{description:"Diseño ARCANUM",accept:{"application/json":[".json"]}}]
+      });
+      var writable=await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      setStatus("Diseño guardado como archivo JSON.","good");
+      return;
+    }catch(e){
+      if(e&&e.name==="AbortError"){
+        setStatus("Guardado cancelado.","bad");
+        return;
+      }
+    }
+  }
+
+  try{
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a");
+    a.href=url;
+    a.download=fileName;
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function(){
+      try{a.remove()}catch(e){}
+      try{URL.revokeObjectURL(url)}catch(e){}
+    },5000);
+    setStatus("Descarga iniciada. Revisa la carpeta Descargas.","good");
+  }catch(e){
+    try{
+      await navigator.clipboard.writeText(json);
+      setStatus("El navegador bloqueó la descarga. He copiado el diseño al portapapeles.","good");
+    }catch(err){
+      setStatus("No se pudo descargar. Usa el botón Copiar diseño.","bad");
+    }
+  }
+}
+async function copyJson(){
+  var payload={version:3,exportedAt:new Date().toISOString(),styles:rules,images:imageRules};
+  var json=JSON.stringify(payload,null,2);
+  try{
+    await navigator.clipboard.writeText(json);
+    setStatus("Diseño copiado al portapapeles.","good");
+  }catch(e){
+    var box=document.createElement("textarea");
+    box.value=json;
+    box.setAttribute("readonly","");
+    box.style.position="fixed";
+    box.style.left="-9999px";
+    document.body.appendChild(box);
+    box.select();
+    var ok=false;
+    try{ok=document.execCommand("copy")}catch(err){}
+    box.remove();
+    setStatus(ok?"Diseño copiado al portapapeles.":"No se pudo copiar el diseño.",ok?"good":"bad");
+  }
 }
 function resetAll(){
   if(!confirm("¿Restablecer todos los cambios visuales guardados en este navegador?"))return;
@@ -458,7 +516,8 @@ function build(){
     '</div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Guardar / exportar</span>'+
-      '<div class="ve-actions"><button class="ve-btn primary" data-ve-save>Guardar</button><button class="ve-btn" data-ve-export-css>Exportar CSS</button><button class="ve-btn" data-ve-export-json>Exportar diseño</button><button class="ve-btn danger" data-ve-reset>Restablecer todo</button></div>'+
+      '<div class="ve-actions"><button class="ve-btn primary" data-ve-save>Guardar</button><button class="ve-btn" data-ve-export-json>Descargar diseño</button><button class="ve-btn" data-ve-copy-json>Copiar diseño</button><button class="ve-btn danger" data-ve-reset>Restablecer todo</button></div>'+
+      '<button class="ve-btn ve-css-export" data-ve-export-css>Exportar CSS</button>'+
       '<div class="ve-help">Guardar conserva los cambios solo en este navegador. Para publicarlos, usa Exportar diseño y pásame ese archivo: lo integro en el repositorio y Render publica la versión oficial.</div>'+
     '</div>'+
     '<div class="ve-section"><button class="ve-btn" data-ve-close>Cerrar editor</button><div class="ve-help">Atajo: Ctrl + Shift + D</div></div>';
@@ -505,6 +564,7 @@ function build(){
     }
     if(e.target.closest("[data-ve-export-css]")){exportCss();return}
     if(e.target.closest("[data-ve-export-json]")){exportJson();return}
+    if(e.target.closest("[data-ve-copy-json]")){copyJson();return}
     if(e.target.closest("[data-ve-reset]")){resetAll();return}
     if(e.target.closest("[data-ve-reset-one]")){resetSelection();return}
     if(e.target.closest("[data-ve-close]")){deactivate();return}
