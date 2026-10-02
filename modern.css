@@ -985,3 +985,20 @@ body{
     animation-iteration-count:1!important;
   }
 }
+
+/* === POWER CARD STACKS === */
+.deck-row.power-stack{
+  border-color:rgba(201,163,91,.24);
+  background:linear-gradient(90deg,rgba(201,163,91,.07),#0b0e12 42%);
+}
+.deck-row.power-stack img{
+  box-shadow:0 0 0 1px rgba(201,163,91,.14);
+}
+.deck-stack-count{
+  min-width:42px;
+  justify-content:center;
+  color:#d7bd84;
+  border-color:rgba(201,163,91,.28);
+  background:#15120c;
+  font-variant-numeric:tabular-nums;
+}
