@@ -170,11 +170,17 @@ Training rewards are intentionally much smaller and never remove XP.
 Las partidas PvP online actualizan una puntuación ELO persistente además de las recompensas de oro y XP.
 
 - ELO inicial: 1000
-- Factor K: 32
+- Cálculo de expectativa mediante la tabla oficial FIDE.
 - Victoria: puntuación real 1
 - Empate: puntuación real 0,5
 - Derrota: puntuación real 0
-- El ajuste depende de la diferencia de ELO previa entre ambos jugadores.
+- Cambio: `K × (resultado real - resultado esperado)`, redondeado al entero más cercano.
+- K = 40 durante las primeras 30 partidas puntuadas.
+- K = 20 después de las primeras 30 partidas mientras el jugador no haya alcanzado 2400.
+- K = 10 una vez que el jugador ha alcanzado 2400, aunque posteriormente baje de rating.
+- Para jugadores con rating inferior a 2650, las diferencias superiores a 400 puntos se computan como 400.
+- La excepción FIDE para menores de 18 años no se usa porque ARCANUM no almacena la edad del jugador.
+- Cada duelo online se trata como un periodo de rating individual para actualizar el ranking en tiempo real.
 - El cálculo y el asentamiento son atómicos en servidor, por lo que un reintento de red no duplica puntos.
 - Solo el PvP online modifica el ELO; el entrenamiento contra IA no altera el ranking.
 - La sección Ranking muestra el Top 50 con posición, jugador, nivel, ELO, balance V-E-D y partidas puntuadas.
