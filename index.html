@@ -111,6 +111,7 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
       <span class="badge">Monedas: <b id="coins">100</b></span>
       <span class="badge">Victorias: <b id="wins">0</b></span>
       <span class="badge">Derrotas: <b id="losses">0</b></span>
+      <span class="badge">Red: <b id="onlineState">local</b></span>
       <span class="spacer"></span>
       <span class="small">285 cartas recuperadas</span>
       <button id="logout">Salir</button>
@@ -139,7 +140,7 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
           </div>
           <aside class="classic-channel">
             <div class="classic-channel-title">Canal: Principiantes (local)</div>
-            <div class="classic-users">
+            <div class="classic-users" id="onlineUsers">
               <div>◉ <span id="selfPlayer">Invitado</span> (En Reto)</div>
               <div>○ AshRa (No disp.)</div>
               <div>○ blind (En Reto)</div>
@@ -198,7 +199,7 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
         <div class="exchange-grid">
           <div class="exchange-box"><h3>Tu reserva</h3><div id="tradeInventory"></div></div>
           <div class="trade-center">
-            <div class="trade-panel"><b>Tu oferta</b><div id="myTradeOffer" class="small"></div><label>Oro <input id="tradeGold" type="number" min="0" value="0"></label></div>
+            <div class="trade-panel"><label>Jugador <select id="tradePartner"><option value="">Mercader local</option></select></label><br><br><b>Tu oferta</b><div id="myTradeOffer" class="small"></div><label>Oro <input id="tradeGold" type="number" min="0" value="0"></label></div>
             <button id="requestTrade" class="legacy-btn">Proponer intercambio →</button>
             <button id="acceptTrade" class="legacy-btn" disabled>Aceptar</button>
             <button id="cancelTrade" class="legacy-btn">Cancelar</button>
@@ -561,6 +562,7 @@ var $=function(id){return document.getElementById(id)};
 var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 var SAVE_KEY="rolplay-restoration-v2";
 var profile=null, duel=null, CATALOG=[], IMAGE_MAP={}, localMatches=[], tradeState={mine:[],theirs:[],theirGold:0,ready:false};
+var SERVER_URL="https://cardgame-server-erng.onrender.com", socket=null, onlineUsers=[], onlineMatches=[], socketBooting=false;
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))}
@@ -625,7 +627,7 @@ function enter(name){
   profile=loadProfile(name||"Invitado");
   if(name&&profile.name==="Invitado")profile.name=name;
   $("loginView").classList.add("hidden");$("gameShell").classList.remove("hidden");
-  renderAccount();showView("salon");renderCollection();renderDeck();
+  renderAccount();showView("salon");renderCollection();renderDeck();connectOnline();
 }
 function renderAccount(){
   if(!profile)return;
@@ -636,6 +638,61 @@ function renderAccount(){
   if($("classicStat"))$("classicStat").textContent=profile.wins-profile.losses;
   if($("classicGames"))$("classicGames").textContent=profile.wins+" / "+(profile.wins+profile.losses);
 }
+
+function connectOnline(){
+  if(socket&&socket.connected){announceOnline();return}
+  if(socketBooting)return;
+  socketBooting=true;
+  function start(){
+    socketBooting=false;
+    if(!window.io){$("onlineState").textContent="local";return}
+    socket=window.io(SERVER_URL,{transports:["websocket","polling"],timeout:8000});
+    socket.on("connect",function(){$("onlineState").textContent="online";announceOnline()});
+    socket.on("disconnect",function(){$("onlineState").textContent="reconectando"});
+    socket.on("connect_error",function(){$("onlineState").textContent="local"});
+    socket.on("server:ready",function(){if($("matchInfo"))$("matchInfo").textContent="Servidor online"});
+    socket.on("lobby:users",function(list){onlineUsers=Array.isArray(list)?list:[];renderOnlineUsers();renderTradePartners()});
+    socket.on("matches:list",function(list){onlineMatches=Array.isArray(list)?list:[];if($("view-partidas")&&!$("view-partidas").classList.contains("hidden"))renderMatches()});
+    socket.on("chat:message",function(m){appendChat(m&&m.from||"?",m&&m.text||"")});
+    socket.on("chat:system",function(m){appendSystem(m&&m.text||"")});
+    socket.on("match:created",function(m){if($("matchInfo"))$("matchInfo").textContent="Partida online creada: "+m.deckSize+" cartas"});
+    socket.on("match:error",function(m){if($("matchInfo"))$("matchInfo").textContent=m&&m.message||"Error de partida"});
+    socket.on("match:ready",function(m){
+      if($("matchInfo"))$("matchInfo").textContent="Reto aceptado contra "+(m.opponent&&m.opponent.name||"jugador")+" · preparando sincronización";
+      appendSystem("Reto aceptado contra "+(m.opponent&&m.opponent.name||"otro jugador")+". La sala online ha quedado reservada.");
+    });
+  }
+  if(window.io){start();return}
+  var sc=document.createElement("script");
+  sc.src=SERVER_URL+"/socket.io/socket.io.js";
+  sc.async=true;sc.onload=start;sc.onerror=function(){socketBooting=false;$("onlineState").textContent="local"};
+  document.head.appendChild(sc);
+}
+function announceOnline(){
+  if(!socket||!socket.connected||!profile)return;
+  socket.emit("hello",{name:profile.name,level:Math.max(1,Math.floor(profile.wins/5)+1),wins:profile.wins});
+}
+function appendChat(from,text){
+  var d=document.createElement("div");d.className="classic-chatline";d.innerHTML="<b>"+esc(from)+":</b> "+esc(text);$("chatLog").appendChild(d);$("chatLog").scrollTop=$("chatLog").scrollHeight;
+}
+function appendSystem(text){
+  var d=document.createElement("div");d.className="classic-chatline system";d.textContent=">> "+text;$("chatLog").appendChild(d);$("chatLog").scrollTop=$("chatLog").scrollHeight;
+}
+function renderOnlineUsers(){
+  if(!$("onlineUsers"))return;
+  if(!onlineUsers.length){$("onlineUsers").innerHTML="<div>○ Guardián (Entrenamiento)</div><div>○ Sin usuarios online</div>";return}
+  $("onlineUsers").innerHTML=onlineUsers.map(function(u){
+    var self=socket&&u.socketId===socket.id;
+    return "<div>"+(self?"◉ ":"○ ")+esc(u.name)+" ("+esc(u.status||"Disponible")+")</div>";
+  }).join("");
+}
+function renderTradePartners(){
+  var sel=$("tradePartner");if(!sel)return;
+  var current=sel.value;
+  sel.innerHTML="<option value=''>Mercader local</option>"+onlineUsers.filter(function(u){return !socket||u.socketId!==socket.id}).map(function(u){return "<option value='"+esc(u.socketId)+"'>"+esc(u.name)+"</option>"}).join("");
+  if(Array.from(sel.options).some(function(o){return o.value===current}))sel.value=current;
+}
+
 function showView(name){
   document.querySelectorAll(".view").forEach(function(v){v.classList.add("hidden")});
   var target=$("view-"+name);if(target)target.classList.remove("hidden");
@@ -716,20 +773,34 @@ function seedMatches(){
 }
 function renderMatches(){
   seedMatches();
-  $("matchRows").innerHTML=localMatches.map(function(m){
-    return "<tr><td>"+esc(m.player)+"</td><td>"+m.level+"</td><td>"+m.size+"</td><td>"+m.status+"</td><td><button class='legacy-btn' data-join='"+m.id+"'>Unirse</button></td></tr>";
+  var localRows=localMatches.map(function(m){
+    return "<tr><td>"+esc(m.player)+"</td><td>"+m.level+"</td><td>"+m.size+"</td><td>"+m.status+" · local</td><td><button class='legacy-btn' data-join='"+m.id+"'>Unirse</button></td></tr>";
   }).join("");
+  var onlineRows=onlineMatches.map(function(m){
+    var mine=socket&&m.hostSocketId===socket.id;
+    return "<tr><td>"+esc(m.player)+"</td><td>"+m.level+"</td><td>"+m.deckSize+"</td><td>"+esc(m.status)+" · online</td><td>"+(mine?"Tu partida":"<button class='legacy-btn' data-onlinejoin='"+m.id+"' "+(m.status!=="waiting"?"disabled":"")+">Unirse</button>")+"</td></tr>";
+  }).join("");
+  $("matchRows").innerHTML=onlineRows+localRows;
   $("matchRows").querySelectorAll("[data-join]").forEach(function(b){b.onclick=function(){
     var m=localMatches.find(function(x){return x.id===b.dataset.join});if(m)startDuel(profile.deck.length>=20?"deck":"starter",m.size);
   }});
+  $("matchRows").querySelectorAll("[data-onlinejoin]").forEach(function(b){b.onclick=function(){
+    if(socket&&socket.connected)socket.emit("match:join",{id:b.dataset.onlinejoin});
+  }});
 }
 function createLocalMatch(){
-  var size=Number($("matchDeckSize").value)||30;
+  var size=Number($("matchDeckSize").value)||30,start=$("matchStart").value;
+  if(socket&&socket.connected){
+    socket.emit("match:create",{deckSize:size,start:start});
+    $("matchInfo").textContent="Creando partida online…";
+    return;
+  }
   localMatches.unshift({id:uid(),player:profile.name,level:Math.max(1,Math.floor(profile.wins/5)+1),size:size,status:"Tu partida",bot:false});
   renderMatches();
-  $("matchInfo").textContent="Partida creada. Esperando jugador…";
+  $("matchInfo").textContent="Partida local creada. Esperando jugador simulado…";
 }
 function renderTrade(){
+  renderTradePartners();
   var ids=Object.keys(profile.collection).map(Number).filter(function(id){return owned(id)>0}).slice(0,120);
   $("tradeInventory").innerHTML=ids.length?ids.map(function(id){
     var c=cardById(id),free=owned(id)-tradeState.mine.filter(function(x){return x===id}).length;
@@ -875,8 +946,9 @@ $("zoomClose").onclick=closeZoom;$("zoomOverlay").onclick=function(e){if(e.targe
 $("buyPack").onclick=buyPack;$("collectionSearch").oninput=renderCollection;$("collectionFilter").onchange=renderCollection;
 $("autoDeck").onclick=autoDeck;$("clearDeck").onclick=function(){profile.deck=[];saveProfile();renderDeck();renderCollection()};$("playDeck").onclick=function(){startDuel("deck")};
 $("restart").onclick=function(){startDuel(profile.deck.length>=20?"deck":"starter",duel&&duel.deckSize||30)};$("next").onclick=nextPhase;
-$("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;var d=document.createElement("div");d.innerHTML="<b>"+esc(profile.name)+":</b> "+esc(v);$("chatLog").appendChild(d);$("chatInput").value="";$("chatLog").scrollTop=$("chatLog").scrollHeight};
+$("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;if(socket&&socket.connected)socket.emit("chat:send",{text:v});else appendChat(profile.name,v);$("chatInput").value=""};
 $("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter")$("chatSend").click()});
+$("noDisponible").onchange=function(){if(socket&&socket.connected)socket.emit("presence:set",{away:this.checked})};
 parseCards();
 loadLegacyImageIndex();
 })();
