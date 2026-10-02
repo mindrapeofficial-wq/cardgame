@@ -173,7 +173,7 @@ function powerValue(card) {
   return m ? Math.max(1, Number(m[1]) || 1) : 1;
 }
 function publicUser(socketId, user) {
-  return { socketId, name: user.name, level: user.level, status: user.status, wins: user.wins };
+  return { socketId, name: user.name, level: user.level, elo: Number(user.elo) || 1000, status: user.status, wins: user.wins };
 }
 function emitUsers() {
   io.emit("lobby:users", [...users.entries()].map(([sid, u]) => publicUser(sid, u)));
@@ -186,7 +186,8 @@ function publicMatch(match) {
     deckSize: match.deckSize,
     start: match.start,
     status: match.status,
-    hostSocketId: match.hostSocketId
+    hostSocketId: match.hostSocketId,
+    elo: Number(match.elo) || 1000
   };
 }
 function emitMatches() {
@@ -423,10 +424,12 @@ async function settleMatchReward(match) {
     aUser.level = result.profileA.level;
     aUser.wins = result.profileA.wins;
     aUser.draws = result.profileA.draws || 0;
+    aUser.elo = Number(result.profileA.elo) || 1000;
     io.to(match.hostSocketId).emit("profile:update", {
       profile: result.profileA,
       xpAwarded: result.rewardA?.xp || 0,
       goldAwarded: result.rewardA?.gold || 0,
+      eloDelta: result.rewardA?.eloDelta || 0,
       matchResult: result.rewardA?.result || null
     });
   }
@@ -434,10 +437,12 @@ async function settleMatchReward(match) {
     bUser.level = result.profileB.level;
     bUser.wins = result.profileB.wins;
     bUser.draws = result.profileB.draws || 0;
+    bUser.elo = Number(result.profileB.elo) || 1000;
     io.to(match.guestSocketId).emit("profile:update", {
       profile: result.profileB,
       xpAwarded: result.rewardB?.xp || 0,
       goldAwarded: result.rewardB?.gold || 0,
+      eloDelta: result.rewardB?.eloDelta || 0,
       matchResult: result.rewardB?.result || null
     });
   }
@@ -582,7 +587,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.4.0"
+    version: "0.5.0"
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -606,11 +611,12 @@ io.on("connection", socket => {
       name: cleanName(profile.name),
       level: Math.max(1, Math.min(50, Number(profile.level) || 1)),
       wins: Math.max(0, Number(profile.wins) || 0),
+      elo: Number(profile.elo) || 1000,
       deck: Array.isArray(profile.deck) ? profile.deck.map(Number) : [],
       status: "Disponible"
     };
     users.set(socket.id, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.4.0", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: "0.5.0", cards: CATALOG.length });
     emitUsers();
     emitMatches();
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
@@ -624,6 +630,7 @@ io.on("connection", socket => {
     user.name = cleanName(profile.name);
     user.level = Math.max(1, Math.min(50, Number(profile.level) || 1));
     user.wins = Math.max(0, Number(profile.wins) || 0);
+    user.elo = Number(profile.elo) || 1000;
     user.deck = Array.isArray(profile.deck) ? profile.deck.map(Number) : [];
     emitUsers();
   });
@@ -653,6 +660,7 @@ io.on("connection", socket => {
     }
     user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
     user.wins = Math.max(0, Number(fresh.wins) || 0);
+    user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     removeSocketMatches(socket.id);
     const deckSize = [20, 30, 40, 50].includes(Number(payload && payload.deckSize)) ? Number(payload.deckSize) : 30;
@@ -664,6 +672,7 @@ io.on("connection", socket => {
       id: id("match"),
       player: user.name,
       level: user.level,
+      elo: user.elo,
       deckSize,
       start: payload && payload.start === "random" ? "random" : "normal",
       status: "waiting",
@@ -709,6 +718,7 @@ io.on("connection", socket => {
     }
     user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
     user.wins = Math.max(0, Number(fresh.wins) || 0);
+    user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     match.status = "playing";
     if (!Array.isArray(user.deck) || user.deck.length < match.deckSize) {
