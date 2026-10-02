@@ -4338,3 +4338,14 @@ body.duel-native-fullscreen .shell.duel-mode .player-deck-rail .duel-deck-back{
     font-size:clamp(5px,1.35dvh,7px)!important;
   }
 }
+
+
+/* === DUEL DECK META SPACING 2026-10-02 === */
+.shell.duel-mode .duel-deck-rail .deck-player-meta{
+  margin-top:clamp(6px,1dvh,10px)!important;
+}
+@media (orientation:landscape) and (max-width:1180px){
+  .shell.duel-mode .duel-deck-rail .deck-player-meta{
+    margin-top:4px!important;
+  }
+}
