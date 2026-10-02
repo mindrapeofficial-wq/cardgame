@@ -586,9 +586,17 @@ io.on("connection", socket => {
     io.emit("chat:message", { id: id("msg"), from: user.name, socketId: socket.id, text, at: Date.now() });
   });
 
-  socket.on("match:create", payload => {
+  socket.on("match:create", async payload => {
     const user = users.get(socket.id);
     if (!user) return;
+    const fresh = await profileFromSession(user.sessionToken);
+    if (!fresh) {
+      socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
+      return;
+    }
+    user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
+    user.wins = Math.max(0, Number(fresh.wins) || 0);
+    user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     removeSocketMatches(socket.id);
     const deckSize = [20, 30, 40, 50].includes(Number(payload && payload.deckSize)) ? Number(payload.deckSize) : 30;
     if (!Array.isArray(user.deck) || user.deck.length < deckSize) {
@@ -625,7 +633,7 @@ io.on("connection", socket => {
     emitMatches();
   });
 
-  socket.on("match:join", payload => {
+  socket.on("match:join", async payload => {
     const mid = cleanText(payload && payload.id, 80);
     const match = matches.get(mid);
     const user = users.get(socket.id);
@@ -633,6 +641,14 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: "La partida ya no está disponible." });
       return;
     }
+    const fresh = await profileFromSession(user.sessionToken);
+    if (!fresh) {
+      socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
+      return;
+    }
+    user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
+    user.wins = Math.max(0, Number(fresh.wins) || 0);
+    user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     match.status = "playing";
     if (!Array.isArray(user.deck) || user.deck.length < match.deckSize) {
       socket.emit("match:error", { message: "Tu mazo guardado no tiene suficientes cartas." });
