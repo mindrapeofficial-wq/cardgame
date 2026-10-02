@@ -2165,3 +2165,70 @@ a{color:#d8b94f}
     touch-action:none
   }
 }
+
+
+/* === HEADERLESS GLOBAL HUD 2026-10-02 ===
+   Elimina la cabecera superior y conserva solo Inicio + Oro como controles flotantes. */
+.topbar{
+  display:contents!important;
+  height:0!important;
+  min-height:0!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+}
+.topbar-title,
+.topbar-spacer,
+.topbar .connection-label{
+  display:none!important;
+}
+.global-home-btn{
+  position:fixed!important;
+  left:18px;
+  bottom:18px;
+  z-index:65;
+  min-height:38px;
+  padding:8px 12px!important;
+  border-radius:999px!important;
+  background:rgba(7,7,7,.94)!important;
+  border:1px solid rgba(212,175,55,.34)!important;
+  color:#e9dcad!important;
+  box-shadow:0 10px 30px rgba(0,0,0,.46)!important;
+  backdrop-filter:blur(10px);
+}
+.global-home-btn:hover:not(:disabled){
+  border-color:rgba(212,175,55,.72)!important;
+  background:#151109!important;
+}
+.currency{
+  position:fixed!important;
+  right:18px;
+  bottom:18px;
+  z-index:65;
+  min-height:38px;
+  padding:8px 12px;
+  border:1px solid rgba(212,175,55,.34);
+  border-radius:999px;
+  background:rgba(7,7,7,.94);
+  color:#e4c85f!important;
+  font-size:12px;
+  font-weight:900;
+  line-height:1;
+  box-shadow:0 10px 30px rgba(0,0,0,.46);
+  backdrop-filter:blur(10px);
+}
+.manual-index{top:8px!important}
+.shell.duel-mode .currency{display:none!important}
+
+@media(max-width:850px){
+  .global-home-btn{display:none!important}
+  .currency{
+    right:12px;
+    bottom:76px;
+    min-height:34px;
+    padding:7px 10px;
+  }
+}
