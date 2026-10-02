@@ -645,39 +645,58 @@ function renderHome(){
   const activeDuelBanner=duelLobbyAway&&state.duel&&!state.duel.gameOver
     ? `<section class="lobby-duel-return" aria-live="polite"><div><span class="kicker">Partida en curso</span><b>Abandono en <strong data-duel-lobby-countdown>${formatCombatGrace(duelLeft)}</strong></b><small>Vuelve al combate antes de que termine la cuenta atrás.</small></div><button class="btn primary" data-action="resumeDuelFromLobby">Reanudar partida</button></section>`
     : "";
-  return `<div class="page">
+  const waiting=state.matches.filter(m=>m.status==="waiting");
+  return `<div class="page home-page">
     ${activeDuelBanner}
-    <div class="home-actions">
-      ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
-      ${matches>0?'<button class="btn" data-action="nav" data-view="play">Unirse a partida</button>':""}
-      <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
-      <button class="btn" data-action="nav" data-view="collection">Colección</button>
-      <button class="btn" data-action="nav" data-view="shop">Tienda</button>
-      <button class="btn" data-action="nav" data-view="trade">Intercambios</button>
-      <button class="btn" data-action="nav" data-view="ranking">Ranking</button>
-      <button class="btn" data-action="nav" data-view="profile">Perfil</button>
-    </div>
-    <div class="xp-card">
-      <div class="xp-row"><div><div class="kicker">Progresión</div><b>Nivel ${playerLevel()}</b></div><div class="muted">${playerLevel()>=50?"Nivel máximo":state.profile.xp+" / "+state.profile.xpRequired+" XP"}</div></div>
-      <div class="xp-bar"><span style="width:${xpPercent()}%"></span></div>
-    </div>
-    <div class="grid four" style="margin-top:14px">
-      <div class="stat-card"><small>Jugadores conectados</small><strong>${state.users.length}</strong><span class="muted">salón en tiempo real</span></div>
-      <div class="stat-card"><small>Partidas abiertas</small><strong>${matches}</strong><span class="muted">retos esperando rival</span></div>
-      <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}</strong><span class="muted">${collectionTotal()} cartas · Poder básico ∞</span></div>
-      <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"mínimo 20 cartas · 7 Poderes"}</span></div>
-    </div>
-    <div class="grid two" style="margin-top:14px">
-      <section class="panel">
-        <div class="panel-head"><h2>Salón online</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo offline"}</span></div>
-        <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
-      </section>
-      <section class="panel">
-        <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
-        <div class="chat"><div class="chat-log" id="chatLog">${renderChat()}</div>
+    <div class="home-mobile-lobby">
+      <section class="panel home-mobile-chat">
+        <div class="panel-head"><h2>Chat</h2><span class="muted">${state.chat.length} mensajes</span></div>
+        <div class="chat"><div class="chat-log" id="chatLogMobile">${renderChat()}</div>
           <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
         </div>
       </section>
+      <section class="panel home-mobile-searching">
+        <div class="panel-head"><h2>Buscando partida</h2><span class="pill">${waiting.length}</span></div>
+        <div class="panel-body"><div class="match-list mobile-match-list">${renderMatches(waiting)}</div></div>
+      </section>
+      <section class="panel home-mobile-online">
+        <div class="panel-head"><h2>Conectados</h2><span class="pill">${state.users.length}</span></div>
+        <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
+      </section>
+    </div>
+    <div class="home-desktop-lobby">
+      <div class="home-actions">
+        ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
+        ${matches>0?'<button class="btn" data-action="nav" data-view="play">Unirse a partida</button>':""}
+        <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
+        <button class="btn" data-action="nav" data-view="collection">Colección</button>
+        <button class="btn" data-action="nav" data-view="shop">Tienda</button>
+        <button class="btn" data-action="nav" data-view="trade">Intercambios</button>
+        <button class="btn" data-action="nav" data-view="ranking">Ranking</button>
+        <button class="btn" data-action="nav" data-view="profile">Perfil</button>
+      </div>
+      <div class="xp-card">
+        <div class="xp-row"><div><div class="kicker">Progresión</div><b>Nivel ${playerLevel()}</b></div><div class="muted">${playerLevel()>=50?"Nivel máximo":state.profile.xp+" / "+state.profile.xpRequired+" XP"}</div></div>
+        <div class="xp-bar"><span style="width:${xpPercent()}%"></span></div>
+      </div>
+      <div class="grid four" style="margin-top:14px">
+        <div class="stat-card"><small>Jugadores conectados</small><strong>${state.users.length}</strong><span class="muted">salón en tiempo real</span></div>
+        <div class="stat-card"><small>Partidas abiertas</small><strong>${matches}</strong><span class="muted">retos esperando rival</span></div>
+        <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}</strong><span class="muted">${collectionTotal()} cartas · Poder básico ∞</span></div>
+        <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"mínimo 20 cartas · 7 Poderes"}</span></div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <section class="panel">
+          <div class="panel-head"><h2>Salón online</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo offline"}</span></div>
+          <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
+          <div class="chat"><div class="chat-log" id="chatLog">${renderChat()}</div>
+            <div class="chat-send"><input class="input" disabled placeholder="Chat disponible en el lobby móvil o desde esta vista"><button class="btn primary" disabled>Enviar</button></div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>`;
 }
