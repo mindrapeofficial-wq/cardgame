@@ -559,6 +559,18 @@ io.on("connection", socket => {
     socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
   });
 
+  socket.on("profile:refresh", async () => {
+    const user = users.get(socket.id);
+    if (!user || !user.sessionToken) return;
+    const profile = await profileFromSession(user.sessionToken);
+    if (!profile) return;
+    user.name = cleanName(profile.name);
+    user.level = Math.max(1, Math.min(50, Number(profile.level) || 1));
+    user.wins = Math.max(0, Number(profile.wins) || 0);
+    user.deck = Array.isArray(profile.deck) ? profile.deck.map(Number) : [];
+    emitUsers();
+  });
+
   socket.on("presence:set", payload => {
     const user = users.get(socket.id);
     if (!user) return;
