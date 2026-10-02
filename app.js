@@ -714,7 +714,6 @@ function renderShop(){
   const lvl=state.packLevel||playerLevel();
   const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
-    ${pageHead("Mercado","Tienda","Cada sobre tiene nivel propio. Solo puedes comprar niveles ya desbloqueados y nunca puede salir una carta por encima del nivel del sobre.")}
     <div class="grid two">
       <section class="panel pack-hero"><div><div class="pack-card">R</div><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
