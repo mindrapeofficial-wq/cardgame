@@ -590,6 +590,8 @@ function imageKey(s){
 }
 function cardImage(c){
   var k=imageKey(c.name);
+  var aliases={arpada:"legacy-assets/imagenes/crt_arpia_g.jpg",dragonoscuro:"legacy-assets/imagenes/crt_dragon_sombra_g.jpg"};
+  if(aliases[k])return aliases[k];
   if(IMAGE_MAP[k])return IMAGE_MAP[k];
   var slug=normalize(c.name).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").trim().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
   return "legacy-assets/imagenes/crt_"+slug+".jpg";
