@@ -693,7 +693,7 @@ function renderHome(){
         <section class="panel">
           <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
           <div class="chat"><div class="chat-log" id="chatLog">${renderChat()}</div>
-            <div class="chat-send"><input class="input" disabled placeholder="Chat disponible en el lobby móvil o desde esta vista"><button class="btn primary" disabled>Enviar</button></div>
+            <form class="chat-send" id="chatFormDesktop"><input class="input" id="chatInputDesktop" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
           </div>
         </section>
       </div>
@@ -2473,7 +2473,14 @@ document.addEventListener("change",e=>{
 });
 document.addEventListener("submit",e=>{
   if(e.target.id==="loginForm"){e.preventDefault();authenticateForm()}
-  if(e.target.id==="chatForm"){e.preventDefault();const input=$("chatInput"),text=input?.value.trim();if(!text)return;if(state.connected)state.socket.emit("chat:send",{text});else{state.chat.push({from:state.profile.name,text});renderView()}}
+  if(e.target.id==="chatForm"||e.target.id==="chatFormDesktop"){
+    e.preventDefault();
+    const input=e.target.querySelector("input"),text=input?.value.trim();
+    if(!text)return;
+    if(state.connected)state.socket.emit("chat:send",{text});
+    else{state.chat.push({from:state.profile.name,text});renderView()}
+    if(input)input.value="";
+  }
 });
 $("logoutBtn")?.addEventListener("click",logout);
 
