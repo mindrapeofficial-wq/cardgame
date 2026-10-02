@@ -89,3 +89,18 @@ Implemented:
 - Level 1 basic Power is infinite, is not stored in the collection, cannot be sold or traded, and may be used repeatedly in deck construction.
 - Player progression is Level 1–50 with gradual XP requirements.
 - XP, level, gold, collection, deck and match statistics persist on the account.
+
+
+## PvP reward economy
+
+- Victory: +15 gold.
+- Draw: +5 gold.
+- Loss: 0 gold.
+- Same-level XP: win +40, draw +8, loss -15.
+- XP scales with opponent level difference.
+- Winning against stronger opponents gives more XP.
+- Losing against stronger opponents removes less XP.
+- Losing against weaker opponents removes more XP.
+- XP loss never de-levels a player and current-level XP is floored at zero.
+- Draws are a first-class persisted match result.
+- Match rewards are settled server-side for both accounts using one idempotent match settlement.
