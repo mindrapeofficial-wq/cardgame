@@ -1,20 +1,79 @@
-# ![rolplay](https://github.com/NinjasCL-archive/rolplay/assets/292738/65d0e18b-863e-454e-be3d-a6ee007cd9fd)
+# Rolplay Reborn
 
-Backup del juego Rolplay.net creado por David Gonzalez Bisbal (Sevia)
+Modern web reconstruction of the historical **Rolplay.net** card game.
 
-Rolplay.net nos presenta un fantástico juego de cartas de Rol multijugador.
+## Play
 
-Durante el desarrollo del juego podrás coleccionar numerosas cartas y crear tus propios mazos de criaturas. El objetivo es vencer a tus oponentes eligiendo de forma correcta las criaturas que entrarán en combate de las que forman tu colección.
+Production client:
 
-Una vez lances la aplicación, solo tienes que crear tu usuario, adquirir un par de sobres de cartas (partes con 100 monedas que incrementarás con cada combate ganado) y retar a otros usuarios en sus múltiples salones de juego.
+- https://cardgame-l9ld.onrender.com
 
-![37ad6d44a2335b3bd950cad75defb6a90abef31a048225712d702b854a6479ba 800](https://github.com/NinjasCL-archive/rolplay/assets/292738/396cb8be-aa5d-4dbf-9178-8f1977ed9c99)
-![imagen](https://github.com/NinjasCL-archive/rolplay/assets/292738/5ac97c24-d98b-4d5d-bf76-f483b8b313f4)
+Replacement multiplayer server:
 
-![a3096ce9d087c7ab30c541f95c6855d4628a114a5e65cde3c1736fe9df989dad 800](https://github.com/NinjasCL-archive/rolplay/assets/292738/05f83b66-6c0d-4b03-ae49-e62ffe5c04c6)
-![imagen](https://github.com/NinjasCL-archive/rolplay/assets/292738/1c53dca6-d769-4e3b-addd-a047ba5a7b98)
+- https://cardgame-server-erng.onrender.com
 
+## Current game loop
 
-![logo](https://github.com/NinjasCL-archive/rolplay/assets/292738/c44cdbac-1218-4bc7-b978-e09dc422f076)
+Rolplay Reborn now has a complete playable loop:
 
-![image](https://github.com/NinjasCL-archive/rolplay/assets/292738/551e1737-725c-493d-958f-343f292467fa)
+- modern responsive desktop/mobile UI
+- installable PWA shell
+- offline collection, deck building and AI training
+- 285 recovered catalogue cards with 285/285 original artwork mapping
+- starter deck for new local profiles
+- persistent browser profiles
+- collection search and filtering
+- 20–50 card deck builder with validation and automatic construction
+- card shop and pack opening
+- duplicate card selling and gold economy
+- online lobby presence and general chat
+- online match creation and joining
+- authoritative Socket.IO PvP state
+- six recovered historical turn phases
+- one Power card per Power phase
+- creature summoning and recovered ability subset
+- attacker selection
+- manual defender assignment in online PvP
+- life and deck-exhaustion win conditions
+- conceding and disconnect handling
+- player-to-player card + gold exchanges with two-party locking
+- local guild-merchant exchange fallback
+- profile statistics, settings and historical archive
+
+## Architecture
+
+### Frontend
+
+Static vanilla web application:
+
+- `index.html` — modern application shell
+- `modern.css` — responsive design system
+- `app.js` — game client, local economy, collection/decks, AI and multiplayer UI
+- `manifest.webmanifest` — installable web app metadata
+- `sw.js` — network-first core caching and offline asset cache
+
+### Multiplayer server
+
+Node.js + Express + Socket.IO:
+
+- `server/server.js`
+- `server/package.json`
+
+The server owns online duel state so clients do not receive the opponent's private hand.
+
+## Legacy source archive
+
+The repository keeps the recovered original material for reference:
+
+- `Rolplay.zip`
+- `Manual 3.2.rtf`
+- `version_leeme.txt`
+- `legacy-assets/`
+- `legacy-config/`
+- `LEGACY_ANALYSIS.md`
+
+## Historical accuracy
+
+The original navigation, card catalogue, artwork, sounds, economy concepts, six turn phases, deck exhaustion, exchanges and other documented mechanics are being restored from the archived client/manual.
+
+Some combat statistics and advanced card effects are still reconstructed from the available catalogue rather than fully decoded from the original executable. They are playable, but exact historical balance remains a separate reverse-engineering milestone.
