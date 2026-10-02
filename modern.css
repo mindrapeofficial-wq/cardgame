@@ -4679,3 +4679,28 @@ html.arcanum-tcg-android-app .shell.duel-mode .duel-turn-strip{
     font-size:6px!important;
   }
 }
+
+
+/* === SHOP PACK ART ALIGNMENT FIX 2026-10-02 === */
+.pack-hero > div{
+  width:min(100%,520px);
+  margin-inline:auto;
+}
+.pack-hero .pack-card{
+  display:block;
+  width:132px;
+  height:auto;
+  aspect-ratio:5/7;
+  object-fit:contain;
+  margin:0 auto 18px;
+  border:1px solid rgba(201,163,91,.42);
+  border-radius:8px;
+  background:none;
+  box-shadow:0 18px 42px rgba(0,0,0,.58),0 0 32px rgba(201,163,91,.08);
+}
+@media(max-width:850px){
+  .pack-hero .pack-card{
+    width:118px;
+    margin-bottom:14px;
+  }
+}
