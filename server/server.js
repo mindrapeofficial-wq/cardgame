@@ -85,7 +85,9 @@ const INITIAL_HAND = 7;
 const SECOND_PLAYER_BONUS = 1;
 const MATCH_LIMIT_MS = 40 * 60 * 1000;
 const COMBAT_LEAVE_GRACE_MS = 2 * 60 * 1000;
-const COMBAT_IDLE_MS = 3 * 60 * 1000;
+const COMBAT_IDLE_BASE_MS = 3 * 60 * 1000;
+const COMBAT_IDLE_MAX_MS = 5 * 60 * 1000;
+const COMBAT_IDLE_ACTION_BONUS_MS = 10 * 1000;
 const users = new Map();
 const matches = new Map();
 const trades = new Map();
@@ -562,6 +564,8 @@ function snapshotFor(match, socketId) {
   const opponentName = side === "a" ? (match.guestName || "Rival") : (match.player || "Rival");
   const playerLeaveDeadlineAt = Number(match.disconnectDeadlineAt && match.disconnectDeadlineAt[side]) || 0;
   const opponentDisconnectDeadlineAt = Number(match.disconnectDeadlineAt && match.disconnectDeadlineAt[foe]) || 0;
+  const playerIdleAllowanceMs = Math.max(COMBAT_IDLE_BASE_MS, Math.min(COMBAT_IDLE_MAX_MS, Number(match.idleAllowanceMs && match.idleAllowanceMs[side]) || COMBAT_IDLE_BASE_MS));
+  const playerIdleDeadlineAt = (Number(match.lastActivityAt && match.lastActivityAt[side]) || Date.now()) + playerIdleAllowanceMs;
   const playerLeaveReason = String(match.disconnectReason && match.disconnectReason[side] || "");
   const opponentLeaveReason = String(match.disconnectReason && match.disconnectReason[foe] || "");
   const pending = game.pendingAttack;
@@ -599,6 +603,8 @@ function snapshotFor(match, socketId) {
     blockAssignments: {},
     damageDealt: game.damage[side],
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: opponentName },
+    playerIdleAllowanceMs,
+    playerIdleDeadlineAt,
     playerLeaveDeadlineAt,
     playerLeaveReason,
     opponentDisconnectDeadlineAt,
@@ -798,7 +804,7 @@ function startCombatLeaveGrace(match, side, reason = "disconnect") {
   const connectedUser = users.get(socketId);
   const name = connectedUser ? connectedUser.name : (side === "a" ? match.player : (match.guestName || "El rival"));
   if (reason === "inactive") {
-    gameLog(match.duel, name + " lleva más de 3 minutos inactivo. Tiene 2 minutos para volver a actuar.");
+    gameLog(match.duel, name + " ha agotado su periodo de inactividad. Tiene 2 minutos para volver a actuar.");
   } else if (reason === "fullscreen") {
     gameLog(match.duel, name + " ha salido de la pantalla completa. Tiene 2 minutos para volver.");
   } else {
@@ -810,6 +816,11 @@ function startCombatLeaveGrace(match, side, reason = "disconnect") {
   return deadline;
 }
 
+function combatIdleAllowance(match, side) {
+  match.idleAllowanceMs = match.idleAllowanceMs || { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS };
+  return Math.max(COMBAT_IDLE_BASE_MS, Math.min(COMBAT_IDLE_MAX_MS, Number(match.idleAllowanceMs[side]) || COMBAT_IDLE_BASE_MS));
+}
+
 function scheduleCombatIdleWatch(match, side) {
   if (!match || !side) return;
   clearCombatIdleWatch(match.id, side);
@@ -817,15 +828,17 @@ function scheduleCombatIdleWatch(match, side) {
 
   match.lastActivityAt = match.lastActivityAt || { a: Date.now(), b: Date.now() };
   const last = Number(match.lastActivityAt[side]) || Date.now();
-  const delay = Math.max(0, COMBAT_IDLE_MS - (Date.now() - last));
+  const allowance = combatIdleAllowance(match, side);
+  const delay = Math.max(0, allowance - (Date.now() - last));
   const key = combatIdleKey(match.id, side);
   const timer = setTimeout(() => {
     combatIdleTimers.delete(key);
     const live = matches.get(match.id);
     if (!live || live.status !== "playing" || !live.duel || live.duel.gameOver) return;
     const liveLast = Number(live.lastActivityAt && live.lastActivityAt[side]) || 0;
+    const liveAllowance = combatIdleAllowance(live, side);
     const elapsed = Date.now() - liveLast;
-    if (elapsed < COMBAT_IDLE_MS) {
+    if (elapsed < liveAllowance) {
       scheduleCombatIdleWatch(live, side);
       return;
     }
@@ -834,17 +847,21 @@ function scheduleCombatIdleWatch(match, side) {
   combatIdleTimers.set(key, timer);
 }
 
-function markCombatActivity(match, side) {
+function markCombatActivity(match, side, growAllowance = false) {
   if (!match || !side || match.status !== "playing" || !match.duel || match.duel.gameOver) return;
   match.lastActivityAt = match.lastActivityAt || { a: Date.now(), b: Date.now() };
   match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
   match.disconnectReason = match.disconnectReason || { a: "", b: "" };
+  match.idleAllowanceMs = match.idleAllowanceMs || { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS };
   const hadGrace = Number(match.disconnectDeadlineAt[side]) > 0;
+  if (growAllowance) {
+    match.idleAllowanceMs[side] = Math.min(COMBAT_IDLE_MAX_MS, combatIdleAllowance(match, side) + COMBAT_IDLE_ACTION_BONUS_MS);
+  }
   match.lastActivityAt[side] = Date.now();
   match.disconnectDeadlineAt[side] = 0;
   match.disconnectReason[side] = "";
   scheduleCombatIdleWatch(match, side);
-  if (hadGrace) emitDuel(match);
+  if (hadGrace || growAllowance) emitDuel(match);
 }
 
 function finishDisconnectGrace(matchId, side, deadline) {
@@ -928,6 +945,7 @@ function resumeCombatForUser(socket, user) {
     match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
     match.disconnectReason = match.disconnectReason || { a: "", b: "" };
     match.lastActivityAt = match.lastActivityAt || { a: Date.now(), b: Date.now() };
+    match.idleAllowanceMs = match.idleAllowanceMs || { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS };
     const deadline = Number(match.disconnectDeadlineAt[side]) || 0;
     if (deadline && deadline <= Date.now()) {
       finishDisconnectGrace(match.id, side, deadline);
@@ -1071,6 +1089,7 @@ io.on("connection", socket => {
       disconnectDeadlineAt: { a: 0, b: 0 },
       disconnectReason: { a: "", b: "" },
       lastActivityAt: { a: 0, b: 0 },
+      idleAllowanceMs: { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS },
       duel: null,
       createdAt: Date.now()
     };
@@ -1121,6 +1140,7 @@ io.on("connection", socket => {
     match.disconnectReason = { a: "", b: "" };
     const combatStartedAt = Date.now();
     match.lastActivityAt = { a: combatStartedAt, b: combatStartedAt };
+    match.idleAllowanceMs = { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS };
     socket.join(mid);
     initDuel(match);
     scheduleCombatIdleWatch(match, "a");
@@ -1144,7 +1164,7 @@ io.on("connection", socket => {
     const match = matches.get(mid);
     if (!match) return;
     const side = sideFor(match, socket.id);
-    if (side) markCombatActivity(match, side);
+    if (side) markCombatActivity(match, side, true);
     handleDuelAction(match, socket.id, payload);
   });
 
