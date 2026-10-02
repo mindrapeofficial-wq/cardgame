@@ -457,7 +457,7 @@ function renderManual(){
             <div><b>3. Poder</b><span>Puedes bajar como máximo <b>1 carta de Poder por turno</b>. Los Poderes en campo generan automáticamente sus puntos, hasta un máximo de <b>200</b>.</span></div>
             <div><b>4. Invocación</b><span>Invocas criaturas pagando su coste de Poder.</span></div>
             <div><b>5. Habilidades</b><span>Juegas hechizos o habilidades que puedas pagar.</span></div>
-            <div><b>6. Ataque</b><span>Seleccionas las criaturas que atacan. Al atacar se giran y no pueden defender hasta tu próximo turno.</span></div>
+            <div><b>6. Ataque</b><span>Tocas una criatura para atacar: se gira inmediatamente y declara un único ataque. El rival toca una sola carta para defender y también se gira. Cada combate se resuelve antes de poder declarar el siguiente.</span></div>
           </div>
           <p>Cuando una fase no contiene ninguna acción posible para el jugador, el juego pasa automáticamente a la siguiente. Esto evita turnos muertos y acelera el ritmo de la partida.</p>
         </div>
@@ -480,8 +480,8 @@ function renderManual(){
         <div class="manual-body">
           <ul>
             <li>Las criaturas no pueden atacar el turno en que son invocadas, salvo las de tipo <b>Berserker</b>.</li>
-            <li>El atacante elige la criatura rival objetivo. Si deja de estar disponible, el ataque pasa a la siguiente criatura rival que aún pueda defender; si no queda ninguna, impacta directamente en los PV.</li>
-            <li>Atacar <b>gira</b> la criatura atacante y defender también gira a la defensora. Una criatura normal solo ataca o defiende una vez por turno.</li>
+            <li>Los ataques se declaran de uno en uno. El atacante toca una criatura preparada y esta se gira inmediatamente. El defensor responde tocando una sola criatura preparada, que también se gira. No pueden acumularse varios atacantes ni varios defensores pendientes al mismo tiempo.</li>
+            <li>Tras resolver ese combate, el jugador atacante puede tocar otra criatura para iniciar un nuevo ataque o pasar directamente su turno. Una criatura normal solo ataca o defiende una vez por turno.</li>
             <li>El combate es <b>simultáneo</b>: el ATQ de cada criatura reduce la DEF de la otra y ese daño de DEF se conserva entre combates.</li>
             <li>Si el ATQ atacante supera la DEF restante de la defensora, el exceso se descuenta de los PV del jugador defensor.</li>
             <li>Las criaturas con DEF igual o inferior a 0 son destruidas.</li>
@@ -1309,7 +1309,7 @@ function applyOnlineSnapshot(s){
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
     playerBoard,enemyBoard,
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
-    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:false,attackDeclared:false,blockAssignments:{},attackTargets:previous?.attackTargets||{},
+    gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,pendingAttack:s.pendingAttack||null,blockAssignments:{},attackTargets:{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
   };
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
@@ -1369,29 +1369,45 @@ function battleCards(list,zone){
   }).join("");
 }
 function duelCardClickable(c,zone){
-  const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing))return false;
-  if(d.online&&!d.myTurn)return false;
+  const d=state.duel;if(!d||d.gameOver)return false;
   const powerPlayed=d.online?d.powerPlayed:d.playerPowerPlayed;
-  if(zone==="hand")return(d.phase===2&&c.powerCard&&!powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
-  if(zone==="player")return d.phase===5&&cardCanAttackUi(d,c);
+  if(zone==="hand"){
+    if((d.online&&!d.myTurn)||(!d.online&&d.aiActing))return false;
+    return(d.phase===2&&c.powerCard&&!powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
+  }
+  if(zone==="player"){
+    if(d.phase!==5)return false;
+    if(d.defending)return localCanDefend(c);
+    if(d.online&&!d.myTurn)return false;
+    if(!d.online&&d.aiActing)return false;
+    return !d.attackDeclared&&!d.pendingAttack&&cardCanAttackUi(d,c);
+  }
   return false;
 }
-function renderAttackTargets(d){
-  const attackers=(d.playerBoard||[]).filter(c=>c.selected&&cardCanAttackUi(d,c));
-  if(!attackers.length)return'<div class="turn-wait" style="margin-bottom:8px">Selecciona las criaturas que atacarán.</div>';
-  const defenders=(d.enemyBoard||[]).filter(c=>!c.exhausted);
-  return `<div style="width:100%;margin-bottom:8px"><div class="turn-wait" style="margin-bottom:6px">Elige el objetivo de cada atacante.</div>
-    <div class="grid" style="gap:6px">${attackers.map(a=>{
-      const chosen=d.attackTargets?.[a.uid]||defenders[0]?.uid||"";
-      return `<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-attack-target="${a.uid}" ${defenders.length?"":"disabled"}>${defenders.length?defenders.map(t=>`<option value="${t.uid}" ${chosen===t.uid?"selected":""}>${esc(t.name)} · DEF ${currentDef(t)}</option>`).join(""):'<option value="">Ataque directo</option>'}</select></label>`;
-    }).join("")}</div></div>`;
+function renderCombatPrompt(d){
+  if(d.phase!==5)return"";
+  if(d.defending){
+    const name=esc(d.pendingAttack?.attackerName||"la criatura rival");
+    return '<div class="turn-wait" style="margin-bottom:8px">Te atacan con <b>'+name+'</b>. Toca una sola carta enderezada para defender. Al tocarla se girará y la defensa quedará declarada.</div>';
+  }
+  if(d.attackDeclared){
+    const name=esc(d.pendingAttack?.attackerName||"tu criatura");
+    return '<div class="turn-wait" style="margin-bottom:8px"><b>'+name+'</b> ya está atacando. Esperando a que el rival elija una carta para defender…</div>';
+  }
+  return '<div class="turn-wait" style="margin-bottom:8px">Toca una criatura para atacar. Se girará al instante y ese ataque se resolverá antes de poder declarar otro. También puedes pasar tu turno.</div>';
 }
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
+  const prompt=d.phase===5?renderCombatPrompt(d):"";
+  if(d.defending){
+    return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button></div></div>`;
+  }
   if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}…</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
-  const targets=d.phase===5?renderAttackTargets(d):"";
-  return`<div style="width:100%">${targets}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Resolver ataque":"Siguiente fase"}</button></div></div>`;
+  if(d.attackDeclared){
+    return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button></div></div>`;
+  }
+  return`<div style="width:100%">${prompt}<div class="actions"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
 }
 
 function training(){
@@ -1421,7 +1437,7 @@ function training(){
   const startedAt=Date.now();
   const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",pendingAttack:null,defending:false,attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
     gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
     log:["Entrenamiento iniciado. El jugador inicial se decide al azar."]};
   state.duel=d;
@@ -1471,18 +1487,74 @@ function resolveLocalAbility(c,side){
 function localCanAttack(d,c){
   return !!(c&&!c.exhausted&&(Number(c.atk)||0)>0&&(c.summonedTurn!==d.turn||c.berserker));
 }
-function localCanDefend(c){return !!(c&&!c.exhausted)}
-function toggleLocalAttack(uid){
-  const d=state.duel,c=d?.playerBoard?.find(x=>x.uid===uid);
-  if(c&&localCanAttack(d,c)){
-    c.selected=!c.selected;
-    d.attackTargets=d.attackTargets||{};
-    if(!c.selected)delete d.attackTargets[c.uid];
-    renderView();
+function localCanDefend(c){return !!(c&&(!c.exhausted||c.defender))}
+function resolveLocalSingleAttack(side,attacker,defender){
+  const d=state.duel,foe=side==="player"?"enemy":"player";
+  const liveAttacker=d?.[side+"Board"]?.find(x=>x.uid===attacker?.uid);
+  if(!d||!liveAttacker)return false;
+  const aAtk=Math.max(0,Number(liveAttacker.atk)||0);
+  if(!defender){
+    d[foe+"Hp"]-=aAtk;if(side==="player")d.damageDealt+=aAtk;
+    d.log.push(liveAttacker.name+" ataca directamente y causa "+aAtk+" PV.");playSound("hit");
+    return true;
   }
+  const liveDefender=d[foe+"Board"].find(x=>x.uid===defender.uid);
+  if(!liveDefender||!localCanDefend(liveDefender))return false;
+  const bDef=currentDef(liveDefender),bAtk=Math.max(0,Number(liveDefender.atk)||0);
+  liveDefender.exhausted=true;liveDefender.defensesThisTurn=(liveDefender.defensesThisTurn||0)+1;
+  liveDefender.damage=(liveDefender.damage||0)+aAtk;liveAttacker.damage=(liveAttacker.damage||0)+bAtk;
+  const overflow=Math.max(0,aAtk-bDef);
+  if(overflow){d[foe+"Hp"]-=overflow;if(side==="player")d.damageDealt+=overflow}
+  d.log.push(liveAttacker.name+" ("+aAtk+" ATQ) combate con "+liveDefender.name+" ("+bAtk+" ATQ / "+bDef+" DEF)."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
+  if(currentDef(liveDefender)<=0){d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==liveDefender.uid);d.log.push(liveDefender.name+" es destruida.")}
+  if(currentDef(liveAttacker)<=0){d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);d.log.push(liveAttacker.name+" es destruida por el contraataque.")}
+  return true;
 }
+function declareLocalAttack(uid){
+  const d=state.duel,c=d?.playerBoard?.find(x=>x.uid===uid);
+  if(!d||d.aiActing||d.defending||d.pendingAttack||d.phase!==5||!c||!localCanAttack(d,c))return;
+  c.exhausted=true;c.attacksThisTurn=(c.attacksThisTurn||0)+1;c.selected=false;
+  d.log.push(c.name+" declara un ataque.");
+  const available=d.enemyBoard.filter(localCanDefend);
+  const defender=chooseAiBlock(c,available,d.enemyHp)||available[0]||null;
+  resolveLocalSingleAttack("player",c,defender);
+  if(checkLocalEnd())return renderView();
+  advanceLocalAutomaticPhases();
+  renderView();
+}
+function declareLocalEnemyAttack(attacker){
+  const d=state.duel;
+  if(!d||!attacker||!localCanAttack(d,attacker))return Promise.resolve();
+  attacker.exhausted=true;attacker.attacksThisTurn=(attacker.attacksThisTurn||0)+1;attacker.selected=false;
+  d.pendingAttack={side:"enemy",attackerUid:attacker.uid,attackerName:attacker.name};
+  d.log.push("El Guardián ataca con "+attacker.name+".");
+  const defenders=d.playerBoard.filter(localCanDefend);
+  if(!defenders.length){
+    resolveLocalSingleAttack("enemy",attacker,null);
+    d.pendingAttack=null;
+    renderView();
+    return Promise.resolve();
+  }
+  d.defending=true;
+  d.aiMessage="Elige una carta para defender";
+  renderView();
+  return new Promise(resolve=>{d._defenseResolver=resolve});
+}
+function localDefend(uid){
+  const d=state.duel;
+  if(!d||!d.defending||!d.pendingAttack||d.pendingAttack.side!=="enemy")return;
+  const defender=d.playerBoard.find(x=>x.uid===uid);
+  if(!defender||!localCanDefend(defender))return;
+  const attacker=d.enemyBoard.find(x=>x.uid===d.pendingAttack.attackerUid);
+  if(attacker)resolveLocalSingleAttack("enemy",attacker,defender);
+  d.pendingAttack=null;d.defending=false;d.aiActing=true;d.aiMessage="El Guardián continúa su ataque";
+  const resume=d._defenseResolver;d._defenseResolver=null;
+  renderView();
+  if(resume)resume();
+}
+
 function localPhaseHasAction(d){
-  if(!d||d.gameOver||d.aiActing)return false;
+  if(!d||d.gameOver||d.aiActing||d.pendingAttack)return false;
   if(d.phase===2)return !d.playerPowerPlayed&&d.playerHand.some(c=>c.powerCard);
   if(d.phase===3)return d.playerHand.some(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.power);
   if(d.phase===4)return d.playerHand.some(c=>c.abilityCard&&c.cost<=d.power);
@@ -1526,38 +1598,9 @@ function localHighestLevelAttack(d,side){
 function localScore(d,side){
   return Math.max(0,Number(d[side+"Hp"])||0)+(d[side+"Board"]||[]).length+(d[side+"Powers"]||[]).length+(d[side+"Deck"]||[]).length+localHighestLevelAttack(d,side);
 }
-function resolveLocalTargetedAttack(side,targets={}){
-  const d=state.duel,foe=side==="player"?"enemy":"player";
-  const attackers=(d[side+"Board"]||[]).filter(c=>c.selected&&localCanAttack(d,c));
-  for(const a of attackers){
-    const liveAttacker=d[side+"Board"].find(c=>c.uid===a.uid);if(!liveAttacker)continue;
-    liveAttacker.exhausted=true;liveAttacker.attacksThisTurn=(liveAttacker.attacksThisTurn||0)+1;liveAttacker.selected=false;
-    const available=d[foe+"Board"].filter(localCanDefend);
-    const wanted=targets?.[liveAttacker.uid];
-    const b=(wanted&&available.find(x=>x.uid===wanted))||available[0]||null;
-    if(!b){
-      const dealt=Math.max(0,Number(liveAttacker.atk)||0);
-      d[foe+"Hp"]-=dealt;if(side==="player")d.damageDealt+=dealt;
-      d.log.push(liveAttacker.name+" ataca directamente y causa "+dealt+" PV.");playSound("hit");
-      continue;
-    }
-    const aDef=currentDef(liveAttacker),bDef=currentDef(b),aAtk=Math.max(0,Number(liveAttacker.atk)||0),bAtk=Math.max(0,Number(b.atk)||0);
-    b.exhausted=true;b.defensesThisTurn=(b.defensesThisTurn||0)+1;
-    b.damage=(b.damage||0)+aAtk;liveAttacker.damage=(liveAttacker.damage||0)+bAtk;
-    const overflow=Math.max(0,aAtk-bDef);
-    if(overflow){d[foe+"Hp"]-=overflow;if(side==="player")d.damageDealt+=overflow}
-    d.log.push(liveAttacker.name+" ("+aAtk+" ATQ) combate con "+b.name+" ("+bAtk+" ATQ / "+bDef+" DEF)."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
-    if(currentDef(b)<=0){d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==b.uid);d.log.push(b.name+" es destruida.")}
-    if(currentDef(liveAttacker)<=0){d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);d.log.push(liveAttacker.name+" es destruida por el contraataque.")}
-    if(d[foe+"Hp"]<=0)break;
-  }
-  d.attackTargets={};
-}
 function nextLocalPhase(){
-  const d=state.duel;if(d.gameOver||d.aiActing)return;
+  const d=state.duel;if(!d||d.gameOver||d.aiActing||d.defending||d.pendingAttack)return;
   if(d.phase===5){
-    resolveLocalTargetedAttack("player",d.attackTargets||{});
-    if(checkLocalEnd())return renderView();
     startLocalEnemyTurn(d);
     return;
   }
@@ -1743,15 +1786,14 @@ async function runEnemyTurn(d){
     d.phase=5;
     d.aiMessage="Fase de ataque";
     const attackers=aiChooseAttackers(d);
-    d.enemyBoard.forEach(c=>c.selected=attackers.some(a=>a.uid===c.uid));
     if(attackers.length){
-      const targets=aiAttackTargets(d,attackers);
-      d.log.push("El Guardián declara ataque con "+attackers.length+" criatura(s).");
-      renderView();
-      await aiPause(450);if(!aiStillActive(d))return;
-      resolveLocalTargetedAttack("enemy",targets);
-      renderView();
-      if(checkLocalEnd())return;
+      for(const attacker of attackers){
+        if(!aiStillActive(d)||!localCanAttack(d,attacker))continue;
+        await declareLocalEnemyAttack(attacker);
+        if(!aiStillActive(d))return;
+        if(checkLocalEnd())return;
+        await aiPause(350);
+      }
     }else{
       d.log.push("El Guardián decide no atacar este turno.");
       renderView();
@@ -1829,20 +1871,28 @@ function checkLocalEnd(forceScore=false){
 }
 
 function duelCard(zone,uid){
-  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;
+  const d=state.duel;if(!d)return;
   if(d.online){
-    if(!d.myTurn)return;
-    if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});
-    else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});
+    if(zone==="hand"){
+      if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});
+    }else if(zone==="player"){
+      if(d.defending)state.socket.emit("duel:action",{matchId:d.matchId,type:"defend",uid});
+      else if(d.myTurn&&!d.attackDeclared)state.socket.emit("duel:action",{matchId:d.matchId,type:"attack",uid});
+    }
     return;
   }
-  if(zone==="hand")localPlay(uid);else if(zone==="player")toggleLocalAttack(uid);
+  if(zone==="hand"){
+    if(!d.aiActing)localPlay(uid);
+  }else if(zone==="player"){
+    if(d.defending)localDefend(uid);
+    else if(!d.aiActing)declareLocalAttack(uid);
+  }
 }
 function nextPhase(){
-  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;
+  const d=state.duel;if(!d)return;
   if(d.online){
-    if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase",targets:d.attackTargets||{}});
-  }else nextLocalPhase();
+    if(d.myTurn&&!d.attackDeclared&&!d.pendingAttack)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase"});
+  }else if(!d.aiActing&&!d.defending&&!d.pendingAttack)nextLocalPhase();
 }
 function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
 function leaveDuel(){state.duel=null;go("home")}
@@ -1905,13 +1955,6 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
-  else if(e.target.matches("[data-attack-target]")){
-    const d=state.duel,attackerUid=e.target.dataset.attackTarget,targetUid=e.target.value||"";
-    if(d){
-      d.attackTargets=d.attackTargets||{};
-      if(targetUid)d.attackTargets[attackerUid]=targetUid;else delete d.attackTargets[attackerUid];
-    }
-  }
 });
 document.addEventListener("submit",e=>{
   if(e.target.id==="loginForm"){e.preventDefault();authenticateForm()}
