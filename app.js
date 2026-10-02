@@ -1419,16 +1419,20 @@ function renderDuel(){
   </div>`;
 }
 function duelMatchActions(d){
-  if(!d?.online||d.gameOver)return"";
+  if(!d||d.gameOver)return"";
+  const surrender=`<button class="btn small danger" data-action="concede" aria-label="Rendirse de la partida">Rendirse</button>`;
+  if(!d.online){
+    return `<div class="duel-match-actions">${surrender}<div class="duel-draw-actions"><div class="draw-offer-copy"><b>Tablas</b><span>Solo disponibles en partidas contra otro jugador.</span></div><button class="btn small" disabled title="Las tablas solo están disponibles en partidas online">Pedir tablas</button></div></div>`;
+  }
   let drawArea="";
   if(d.drawOfferIncoming){
-    drawArea=`<div class="draw-offer-copy"><b>${esc(d.opponent||"El rival")} ofrece tablas</b><span>Si aceptas, la partida termina en empate.</span></div><div class="draw-offer-response"><button class="btn small" data-action="rejectDraw">Rechazar</button><button class="btn small primary" data-action="acceptDraw">Aceptar tablas</button></div>`;
+    drawArea=`<div class="draw-offer-copy"><b>${esc(d.opponent||"El rival")} pide tablas</b><span>Si aceptas, la partida termina en empate.</span></div><div class="draw-offer-response"><button class="btn small" data-action="rejectDraw">Rechazar</button><button class="btn small primary" data-action="acceptDraw">Aceptar tablas</button></div>`;
   }else if(d.drawOfferOutgoing){
-    drawArea=`<div class="draw-offer-copy"><b>Tablas ofrecidas</b><span>Esperando la respuesta de ${esc(d.opponent||"tu rival")}.</span></div><button class="btn small" disabled>Oferta pendiente</button>`;
+    drawArea=`<div class="draw-offer-copy"><b>Tablas solicitadas</b><span>Esperando la respuesta de ${esc(d.opponent||"tu rival")}.</span></div><button class="btn small" disabled>Solicitud pendiente</button>`;
   }else{
-    drawArea=`<div class="draw-offer-copy"><b>Empate por acuerdo</b><span>Puedes proponer tablas en cualquier momento.</span></div><button class="btn small" data-action="offerDraw">Ofrecer tablas</button>`;
+    drawArea=`<div class="draw-offer-copy"><b>Empate por acuerdo</b><span>Puedes pedir tablas en cualquier momento.</span></div><button class="btn small" data-action="offerDraw" aria-label="Pedir tablas">Pedir tablas</button>`;
   }
-  return `<div class="duel-match-actions"><button class="btn small danger" data-action="concede">Rendirse</button><div class="duel-draw-actions">${drawArea}</div></div>`;
+  return `<div class="duel-match-actions">${surrender}<div class="duel-draw-actions">${drawArea}</div></div>`;
 }
 
 function hiddenCardBacks(count){
@@ -2027,8 +2031,23 @@ function passDefense(){
     if(state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"passDefense"});
   }else localPassDefense();
 }
-function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
-function offerDraw(){const d=state.duel;if(d?.online&&state.connected&&!d.gameOver&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"})}
+function concede(){
+  const d=state.duel;if(!d||d.gameOver)return;
+  if(!confirm("¿Seguro que quieres rendirte? La partida contará como derrota."))return;
+  if(d.online){
+    if(!state.connected){toast("No hay conexión con el servidor. No se ha enviado la rendición.","bad");return}
+    state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"});
+    return;
+  }
+  finalizeLocalResult(d,"loss","Te has rendido. El Guardián gana la partida.");
+  checkLocalEnd();
+  renderView();
+}
+function offerDraw(){
+  const d=state.duel;if(!d||d.gameOver)return;
+  if(!d.online){toast("Las tablas solo pueden pedirse en partidas contra otro jugador.");return}
+  if(state.connected&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"});
+}
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
 function leaveDuel(){state.duel=null;go("home")}
 
