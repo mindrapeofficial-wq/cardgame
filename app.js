@@ -562,7 +562,7 @@ function updateDuelFullscreenCountdown(){
 
 function updateChrome(){
   if(!state.profile)return;
-  $("playerName").textContent=state.profile.name;$("playerAvatar").textContent=initial(state.profile.name);
+  $("playerName").textContent=state.profile.name;$("playerAvatar").textContent=initial(state.profile.name);$("playerAvatar").title=state.profile.name+" · Nivel "+playerLevel();
   $("playerMeta").textContent="Nv "+playerLevel()+" · "+state.profile.xp+"/"+(state.profile.xpRequired||"MAX")+" XP";
   $("coins").textContent=state.profile.coins;
   const fill=$("playerXpFill");if(fill)fill.style.width=xpPercent()+"%";
@@ -2551,6 +2551,19 @@ document.addEventListener("submit",e=>{
   }
 });
 $("logoutBtn")?.addEventListener("click",logout);
+
+// Floating player card (desktop): can be minimized to the avatar; the choice is remembered per browser.
+const PLAYER_CARD_KEY="arcanum.playerCard.collapsed";
+function setPlayerCardCollapsed(collapsed){
+  const chip=document.querySelector(".player-chip"),btn=$("playerCardToggle");if(!chip)return;
+  chip.classList.toggle("collapsed",collapsed);
+  if(btn)btn.setAttribute("aria-expanded",String(!collapsed));
+  $("playerAvatar")?.setAttribute("aria-label",collapsed?"Mostrar ficha del jugador":"");
+  try{localStorage.setItem(PLAYER_CARD_KEY,collapsed?"1":"0")}catch{}
+}
+$("playerCardToggle")?.addEventListener("click",()=>setPlayerCardCollapsed(true));
+$("playerAvatar")?.addEventListener("click",()=>{if(document.querySelector(".player-chip.collapsed"))setPlayerCardCollapsed(false)});
+try{setPlayerCardCollapsed(localStorage.getItem(PLAYER_CARD_KEY)==="1")}catch{}
 
 document.addEventListener("keydown",e=>{
   if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
