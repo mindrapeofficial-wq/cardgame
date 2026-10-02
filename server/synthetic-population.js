@@ -216,8 +216,10 @@ class SyntheticAgent {
       const card = candidates.splice(clamp(weightedIndex, 0, candidates.length - 1), 1)[0];
       if (card) deck.push(card.id);
     }
-    while (deck.length < targetSize && pool.length) deck.push(pool.shift().id);
 
+    // Do not pad from the original pool here. The candidate array is a copy,
+    // so doing that would count already-selected physical copies twice.
+    // Returning a short deck makes prepareEconomy buy another pack instead.
     return deck.slice(0, targetSize);
   }
 
@@ -711,6 +713,7 @@ class SyntheticPopulation {
   }
 
   noteError(message) {
+    console.warn("[synthetic]", String(message).slice(0, 300));
     this.errors.push({ at: Date.now(), message: String(message).slice(0, 300) });
     if (this.errors.length > 40) this.errors.shift();
   }
