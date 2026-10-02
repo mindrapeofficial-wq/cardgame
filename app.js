@@ -242,7 +242,9 @@ function enterGame(){
 async function logout(){
   if(sessionToken)void api("logout",{},true);
   if(state.socket){state.socket.disconnect();state.socket=null}
-  state.connected=false;state.duel=null;state.trade=freshTrade();state.profile=null;
+  state.connected=false;state.connecting=false;state.duel=null;state.trade=freshTrade();state.profile=null;
+  state.users=[];state.matches=[];state.chat=[];state.savedDecks=[];state.activeDeckId=null;state.deckName="";
+  state.lastPack=[];state.packLevel=null;state.packOdds=[];state.ranking=[];state.myRank=null;state.marketListings=[];
   sessionToken="";localStorage.removeItem(SESSION_KEY);localStorage.removeItem(PROFILE_CACHE_KEY);
   showAuth();
 }
@@ -295,11 +297,12 @@ async function boot(){
   if(sessionToken){
     const result=await api("me",{},true);
     if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
-    if(result.network){
+    const sessionRejected=result.status===401||result.error==="unauthorized";
+    if(!sessionRejected){
       const cached=cachedProfile();
       if(cached){state.offlineSession=true;applyProfile(cached);enterGame();toast("Sin conexión: progreso cargado en modo offline.","bad");return}
     }
-    sessionToken="";localStorage.removeItem(SESSION_KEY);
+    if(sessionRejected){sessionToken="";localStorage.removeItem(SESSION_KEY)}
   }
   showAuth();
 }
@@ -369,7 +372,9 @@ function uniqueOwned(){return Object.keys(state.profile?.collection||{}).filter(
 function go(view){
   if(view==="duel"&&!state.duel)return;
   if(state.view==="duel"&&state.duel&&!state.duel.gameOver&&view!=="duel"){
-    toast("Durante el combate no puedes navegar a otras secciones. Si cierras o recargas la página tendrás 2 minutos para volver.","bad");
+    toast(state.duel.online
+      ?"Durante el combate no puedes navegar a otras secciones. Si cierras o recargas la página tendrás 2 minutos para volver."
+      :"Termina o abandona el entrenamiento antes de salir del tablero.","bad");
     return;
   }
   closeModal();
@@ -380,10 +385,25 @@ function go(view){
   if(view==="trade")void loadMarketListings();
   window.scrollTo({top:0,behavior:"smooth"});
 }
+const PRESERVED_FIELDS=["chatInput","marketCard","marketPrice","marketWanted"];
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
   const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
+  const active=document.activeElement&&root.contains(document.activeElement)&&document.activeElement.id?document.activeElement:null;
+  const focusId=active?.id||"";
+  let selStart=null,selEnd=null;try{selStart=active?.selectionStart;selEnd=active?.selectionEnd}catch{}
+  const kept={};
+  for(const id of PRESERVED_FIELDS){const el=$(id);if(el&&root.contains(el))kept[id]=el.value}
   root.innerHTML=(renderers[state.view]||renderHome)();
+  for(const [id,value] of Object.entries(kept)){
+    const el=$(id);if(!el)continue;
+    if(el.tagName==="SELECT"&&![...el.options].some(o=>o.value===value))continue;
+    el.value=value;
+  }
+  if(focusId){
+    const el=$(focusId);
+    if(el&&root.contains(el)){el.focus({preventScroll:true});try{if(selStart!=null)el.setSelectionRange(selStart,selEnd)}catch{}}
+  }
 }
 
 function pageHead(kicker,title,desc,actions=""){
@@ -1114,6 +1134,7 @@ async function publishMarketListing(){
   const r=await api("market_publish",payload,true);
   if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
   applyProfile(r.profile);
+  for(const id of ["marketCard","marketPrice","marketWanted"]){const el=$(id);if(el)el.value=""}
   toast(kind==="gold"?"Anuncio de venta publicado.":"Anuncio de intercambio publicado.","good");
   await loadMarketListings(true);
 }
@@ -1240,11 +1261,11 @@ function renderProfile(){
 
 function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c),basic=isBasicPower(c),locked=c.level>playerLevel(),free=freeCopies(c.id);
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" onclick="event.stopPropagation()"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
 }
 
 function openMobileMenu(){
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" style="max-width:420px" onclick="event.stopPropagation()"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-action="closeModal"><div class="modal" style="max-width:420px"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
     <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
@@ -1271,7 +1292,9 @@ function connectOnline(){
     socket.on("auth:error",async m=>{
       state.connected=false;state.connecting=false;toast(m?.message||"La sesión online no es válida.","bad");
       const refreshed=await api("me",{},true);
-      if(!refreshed.ok&&refreshed.status===401)logout();
+      if(!refreshed.ok&&refreshed.status===401){logout();return}
+      // Transient failure: the server closed the socket, so reconnect manually.
+      setTimeout(()=>{if(state.socket===socket&&!socket.connected)socket.connect()},5000);
     });
     socket.on("disconnect",()=>{state.connected=false;updateChrome();if(state.view!=="duel")renderView()});
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
@@ -1296,7 +1319,9 @@ function connectOnline(){
       updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
     socket.on("trade:invited",m=>{
-      state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";go("trade");
+      state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";
+      if(state.view==="duel"&&state.duel&&!state.duel.gameOver)toast(state.trade.partnerName+" quiere intercambiar contigo. Abre Intercambios al terminar el combate.");
+      else go("trade");
     });
     socket.on("trade:waiting",m=>{state.trade.onlineId=m.tradeId;state.trade.partnerId=m.to;state.trade.status="Solicitud aceptada por el servidor. Enviando oferta…";socket.emit("trade:offer",{tradeId:m.tradeId,cards:state.trade.mine.slice(),gold:state.trade.ownGold||0});if(state.view==="trade")renderView()});
     socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
@@ -1419,7 +1444,8 @@ function renderDuel(){
   </div>`;
 }
 function duelMatchActions(d){
-  if(!d?.online||d.gameOver)return"";
+  if(!d||d.gameOver)return"";
+  if(!d.online)return`<div class="duel-match-actions"><button class="btn small danger" data-action="abandonTraining">Abandonar entrenamiento</button></div>`;
   let drawArea="";
   if(d.drawOfferIncoming){
     drawArea=`<div class="draw-offer-copy"><b>${esc(d.opponent||"El rival")} ofrece tablas</b><span>Si aceptas, la partida termina en empate.</span></div><div class="draw-offer-response"><button class="btn small" data-action="rejectDraw">Rechazar</button><button class="btn small primary" data-action="acceptDraw">Aceptar tablas</button></div>`;
@@ -1570,7 +1596,8 @@ function resolveLocalAbility(c,side){
   else if(n.startsWith("veneno")){d[foe+"Hp"]-=3;if(side==="player")d.damageDealt+=3;d.log.push(c.name+": 3 PV de daño.")}
   else if(n.startsWith("drenador")){d[foe+"Hp"]-=2;if(side==="player")d.damageDealt+=2;d[side+"Hp"]+=2;d.log.push(c.name+": drena 2 PV.")}
   else if(n.startsWith("poder mental")){drawLocal(side,1);d.log.push(c.name+": carta adicional.")}
-  else if(n.startsWith("poderador")){d[side==="player"?"power":"enemyPower"]=Math.min(d[side==="player"?"maxPower":"enemyMaxPower"],d[side==="player"?"power":"enemyPower"]+2)}
+  else if(n.startsWith("poderador")){d[side==="player"?"power":"enemyPower"]=Math.min(d[side==="player"?"maxPower":"enemyMaxPower"],d[side==="player"?"power":"enemyPower"]+2);d.log.push(c.name+": recupera poder.")}
+  else if(n.startsWith("escudal")||n.startsWith("barrera mistica")){const target=d[side+"Board"][0];if(target)target.defBonus=(Number(target.defBonus)||0)+3;d.log.push(c.name+": refuerza una criatura.")}
   else{drawLocal(side,1);d.log.push(c.name+" se resuelve.")}
   checkLocalEnd();
 }
@@ -1754,7 +1781,7 @@ function aiAbilityScore(c,d){
 }
 function chooseAiBlock(attacker,defenders,hp){
   if(!attacker||!defenders.length)return null;
-  const survivors=defenders.filter(c=>(Number(c.def)||0)>(Number(attacker.atk)||0)).sort((a,b)=>aiUnitValue(a)-aiUnitValue(b));
+  const survivors=defenders.filter(c=>currentDef(c)>(Number(attacker.atk)||0)).sort((a,b)=>aiUnitValue(a)-aiUnitValue(b));
   if(survivors.length)return survivors[0];
   const expendable=[...defenders].sort((a,b)=>aiUnitValue(a)-aiUnitValue(b));
   const cheapest=expendable[0];
@@ -2015,12 +2042,24 @@ function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket
 function offerDraw(){const d=state.duel;if(d?.online&&state.connected&&!d.gameOver&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"})}
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming)state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}
 function leaveDuel(){state.duel=null;go("home")}
+function abandonTraining(){
+  const d=state.duel;if(!d||d.online||d.gameOver)return;
+  if(!confirm("¿Abandonar el entrenamiento? Contará como derrota y no recibirás recompensa."))return;
+  // No reward is requested for an abandoned training session.
+  d.resultApplied=true;
+  finalizeLocalResult(d,"loss","Has abandonado el entrenamiento.");
+  const resume=d._defenseResolver;d._defenseResolver=null;d.defending=false;d.pendingAttack=null;d.aiActing=false;
+  if(resume)resume();
+  renderView();
+}
 
 document.addEventListener("click",e=>{
   const authTab=e.target.closest("[data-auth-mode]");
   if(authTab){setAuthMode(authTab.dataset.authMode);return}
   const el=e.target.closest("[data-action]");if(!el)return;
   const a=el.dataset.action;
+  // Clicks inside a modal bubble up to its backdrop; only a click on the backdrop itself closes it.
+  if(a==="closeModal"&&el.classList.contains("modal-backdrop")&&e.target!==el)return;
   if(a!=="cardDetail")playSound("click");
   if(a==="nav")go(el.dataset.view);
   else if(a==="mobileMenu")openMobileMenu();
@@ -2059,6 +2098,7 @@ document.addEventListener("click",e=>{
   else if(a==="rejectDraw")respondDraw(false);
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
+  else if(a==="abandonTraining")abandonTraining();
   else if(a==="refreshRanking")void loadRanking();
   else if(a==="logout")logout();
 });
@@ -2069,6 +2109,8 @@ document.addEventListener("input",e=>{
     requestAnimationFrame(()=>{const n=$("collectionSearch");if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch{}}});
   } else if(e.target.id==="deckNameInput"){
     state.deckName=e.target.value;
+  } else if(e.target.id==="tradeGold"){
+    state.trade.ownGold=clamp(Math.floor(Number(e.target.value)||0),0,state.profile?.coins||0);
   }
 });
 document.addEventListener("change",e=>{
@@ -2077,11 +2119,12 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
+  else if(e.target.id==="tradePartner"){state.trade.partnerId=e.target.value}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
 });
 document.addEventListener("submit",e=>{
   if(e.target.id==="loginForm"){e.preventDefault();authenticateForm()}
-  if(e.target.id==="chatForm"){e.preventDefault();const input=$("chatInput"),text=input?.value.trim();if(!text)return;if(state.connected)state.socket.emit("chat:send",{text});else{state.chat.push({from:state.profile.name,text});renderView()}}
+  if(e.target.id==="chatForm"){e.preventDefault();const input=$("chatInput"),text=input?.value.trim();if(!text)return;input.value="";if(state.connected)state.socket.emit("chat:send",{text});else{state.chat.push({from:state.profile.name,text});renderView()}}
 });
 $("logoutBtn")?.addEventListener("click",logout);
 

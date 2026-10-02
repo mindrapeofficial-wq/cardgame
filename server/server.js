@@ -10,6 +10,7 @@ const { Server } = require("socket.io");
 const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
 const ROLPLAY_API_URL = process.env.ROLPLAY_API_URL || "https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
+const SERVER_VERSION = "0.7.1";
 
 const LEVEL1_COMBAT_STATS = Object.freeze({
   "Duende": { atk: 1, def: 1 },
@@ -339,6 +340,7 @@ function phaseHasAction(game, side) {
 function advanceAutomaticPhases(game) {
   let guard = 0;
   while (game && !game.gameOver && !game.pendingAttack && guard++ < 128) {
+    if (checkEnd(game)) return;
     const side = game.active;
     if (phaseHasAction(game, side)) return;
 
@@ -603,7 +605,13 @@ async function settleMatchReward(match) {
   const game = match.duel;
   if (!game || !game.gameOver || game.rewardSettled) return;
   const result = await settleMatchProfiles(match);
-  if (!result) return;
+  if (!result) {
+    // The accounts API may be briefly unavailable: retry a few times so the
+    // rewards of a finished match are not silently lost.
+    game.rewardAttempts = (game.rewardAttempts || 0) + 1;
+    if (game.rewardAttempts < 4) setTimeout(() => void settleMatchReward(match), 5000 * game.rewardAttempts);
+    return;
+  }
 
   const aUser = users.get(match.hostSocketId);
   const bUser = users.get(match.guestSocketId);
@@ -635,8 +643,34 @@ async function settleMatchReward(match) {
   }
   emitUsers();
 }
+const FINISHED_MATCH_TTL_MS = 10 * 60 * 1000;
+function markMatchFinished(match) {
+  if (!match.duel || !match.duel.gameOver) return;
+  let statusChanged = false;
+  for (const sid of [match.hostSocketId, match.guestSocketId]) {
+    const u = sid && users.get(sid);
+    if (u && u.status === "En combate") { u.status = "Disponible"; statusChanged = true; }
+  }
+  if (match.status === "finished") {
+    if (statusChanged) emitUsers();
+    return;
+  }
+  match.status = "finished";
+  match.endedAt = Date.now();
+  const endedAt = match.endedAt;
+  setTimeout(() => {
+    const live = matches.get(match.id);
+    if (live === match && live.endedAt === endedAt) {
+      matches.delete(match.id);
+      emitMatches();
+    }
+  }, FINISHED_MATCH_TTL_MS);
+  emitUsers();
+  emitMatches();
+}
 function emitDuel(match) {
   if (!match.duel) return;
+  markMatchFinished(match);
   if (match.hostSocketId) io.to(match.hostSocketId).emit("duel:snapshot", snapshotFor(match, match.hostSocketId));
   if (match.guestSocketId) io.to(match.guestSocketId).emit("duel:snapshot", snapshotFor(match, match.guestSocketId));
   if (match.duel.gameOver) void settleMatchReward(match);
@@ -814,6 +848,14 @@ function removeSocketMatches(socketId, useGrace = false) {
   if (changed) emitMatches();
 }
 
+function activeMatchForSocket(socketId) {
+  for (const match of matches.values()) {
+    if (match.status !== "playing" || !match.duel || match.duel.gameOver) continue;
+    if (match.hostSocketId === socketId || match.guestSocketId === socketId) return match;
+  }
+  return null;
+}
+
 function resumeCombatForUser(socket, user) {
   for (const match of matches.values()) {
     if (!match.duel) continue;
@@ -866,7 +908,7 @@ app.get("/", (_req, res) => {
     service: "rolplay-restoration-server",
     online: users.size,
     openMatches: [...matches.values()].filter(m => m.status === "waiting").length,
-    version: "0.7.0"
+    version: SERVER_VERSION
   });
 });
 app.get("/health", (_req, res) => res.json({ ok: true, online: users.size, matches: matches.size, cards: CATALOG.length }));
@@ -896,7 +938,7 @@ io.on("connection", socket => {
     };
     users.set(socket.id, user);
     const resumedMatch = resumeCombatForUser(socket, user);
-    socket.emit("server:ready", { socketId: socket.id, version: "0.7.0", cards: CATALOG.length });
+    socket.emit("server:ready", { socketId: socket.id, version: SERVER_VERSION, cards: CATALOG.length });
     emitUsers();
     emitMatches();
     if (resumedMatch) {
@@ -937,11 +979,17 @@ io.on("connection", socket => {
   socket.on("match:create", async payload => {
     const user = users.get(socket.id);
     if (!user) return;
+    if (activeMatchForSocket(socket.id)) {
+      socket.emit("match:error", { message: "Ya estás en un combate en curso." });
+      return;
+    }
     const fresh = await profileFromSession(user.sessionToken);
     if (!fresh) {
       socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
       return;
     }
+    // The socket may have disconnected or entered a duel while we awaited.
+    if (users.get(socket.id) !== user || activeMatchForSocket(socket.id)) return;
     user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
     user.wins = Math.max(0, Number(fresh.wins) || 0);
     user.elo = Number(fresh.elo) || 1000;
@@ -998,9 +1046,22 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: "La partida ya no está disponible." });
       return;
     }
+    if (String(match.hostAccountId) === String(user.accountId)) {
+      socket.emit("match:error", { message: "No puedes unirte a un reto creado por tu propia cuenta." });
+      return;
+    }
+    if (activeMatchForSocket(socket.id)) {
+      socket.emit("match:error", { message: "Ya estás en un combate en curso." });
+      return;
+    }
     const fresh = await profileFromSession(user.sessionToken);
     if (!fresh) {
       socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
+      return;
+    }
+    // Another player may have joined (or the host cancelled) while we awaited.
+    if (matches.get(mid) !== match || match.status !== "waiting" || !users.has(match.hostSocketId) || users.get(socket.id) !== user) {
+      socket.emit("match:error", { message: "La partida ya no está disponible." });
       return;
     }
     user.level = Math.max(1, Math.min(50, Number(fresh.level) || 1));
@@ -1012,6 +1073,7 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: deckError });
       return;
     }
+    removeSocketMatches(socket.id);
     match.status = "playing";
     match.guestSocketId = socket.id;
     match.guestDeck = user.deck.slice();
@@ -1024,6 +1086,9 @@ io.on("connection", socket => {
     initDuel(match);
 
     const host = users.get(match.hostSocketId);
+    if (host) host.status = "En combate";
+    user.status = "En combate";
+    emitUsers();
     io.to(match.hostSocketId).emit("match:ready", {
       id: mid, side: "host", deckSize: match.deckSize, start: match.start,
       opponent: publicUser(socket.id, user)
@@ -1060,6 +1125,7 @@ io.on("connection", socket => {
     const user = users.get(socket.id);
     const to = cleanText(payload && payload.to, 100);
     if (!user || !users.has(to) || to === socket.id) return;
+    if (String(users.get(to).accountId) === String(user.accountId)) return;
     const tradeId = id("trade");
     trades.set(tradeId, { id: tradeId, a: socket.id, b: to, acceptedA: false, acceptedB: false, offers: { a: { cards: [], gold: 0 }, b: { cards: [], gold: 0 } } });
     io.to(to).emit("trade:invited", { tradeId, from: publicUser(socket.id, user) });
@@ -1134,5 +1200,5 @@ io.on("connection", socket => {
 });
 
 httpServer.listen(PORT, "0.0.0.0", () => {
-  console.log("Rolplay restoration server v0.2.0 listening on 0.0.0.0:"+PORT+" with "+CATALOG.length+" cards");
+  console.log("Rolplay restoration server v" + SERVER_VERSION + " listening on 0.0.0.0:"+PORT+" with "+CATALOG.length+" cards");
 });

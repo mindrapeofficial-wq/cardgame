@@ -1011,6 +1011,8 @@ body{
 }
 
 @media(max-width:850px){
+  /* The later ".shell" rule re-declared two columns, squeezing the content into the hidden sidebar's slot. */
+  .shell{grid-template-columns:minmax(0,1fr)}
   .main{padding-bottom:74px}
   .topbar{
     height:56px;

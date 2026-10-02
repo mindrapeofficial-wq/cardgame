@@ -120,6 +120,10 @@ body.ve-enabled #ve-root.ve-minimized{
   body.ve-enabled #ve-root.ve-minimized{width:min(235px,calc(100vw - 16px));max-height:52px}
   .ve-fab.ve-fab-left{left:8px;right:auto}
 }
+@media(max-width:850px){
+  /* Keep the editor button above the mobile nav bar and the floating gold counter. */
+  .ve-fab{bottom:122px}
+}
 
 
 /* === EDITOR PANEL HORIZONTAL DRAG 2026-10-02 === */
