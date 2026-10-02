@@ -93,7 +93,7 @@ public class MainActivity extends Activity {
             s.setSupportZoom(false);
             s.setBuiltInZoomControls(false);
             s.setDisplayZoomControls(false);
-            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.2");
+            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.3");
 
             CookieManager cookies = CookieManager.getInstance();
             cookies.setAcceptCookie(true);
