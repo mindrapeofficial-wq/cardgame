@@ -183,7 +183,7 @@ async function authenticateForm(){
 function enterGame(){
   if(!state.profile)return;
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
-  updateChrome();connectOnline();go("home");void syncPendingRewards();
+  updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
 }
 async function logout(){
   if(sessionToken)void api("logout",{},true);
@@ -268,7 +268,7 @@ function winrate(){
   return total?Math.round(state.profile.wins/total*100):0;
 }
 function deckValid(size=20){
-  if(!state.profile||state.profile.deck.length<size)return false;
+  if(!state.profile||!state.activeDeckId||state.profile.deck.length<size)return false;
   const count={};
   for(const id of state.profile.deck){
     const c=card(id);if(!c||c.level>playerLevel())return false;
@@ -358,7 +358,7 @@ function renderPlay(){
             <div class="field"><label>Tamaño de baraja</label><select class="select" id="matchSize"><option>20</option><option selected>30</option><option>40</option><option>50</option></select></div>
             <div class="field"><label>Quién empieza</label><select class="select" id="matchStart"><option value="normal">Creador</option><option value="random">Aleatorio</option></select></div>
           </div>
-          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid(20))?"":"disabled"}>Crear reto online</button><span class="muted">${!deckValid(20)?"Construye primero un mazo válido de al menos 20 cartas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
+          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid(20))?"":"disabled"}>Crear reto online</button><span class="muted">${!state.activeDeckId?"Guarda y selecciona un mazo antes de jugar.":!deckValid(20)?"El mazo activo necesita al menos 20 cartas válidas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
         </div>
       </section>
       <section class="panel">
@@ -501,7 +501,7 @@ function renderDeck(){
   const deckOptions=state.savedDecks.map(d=>`<option value="${d.id}" ${d.id===state.activeDeckId?"selected":""}>${esc(d.name)} · ${d.cards?.length||0} cartas</option>`).join("");
   return `<div class="page">
     ${pageHead("Estrategia","Constructor de mazos","Guarda varios mazos con nombre y elige cuál quieres usar para jugar.",
-      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir</button><button class="btn danger" data-action="clearDeck">Vaciar</button>')}
+      '<button class="btn" data-action="newDeck">Nuevo mazo</button><button class="btn" data-action="autoDeck">Auto construir</button>'+(active&&count>=20?'<button class="btn primary" data-action="nav" data-view="play">Jugar con este mazo</button>':'')+'<button class="btn danger" data-action="clearDeck">Vaciar</button>')}
     <section class="panel deck-library" style="margin-bottom:12px">
       <div class="panel-head"><h2>Mis mazos</h2><span class="pill">${state.savedDecks.length}/12 guardados</span></div>
       <div class="panel-body">
