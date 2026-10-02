@@ -87,6 +87,32 @@ async function awardProfile(sessionToken, payload) {
     return null;
   }
 }
+async function settleTradeProfiles(trade) {
+  const ua = users.get(trade.a);
+  const ub = users.get(trade.b);
+  if (!ua || !ub || !ua.sessionToken || !ub.sessionToken) return { ok: false, error: "player_offline" };
+  try {
+    const response = await fetch(ROLPLAY_API_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "settle_trade",
+        tradeKey: "trade:" + trade.id,
+        sessionA: ua.sessionToken,
+        sessionB: ub.sessionToken,
+        cardsA: trade.offers.a.cards,
+        goldA: trade.offers.a.gold,
+        cardsB: trade.offers.b.cards,
+        goldB: trade.offers.b.gold
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) return { ok: false, error: data.error || "trade_failed" };
+    return data;
+  } catch {
+    return { ok: false, error: "trade_network_error" };
+  }
+}
 function cleanText(value, max = 300) {
   return String(value || "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, max);
 }
@@ -644,7 +670,7 @@ io.on("connection", socket => {
     const to = cleanText(payload && payload.to, 100);
     if (!user || !users.has(to) || to === socket.id) return;
     const tradeId = id("trade");
-    trades.set(tradeId, { id: tradeId, a: socket.id, b: to, acceptedA: false, acceptedB: false });
+    trades.set(tradeId, { id: tradeId, a: socket.id, b: to, acceptedA: false, acceptedB: false, offers: { a: { cards: [], gold: 0 }, b: { cards: [], gold: 0 } } });
     io.to(to).emit("trade:invited", { tradeId, from: publicUser(socket.id, user) });
     socket.emit("trade:waiting", { tradeId, to });
   });
@@ -653,16 +679,20 @@ io.on("connection", socket => {
     const trade = trades.get(cleanText(payload && payload.tradeId, 100));
     if (!trade || (trade.a !== socket.id && trade.b !== socket.id)) return;
     const other = trade.a === socket.id ? trade.b : trade.a;
+    const side = trade.a === socket.id ? "a" : "b";
+    const cards = Array.isArray(payload && payload.cards) ? payload.cards.map(Number).filter(id => BY_ID.has(id)).slice(0, 20) : [];
+    const gold = Math.max(0, Math.floor(Number(payload && payload.gold) || 0));
+    trade.offers[side] = { cards, gold };
     trade.acceptedA = false; trade.acceptedB = false;
     io.to(other).emit("trade:offer", {
       tradeId: trade.id,
       from: socket.id,
-      cards: Array.isArray(payload && payload.cards) ? payload.cards.slice(0, 20) : [],
-      gold: Math.max(0, Math.floor(Number(payload && payload.gold) || 0))
+      cards,
+      gold
     });
   });
 
-  socket.on("trade:accept", payload => {
+  socket.on("trade:accept", async payload => {
     const trade = trades.get(cleanText(payload && payload.tradeId, 100));
     if (!trade || (trade.a !== socket.id && trade.b !== socket.id)) return;
     if (trade.a === socket.id) trade.acceptedA = true;
@@ -670,9 +700,20 @@ io.on("connection", socket => {
     const other = trade.a === socket.id ? trade.b : trade.a;
     io.to(other).emit("trade:accepted", { tradeId: trade.id, by: socket.id });
     if (trade.acceptedA && trade.acceptedB) {
-      io.to(trade.a).emit("trade:locked", { tradeId: trade.id });
-      io.to(trade.b).emit("trade:locked", { tradeId: trade.id });
+      const result = await settleTradeProfiles(trade);
+      if (!result.ok) {
+        trade.acceptedA = false; trade.acceptedB = false;
+        io.to(trade.a).emit("trade:error", { tradeId: trade.id, message: result.error || "No se pudo completar el intercambio." });
+        io.to(trade.b).emit("trade:error", { tradeId: trade.id, message: result.error || "No se pudo completar el intercambio." });
+        return;
+      }
+      const ua = users.get(trade.a), ub = users.get(trade.b);
+      if (ua && result.profileA) { ua.level = result.profileA.level; ua.wins = result.profileA.wins; ua.deck = result.profileA.deck || ua.deck; }
+      if (ub && result.profileB) { ub.level = result.profileB.level; ub.wins = result.profileB.wins; ub.deck = result.profileB.deck || ub.deck; }
+      io.to(trade.a).emit("trade:settled", { tradeId: trade.id, profile: result.profileA });
+      io.to(trade.b).emit("trade:settled", { tradeId: trade.id, profile: result.profileB });
       trades.delete(trade.id);
+      emitUsers();
     }
   });
 
