@@ -941,11 +941,14 @@ function wireInstance(inst){
 function applyOnlineSnapshot(s){
   if(!s)return;
   const previous=state.duel&&state.duel.online&&state.duel.matchId===s.matchId?state.duel:null;
+  const playerBoard=(s.playerBoard||[]).map(wireInstance).filter(Boolean);
+  const ownBoardUids=new Set(playerBoard.map(c=>c.uid));
+  const enemyBoard=(s.enemyBoard||[]).map(wireInstance).filter(c=>c&&!ownBoardUids.has(c.uid));
   state.duel={online:true,matchId:s.matchId,myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
     playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
     enemyPower:Number(s.enemyPower)||0,enemyMaxPower:Number(s.enemyMaxPower)||0,playerDeckCount:Number(s.playerDeckCount)||0,enemyDeckCount:Number(s.enemyDeckCount)||0,
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
-    playerBoard:(s.playerBoard||[]).map(wireInstance).filter(Boolean),enemyBoard:(s.enemyBoard||[]).map(wireInstance).filter(Boolean),
+    playerBoard,enemyBoard,
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
     gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,blockAssignments:s.blockAssignments||{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
@@ -997,7 +1000,7 @@ function battleCards(list,zone){
   }).join("");
 }
 function duelCardClickable(c,zone){
-  const d=state.duel;if(!d||d.gameOver)return false;
+  const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing))return false;
   if(d.online&&(d.defending||d.attackDeclared))return false;
   if(d.online&&!d.myTurn)return false;
   if(zone==="hand")return(d.phase===2&&c.powerCard&&!d.powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
@@ -1008,7 +1011,7 @@ function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
   if(d.online&&d.defending)return renderDefenseControls(d);
   if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
-  if(!d.online&&d.aiActing)return'<div class="turn-wait">El Guardián está jugando su turno…</div>';
+  if(!d.online&&d.aiActing)return'<div class="turn-wait">Turno del Guardián… Tus atacantes permanecen girados y no pueden defender.</div>';
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
   return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
 }
@@ -1039,7 +1042,7 @@ function training(){
   }
   state.duel={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
   drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");renderView();
 }
 function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false}:null}
@@ -1076,37 +1079,42 @@ function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===u
 function nextLocalPhase(){
   const d=state.duel;if(d.gameOver||d.aiActing)return;
   if(d.phase===5){
-    // El ataque del jugador se resuelve como un evento independiente:
-    // atacar nunca resta PV al propio atacante.
     resolveLocalAttack();
     if(checkLocalEnd())return renderView();
 
     d.aiActing=true;
-    d.log.push("Turno del Guardián.");
+    d.log.push("Tu ataque ha terminado. Ahora juega el Guardián.");
     renderView();
 
-    // El Guardián actúa después, en su propio turno visible.
-    // Así sus daños no aparecen mezclados con el ataque del jugador.
     const duelRef=d;
-    setTimeout(()=>{
+    window.setTimeout(()=>{
       if(state.duel!==duelRef||d.gameOver)return;
       enemyTurn();
       if(checkLocalEnd()){d.aiActing=false;renderView();return}
-      d.turn++;
-      d.phase=0;
-      d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
-      d.playerPowers.forEach(c=>{c.exhausted=false});
-      d.playerPowerPlayed=false;
-      d.maxPower=powerTotal(d.playerPowers);
-      d.power=0;
-      d.aiActing=false;
-      d.log.push("Comienza tu turno "+d.turn+".");
-      playSound("turn");
+      d.log.push("El turno del Guardián ha terminado.");
       renderView();
-    },850);
+
+      window.setTimeout(()=>{
+        if(state.duel!==duelRef||d.gameOver)return;
+        d.turn++;
+        d.phase=0;
+        d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+        d.playerPowers.forEach(c=>{c.exhausted=false});
+        d.playerPowerPlayed=false;
+        d.maxPower=powerTotal(d.playerPowers);
+        d.power=0;
+        d.aiActing=false;
+        d.log.push("Comienza tu turno "+d.turn+". Tus cartas se enderezan.");
+        playSound("turn");
+        renderView();
+      },1200);
+    },900);
     return;
   }
-  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}renderView();
+  d.phase++;
+  if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}
+  if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}
+  renderView();
 }
 function resolveLocalAttack(){
   const d=state.duel,atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted),blocks=d.enemyBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
@@ -1125,15 +1133,66 @@ function resolveLocalAttack(){
   });
 }
 function enemyTurn(){
-  const d=state.duel;d.enemyBoard.forEach(c=>c.exhausted=false);d.enemyPowers.forEach(c=>c.exhausted=false);d.enemyPowerPlayed=false;drawLocal("enemy",1);if(d.gameOver)return;
-  const p=d.enemyHand.find(c=>c.powerCard);if(p){d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);p.exhausted=true;d.enemyPowers.push(p)}
-  d.enemyPowers.forEach(c=>c.exhausted=true);d.enemyMaxPower=powerTotal(d.enemyPowers);d.enemyPower=d.enemyMaxPower;
-  const ability=d.enemyHand.find(c=>c.abilityCard&&c.cost<=d.enemyPower);if(ability){d.enemyPower-=ability.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);resolveLocalAbility(ability,"enemy")}
-  let safe=20;while(safe--){const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);if(!opts.length)break;opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));const c=opts[0];d.enemyPower-=c.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==c.uid);d.enemyBoard.push(c)}
-  const attackers=d.enemyBoard.filter(c=>!c.exhausted),blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
-  attackers.forEach((a,i)=>{a.exhausted=true;const b=blocks[i];if(b&&d.playerBoard.includes(b)){b.exhausted=true;if(a.atk>=b.def)d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);else d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid)}
-    else d.playerHp-=a.atk;});
-  if(attackers.length)d.log.push("El Guardián ataca con "+attackers.length+" criatura(s).");
+  const d=state.duel;
+  d.enemyBoard.forEach(c=>c.exhausted=false);
+  d.enemyPowers.forEach(c=>c.exhausted=false);
+  d.enemyPowerPlayed=false;
+  drawLocal("enemy",1);
+  if(d.gameOver)return;
+
+  const p=d.enemyHand.find(c=>c.powerCard);
+  if(p){
+    d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);
+    p.exhausted=false;
+    d.enemyPowers.push(p);
+    d.log.push("El Guardián pone "+p.name+" en su zona de Poder.");
+  }
+
+  d.enemyPowers.forEach(c=>c.exhausted=true);
+  d.enemyMaxPower=powerTotal(d.enemyPowers);
+  d.enemyPower=d.enemyMaxPower;
+
+  const ability=d.enemyHand.find(c=>c.abilityCard&&c.cost<=d.enemyPower);
+  if(ability){
+    d.enemyPower-=ability.cost;
+    d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);
+    d.log.push("El Guardián usa "+ability.name+".");
+    resolveLocalAbility(ability,"enemy");
+  }
+
+  let safe=20;
+  while(safe--){
+    const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);
+    if(!opts.length)break;
+    opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
+    const unit=opts[0];
+    d.enemyPower-=unit.cost;
+    d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
+    d.enemyBoard.push(unit);
+    d.log.push("El Guardián invoca "+unit.name+".");
+  }
+
+  const attackers=d.enemyBoard.filter(c=>!c.exhausted);
+  const blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
+  attackers.forEach((a,i)=>{
+    a.exhausted=true;
+    const b=blocks[i];
+    if(b&&d.playerBoard.includes(b)){
+      b.exhausted=true;
+      d.log.push(a.name+" ("+a.atk+" ATQ) ataca la defensa "+b.def+" de "+b.name+".");
+      if(a.atk>=b.def){
+        d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);
+        d.log.push(b.name+" es destruida.");
+      }else{
+        d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==a.uid);
+        d.log.push(a.name+" no supera la DEF y es destruida.");
+      }
+    }else{
+      d.playerHp-=a.atk;
+      d.log.push(a.name+" del Guardián causa "+a.atk+" PV.");
+    }
+  });
+  if(attackers.length)d.log.push("El Guardián ha declarado ataque con "+attackers.length+" criatura(s).");
 }
 async function awardTraining(d){
   const payload={rewardKey:d.rewardKey,win:!!d.won,damage:Math.min(30,Math.max(0,d.damageDealt||0)),mode:"training"};
@@ -1158,15 +1217,15 @@ function checkLocalEnd(){
 }
 
 function duelPower(uid){
-  const d=state.duel;if(!d||d.gameOver||d.phase!==2)return;
+  const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing)||d.phase!==2)return;
   if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"tapPower",uid});return}
   tapLocalPower(uid);
 }
 function duelCard(zone,uid){
-  const d=state.duel;if(d.online){if(!d.myTurn)return;if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});return}
+  const d=state.duel;if(!d||(!d.online&&d.aiActing))return;if(d.online){if(!d.myTurn)return;if(zone==="hand")state.socket.emit("duel:action",{matchId:d.matchId,type:"play",uid});else if(zone==="player")state.socket.emit("duel:action",{matchId:d.matchId,type:"toggleAttack",uid});return}
   if(zone==="hand")localPlay(uid);else if(zone==="player")toggleLocalAttack(uid);
 }
-function nextPhase(){const d=state.duel;if(!d)return;if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase"})}else nextLocalPhase()}
+function nextPhase(){const d=state.duel;if(!d||(!d.online&&d.aiActing))return;if(d.online){if(d.myTurn)state.socket.emit("duel:action",{matchId:d.matchId,type:"nextPhase"})}else nextLocalPhase()}
 function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"concede"})}
 function leaveDuel(){state.duel=null;go("home")}
 
