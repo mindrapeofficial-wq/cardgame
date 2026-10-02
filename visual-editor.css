@@ -120,3 +120,14 @@ body.ve-enabled #ve-root.ve-minimized{
   body.ve-enabled #ve-root.ve-minimized{width:min(235px,calc(100vw - 16px));max-height:52px}
   .ve-fab.ve-fab-left{left:8px;right:auto}
 }
+
+
+/* === EDITOR PANEL HORIZONTAL DRAG 2026-10-02 === */
+body.ve-enabled #ve-root.ve-free-position{right:auto!important}
+.ve-head{cursor:grab;user-select:none;touch-action:none}
+.ve-head button,.ve-head input,.ve-head select,.ve-head a{cursor:pointer}
+body.ve-enabled #ve-root.ve-panel-dragging{
+  transition:none!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.82),0 0 0 1px rgba(212,175,55,.16)
+}
+#ve-root.ve-panel-dragging .ve-head{cursor:grabbing}
