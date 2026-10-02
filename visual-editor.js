@@ -6,6 +6,7 @@ var IMAGE_KEY="arcanum.visualImages.v1";
 var MODE_KEY="arcanum.visualEditor.mode";
 var PANEL_SIDE_KEY="arcanum.visualEditor.side";
 var PANEL_MIN_KEY="arcanum.visualEditor.minimized";
+var PANEL_X_KEY="arcanum.visualEditor.x";
 var rules={};
 var imageRules={};
 var selected=null;
@@ -20,6 +21,8 @@ var panelSide=localStorage.getItem(PANEL_SIDE_KEY)==="left"?"left":"right";
 var panelMinimized=localStorage.getItem(PANEL_MIN_KEY)==="1";
 var resizeBase=null;
 var resizeSaveTimer=null;
+var panelDragState=null;
+var panelX=(function(){var n=parseFloat(localStorage.getItem(PANEL_X_KEY)||"");return Number.isFinite(n)?n:null})();
 
 function loadRules(){
   try{rules=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")||{}}catch(e){rules={}}
@@ -388,11 +391,26 @@ function refreshResizeControls(){
   if(widthOut)widthOut.textContent=w+" px";
   if(heightOut)heightOut.textContent=h+" px";
 }
+function clampPanelX(x){
+  if(!root)return 8;
+  var width=Math.max(180,root.getBoundingClientRect().width||340);
+  return Math.max(8,Math.min(window.innerWidth-width-8,Number(x)||8));
+}
 function applyPanelState(){
   if(!root)return;
-  root.classList.toggle("ve-side-left",panelSide==="left");
-  root.classList.toggle("ve-side-right",panelSide!=="left");
+  var free=Number.isFinite(panelX);
+  root.classList.toggle("ve-free-position",free);
+  root.classList.toggle("ve-side-left",!free&&panelSide==="left");
+  root.classList.toggle("ve-side-right",!free&&panelSide!=="left");
   root.classList.toggle("ve-minimized",!!panelMinimized);
+  if(free){
+    panelX=clampPanelX(panelX);
+    root.style.left=panelX+"px";
+    root.style.right="auto";
+  }else{
+    root.style.removeProperty("left");
+    root.style.removeProperty("right");
+  }
   var sideBtn=root.querySelector("[data-ve-side]");
   var minBtn=root.querySelector("[data-ve-minimize]");
   if(sideBtn){
@@ -407,9 +425,55 @@ function applyPanelState(){
   if(fab)fab.classList.toggle("ve-fab-left",panelSide==="left");
 }
 function togglePanelSide(){
+  panelX=null;
+  localStorage.removeItem(PANEL_X_KEY);
   panelSide=panelSide==="left"?"right":"left";
   localStorage.setItem(PANEL_SIDE_KEY,panelSide);
   applyPanelState();
+}
+function beginPanelDrag(e){
+  if(!root||!document.body.classList.contains("ve-enabled"))return;
+  var head=e.target.closest&&e.target.closest(".ve-head");
+  if(!head||!root.contains(head))return;
+  if(e.target.closest("button,input,select,a"))return;
+  if(e.button!=null&&e.button!==0)return;
+  var rect=root.getBoundingClientRect();
+  panelDragState={
+    pointerId:e.pointerId,
+    startX:e.clientX,
+    startLeft:rect.left,
+    width:rect.width
+  };
+  panelX=rect.left;
+  root.classList.add("ve-panel-dragging","ve-free-position");
+  root.classList.remove("ve-side-left","ve-side-right");
+  root.style.left=rect.left+"px";
+  root.style.right="auto";
+  try{head.setPointerCapture(e.pointerId)}catch(err){}
+  e.preventDefault();
+  e.stopPropagation();
+}
+function movePanelDrag(e){
+  if(!panelDragState||e.pointerId!==panelDragState.pointerId||!root)return;
+  var next=panelDragState.startLeft+(e.clientX-panelDragState.startX);
+  var max=Math.max(8,window.innerWidth-panelDragState.width-8);
+  panelX=Math.max(8,Math.min(max,next));
+  root.style.left=panelX+"px";
+  root.style.right="auto";
+  e.preventDefault();
+  e.stopPropagation();
+}
+function finishPanelDrag(e){
+  if(!panelDragState||e.pointerId!==panelDragState.pointerId||!root)return;
+  root.classList.remove("ve-panel-dragging");
+  panelDragState=null;
+  panelX=clampPanelX(panelX);
+  root.style.left=panelX+"px";
+  root.style.right="auto";
+  localStorage.setItem(PANEL_X_KEY,String(Math.round(panelX)));
+  setStatus("Posición del editor guardada.","good");
+  e.preventDefault();
+  e.stopPropagation();
 }
 function togglePanelMinimize(){
   panelMinimized=!panelMinimized;
@@ -657,6 +721,18 @@ function build(){
   document.body.appendChild(fab);
   applyPanelState();
 
+  root.addEventListener("pointerdown",function(e){
+    beginPanelDrag(e);
+  });
+  root.addEventListener("pointermove",function(e){
+    movePanelDrag(e);
+  });
+  root.addEventListener("pointerup",function(e){
+    finishPanelDrag(e);
+  });
+  root.addEventListener("pointercancel",function(e){
+    finishPanelDrag(e);
+  });
   root.addEventListener("click",function(e){
     e.stopPropagation();
     if(e.target.closest("[data-ve-side]")){togglePanelSide();return}
@@ -749,6 +825,9 @@ function build(){
     requestAnimationFrame(applyImageRules);
   });
   observer.observe(document.body,{childList:true,subtree:true});
+  window.addEventListener("resize",function(){
+    if(Number.isFinite(panelX)){panelX=clampPanelX(panelX);applyPanelState()}
+  });
   if(location.search.indexOf("design=1")>=0||localStorage.getItem(MODE_KEY)==="on")activate();
 }
 document.addEventListener("pointerdown",function(e){
