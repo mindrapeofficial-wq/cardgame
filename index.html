@@ -14,7 +14,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="modern.css?v=20261002-mobile-lobby-v2">
-  <link rel="stylesheet" href="theme.css?v=20261002-theme-v3">
+  <link rel="stylesheet" href="theme.css?v=20261002-theme-v4">
 </head>
 <body>
   <div class="app-bg"></div>
@@ -58,16 +58,16 @@
       <nav class="nav">
         <button class="nav-btn active" data-action="nav" data-view="home" data-nav="home"><span class="nav-icon">⌂</span><span>Inicio</span></button>
         <button class="nav-btn" data-action="nav" data-view="play" data-nav="play"><span class="nav-icon">⚔</span><span>Jugar</span><span id="onlineBadge" class="nav-badge">0</span></button>
-        <button class="nav-btn" data-action="nav" data-view="ranking" data-nav="ranking"><span class="nav-icon">♜</span><span>Ranking</span></button>
-        <button class="nav-btn" data-action="nav" data-view="collection" data-nav="collection"><span class="nav-icon">◇</span><span>Colección</span></button>
         <button class="nav-btn" data-action="nav" data-view="deck" data-nav="deck"><span class="nav-icon">▦</span><span>Mazo</span></button>
+        <button class="nav-btn" data-action="nav" data-view="collection" data-nav="collection"><span class="nav-icon">◇</span><span>Colección</span></button>
         <button class="nav-btn" data-action="nav" data-view="shop" data-nav="shop"><span class="nav-icon">✦</span><span>Tienda</span></button>
         <button class="nav-btn" data-action="nav" data-view="trade" data-nav="trade"><span class="nav-icon">⇄</span><span>Intercambios</span></button>
         <button class="nav-btn" data-action="nav" data-view="manual" data-nav="manual"><span class="nav-icon">?</span><span>Manual</span></button>
+        <button class="nav-btn" data-action="nav" data-view="ranking" data-nav="ranking"><span class="nav-icon">♜</span><span>Ranking</span></button>
         <button class="nav-btn" data-action="nav" data-view="profile" data-nav="profile"><span class="nav-icon">◎</span><span>Perfil</span></button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="player-chip collapsed"><div id="playerAvatar" class="avatar">?</div><div style="min-width:0"><b id="playerName">Jugador</b><small id="playerMeta">Nivel 1</small><div class="mini-xp"><span id="playerXpFill"></span></div></div><div class="player-chip-actions"><button id="playerCardToggle" class="btn icon ghost" type="button" title="Minimizar" aria-label="Minimizar ficha del jugador" aria-expanded="false">–</button><button id="logoutBtn" class="btn icon ghost" title="Cerrar sesión">↪</button></div></div>
+        <div class="player-chip collapsed" role="button" tabindex="0" aria-expanded="false" aria-label="Ficha del jugador"><div id="playerAvatar" class="avatar">?</div><div style="min-width:0"><b id="playerName">Jugador</b><small id="playerMeta">Nivel 1</small><div class="mini-xp"><span id="playerXpFill"></span></div></div><div class="player-chip-actions"><button id="logoutBtn" class="btn icon ghost" title="Cerrar sesión">↪</button></div></div>
       </div>
     </aside>
 

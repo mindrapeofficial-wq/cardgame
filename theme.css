@@ -127,7 +127,7 @@
   /* Minimized: just the avatar medallion; clicking it expands the card again. */
   .shell:not(.duel-mode) .player-chip.collapsed{min-width:0;padding:5px!important;border-radius:50%!important;background:linear-gradient(160deg,rgba(30,24,17,.97),rgba(9,8,7,.98))!important}
   .shell:not(.duel-mode) .player-chip.collapsed > :not(.avatar){display:none!important}
-  .shell:not(.duel-mode) .player-chip.collapsed .avatar{cursor:pointer}
+  .shell:not(.duel-mode) .player-chip{cursor:pointer;user-select:none}
   /* Leave room so the card never covers the end of a page. */
   .shell:not(.duel-mode) > .main{padding-bottom:110px!important}
   /* Text-only nav keeps all nine sections on one line at common desktop widths. */

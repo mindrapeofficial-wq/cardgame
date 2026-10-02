@@ -2552,19 +2552,16 @@ document.addEventListener("submit",e=>{
 });
 $("logoutBtn")?.addEventListener("click",logout);
 
-// Floating player card (desktop): starts minimized to the avatar; expanding/minimizing is remembered per browser.
-const PLAYER_CARD_KEY="arcanum.playerCard.collapsed";
-function setPlayerCardCollapsed(collapsed){
-  const chip=document.querySelector(".player-chip"),btn=$("playerCardToggle");if(!chip)return;
-  chip.classList.toggle("collapsed",collapsed);
-  if(btn)btn.setAttribute("aria-expanded",String(!collapsed));
-  $("playerAvatar")?.setAttribute("aria-label",collapsed?"Mostrar ficha del jugador":"");
-  try{localStorage.setItem(PLAYER_CARD_KEY,collapsed?"1":"0")}catch{}
-}
-$("playerCardToggle")?.addEventListener("click",()=>setPlayerCardCollapsed(true));
-$("playerAvatar")?.addEventListener("click",()=>{if(document.querySelector(".player-chip.collapsed"))setPlayerCardCollapsed(false)});
-// Minimized by default; it only opens on load if the player expanded it last time.
-try{setPlayerCardCollapsed(localStorage.getItem(PLAYER_CARD_KEY)!=="0")}catch{setPlayerCardCollapsed(true)}
+// Floating player card (desktop): always starts minimized to the avatar; clicking the card
+// toggles it open/closed. The logout button inside only logs out.
+document.querySelector(".player-chip")?.addEventListener("click",e=>{
+  if(e.target.closest("#logoutBtn"))return;
+  const chip=e.currentTarget,collapsed=chip.classList.toggle("collapsed");
+  chip.setAttribute("aria-expanded",String(!collapsed));
+});
+document.querySelector(".player-chip")?.addEventListener("keydown",e=>{
+  if((e.key==="Enter"||e.key===" ")&&e.target===e.currentTarget){e.preventDefault();e.currentTarget.click()}
+});
 
 document.addEventListener("keydown",e=>{
   if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
