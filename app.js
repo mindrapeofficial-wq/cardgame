@@ -276,39 +276,44 @@ function pageHead(kicker,title,desc,actions=""){
   return `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`;
 }
 function renderHome(){
-  const deckReady=deckValid(20),matches=state.matches.filter(m=>m.status==="waiting").length;
+  const deckReady=deckValid(20),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
   return `<div class="page">
     <section class="panel hero">
       <div class="hero-copy">
         <div class="kicker">Rolplay · Reborn</div>
-        <h1>La leyenda vuelve<br>con otra armadura.</h1>
-        <p>285 cartas originales, colección persistente, mazos, economía, chat, intercambios y duelos online sobre un cliente completamente renovado.</p>
+        <h1>${empty?"Tu historia empieza<br>con las manos vacías.":"La leyenda vuelve<br>con otra armadura."}</h1>
+        <p>${empty?"Eres Nivel 1. No posees cartas todavía, pero tienes Poder básico infinito y 100 de oro para abrir sobres. Los sobres solo pueden darte cartas de tu nivel o inferior.":"Construye tu colección, sube de nivel y desbloquea cartas cada vez más poderosas."}</p>
         <div class="actions" style="margin-top:15px">
-          <button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>
-          <button class="btn" data-action="training">Entrenamiento</button>
+          ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
+          <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
         </div>
       </div><div class="hero-visual"></div>
     </section>
+    <div class="xp-card" style="margin-top:14px">
+      <div class="xp-row"><div><div class="kicker">Progresión</div><b>Nivel ${playerLevel()}</b></div><div class="muted">${playerLevel()>=50?"Nivel máximo":state.profile.xp+" / "+state.profile.xpRequired+" XP"}</div></div>
+      <div class="xp-bar"><span style="width:${xpPercent()}%"></span></div>
+    </div>
     <div class="grid four" style="margin-top:14px">
       <div class="stat-card"><small>Jugadores conectados</small><strong>${state.users.length}</strong><span class="muted">salón en tiempo real</span></div>
       <div class="stat-card"><small>Partidas abiertas</small><strong>${matches}</strong><span class="muted">retos esperando rival</span></div>
-      <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}<span class="muted" style="font-size:14px"> / 285</span></strong><span class="muted">${collectionTotal()} cartas totales</span></div>
+      <div class="stat-card"><small>Colección</small><strong>${uniqueOwned()}</strong><span class="muted">${collectionTotal()} cartas · Poder básico ∞</span></div>
       <div class="stat-card"><small>Mazo activo</small><strong>${state.profile.deck.length}</strong><span class="${deckReady?"good":"bad"}">${deckReady?"listo para jugar":"mínimo 20 cartas"}</span></div>
     </div>
     <div class="grid two" style="margin-top:14px">
       <section class="panel">
-        <div class="panel-head"><h2>Salón online</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo local"}</span></div>
+        <div class="panel-head"><h2>Salón online</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo offline"}</span></div>
         <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
         <div class="chat"><div class="chat-log" id="chatLog">${renderChat()}</div>
-          <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary">Enviar</button></form>
+          <form class="chat-send" id="chatForm"><input class="input" id="chatInput" maxlength="300" placeholder="Escribe en el salón…" autocomplete="off"><button class="btn primary" ${state.connected?"":"disabled"}>Enviar</button></form>
         </div>
       </section>
     </div>
   </div>`;
 }
+
 function renderUsers(){
   if(!state.users.length)return'<div class="empty">No hay otros jugadores conectados todavía.</div>';
   return state.users.map(u=>`<div class="online-user"><div class="avatar">${initial(u.name)}</div><div style="min-width:0"><b>${esc(u.name)}</b><div class="muted" style="font-size:11px">Nivel ${u.level||1} · ${esc(u.status||"Disponible")}</div></div>${state.socket&&u.socketId===state.socket.id?'<span class="pill">Tú</span>':""}</div>`).join("");
