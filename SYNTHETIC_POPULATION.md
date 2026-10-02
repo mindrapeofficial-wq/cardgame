@@ -14,7 +14,7 @@ Private pre-launch population simulator for the multiplayer TCG.
 - connects and disconnects according to a daily activity curve
 - exposes private aggregate telemetry to the administrator
 
-Synthetic accounts are marked internally in Postgres with `is_synthetic = true`. The flag is not included in the public profile payload.
+Synthetic accounts are marked internally in Postgres with `is_bot = true`. The flag is not included in the public profile payload.
 
 ## Safety switch
 
@@ -81,7 +81,7 @@ Recommended private QA ramp:
 
 Before enabling the population:
 
-1. apply `supabase/migrations/20261003003000_rolplay_synthetic_accounts.sql`
+1. confirm the existing `rolplay_accounts.is_bot` marker is present
 2. deploy `supabase/functions/rolplay-api/index.ts`
 3. deploy the multiplayer server
 4. set the synthetic environment variables
