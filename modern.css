@@ -669,6 +669,24 @@ body{
   margin-top:2px;
 }
 
+/* Home quick actions */
+.home-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0 0 14px;
+}
+.home-actions .btn{min-height:36px}
+@media(max-width:520px){
+  .home-actions{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .home-actions .btn{width:100%}
+  .home-actions .btn:only-child{grid-column:1/-1}
+}
+
 /* Home / feature area */
 .hero{
   min-height:270px;
