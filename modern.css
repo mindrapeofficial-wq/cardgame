@@ -2498,3 +2498,66 @@ body.duel-log-visible .duel-log-keyboard{display:block}
   .hand-zone .battle-card.hand-playable::before,
   .battle-card.attacked{animation:none!important}
 }
+
+
+/* === ARCANUM DECK ALIGNMENT 2026-10-02 === */
+@media (min-width:851px){
+  .enemy-zone,
+  .player-zone{
+    grid-template-columns:minmax(230px,24%) minmax(0,1fr) 86px!important;
+  }
+  .player-zone{
+    display:grid!important;
+    grid-template-rows:auto minmax(0,1fr)!important;
+    column-gap:12px!important;
+    row-gap:2px!important;
+  }
+  .player-zone>.zone-title{
+    grid-column:1/-1!important;
+    grid-row:1!important;
+  }
+  .player-zone>.power-lane{
+    grid-column:1!important;
+    grid-row:2!important;
+    align-self:center!important;
+  }
+  .player-zone>.battle-row{
+    grid-column:2!important;
+    grid-row:2!important;
+  }
+  .enemy-zone>.enemy-deck-column,
+  .player-zone>.player-deck-column{
+    grid-column:3!important;
+    align-self:center!important;
+    justify-self:center!important;
+    width:86px!important;
+    margin:0!important;
+  }
+  .enemy-zone>.enemy-deck-column{grid-row:2/4!important}
+  .player-zone>.player-deck-column{grid-row:2!important}
+  .player-hand-strip{
+    display:block!important;
+    grid-template-columns:none!important;
+  }
+}
+
+@media (max-width:850px){
+  .player-zone{
+    display:grid!important;
+    grid-template-columns:minmax(110px,22%) minmax(0,1fr) 72px!important;
+    grid-template-rows:auto minmax(0,1fr)!important;
+    column-gap:8px!important;
+  }
+  .player-zone>.zone-title{grid-column:1/-1!important;grid-row:1!important}
+  .player-zone>.power-lane{grid-column:1!important;grid-row:2!important}
+  .player-zone>.battle-row{grid-column:2!important;grid-row:2!important}
+  .player-zone>.player-deck-column{
+    grid-column:3!important;
+    grid-row:2!important;
+    align-self:center!important;
+    justify-self:center!important;
+    width:70px!important;
+    margin:0!important;
+  }
+  .player-hand-strip{display:block!important}
+}
