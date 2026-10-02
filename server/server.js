@@ -76,7 +76,14 @@ const io = new Server(httpServer, {
   transports: ["websocket", "polling"]
 });
 
-const DECK_SIZE = 20;
+const DECK_MIN = 20;
+const DECK_MAX = 50;
+const MIN_POWER_CARDS = 7;
+const MAX_POWER_CARDS = 40;
+const MAX_POWER_POINTS = 200;
+const INITIAL_HAND = 7;
+const SECOND_PLAYER_BONUS = 1;
+const MATCH_LIMIT_MS = 40 * 60 * 1000;
 const users = new Map();
 const matches = new Map();
 const trades = new Map();
@@ -206,16 +213,33 @@ function emitMatches() {
   io.emit("matches:list", [...matches.values()].map(publicMatch));
 }
 function cardInstance(cardId) {
-  return { uid: id("c"), cardId: Number(cardId), exhausted: false, selected: false };
+  return {
+    uid: id("c"),
+    cardId: Number(cardId),
+    exhausted: false,
+    selected: false,
+    damage: 0,
+    summonedTurn: null,
+    attacksThisTurn: 0,
+    defensesThisTurn: 0
+  };
 }
-function sanitizeDeck(input, size, level) {
-  const ids = Array.isArray(input)
-    ? input.map(Number).filter(x => {
-        const c = BY_ID.get(x);
-        return c && c.level <= level;
-      }).slice(0, size)
-    : [];
-  return ids.length === size ? shuffle(ids.slice()) : [];
+function playDeckError(input, level) {
+  if (!Array.isArray(input)) return "Tu mazo no es válido.";
+  const ids = input.map(Number);
+  if (ids.length < DECK_MIN || ids.length > DECK_MAX) return "El mazo debe tener entre 20 y 50 cartas.";
+  let powers = 0;
+  for (const cardId of ids) {
+    const card = BY_ID.get(cardId);
+    if (!card || card.level > level) return "El mazo contiene cartas no válidas para tu nivel.";
+    if (card.powerCard) powers += 1;
+  }
+  if (powers < MIN_POWER_CARDS) return "El mazo necesita al menos 7 cartas de Poder.";
+  if (powers > MAX_POWER_CARDS) return "El mazo no puede contener más de 40 cartas de Poder.";
+  return "";
+}
+function sanitizeDeck(input, level) {
+  return playDeckError(input, level) ? [] : shuffle(input.map(Number));
 }
 function sideOther(side) { return side === "a" ? "b" : "a"; }
 function sideFor(match, socketId) {
@@ -224,7 +248,7 @@ function sideFor(match, socketId) {
   return null;
 }
 function totalPower(game, side) {
-  return game.powers[side].reduce((sum, inst) => sum + powerValue(BY_ID.get(inst.cardId)), 0);
+  return Math.min(MAX_POWER_POINTS, game.powers[side].reduce((sum, inst) => sum + powerValue(BY_ID.get(inst.cardId)), 0));
 }
 function gameLog(game, text) {
   game.log.push(text);
@@ -237,6 +261,10 @@ function draw(game, side, n = 1) {
       break;
     }
     game.hand[side].push(cardInstance(game.deck[side].pop()));
+    if (!game.deck[side].length) {
+      game.deckOut[side] = true;
+      break;
+    }
   }
 }
 function beginTurn(game, side) {
@@ -244,16 +272,39 @@ function beginTurn(game, side) {
   game.phase = 0;
   game.pendingAttack = null;
   game.powerPlayed[side] = false;
-  game.board[side].forEach(c => { c.exhausted = false; c.selected = false; });
+  game.board[side].forEach(c => {
+    c.exhausted = false;
+    c.selected = false;
+    c.attacksThisTurn = 0;
+    c.defensesThisTurn = 0;
+  });
   game.powers[side].forEach(c => { c.exhausted = false; });
   game.availablePower[side] = 0;
+}
+function attackLimit(card) {
+  return Math.max(1, Number(card?.multiAttack) || 1);
+}
+function defenseLimit(card) {
+  return Math.max(1, Number(card?.multiDefense) || 1);
+}
+function canAttack(game, side, inst) {
+  const card = BY_ID.get(inst.cardId);
+  if (!card || (Number(card.atk) || 0) <= 0) return false;
+  if (inst.exhausted && (Number(inst.attacksThisTurn) || 0) >= attackLimit(card)) return false;
+  if (inst.summonedTurn === game.turn && !card.berserker) return false;
+  return (Number(inst.attacksThisTurn) || 0) < attackLimit(card);
+}
+function canDefend(game, side, inst) {
+  const card = BY_ID.get(inst.cardId);
+  if (!card) return false;
+  const used = Number(inst.defensesThisTurn) || 0;
+  if (used >= defenseLimit(card)) return false;
+  return !inst.exhausted || !!card.defender;
 }
 function phaseHasAction(game, side) {
   if (!game || game.gameOver || game.pendingAttack) return false;
   if (game.phase === 2) {
-    const canPlayPower = !game.powerPlayed[side] && game.hand[side].some(inst => BY_ID.get(inst.cardId)?.powerCard);
-    const canTapPower = game.powers[side].some(inst => !inst.exhausted);
-    return canPlayPower || canTapPower;
+    return !game.powerPlayed[side] && game.hand[side].some(inst => BY_ID.get(inst.cardId)?.powerCard);
   }
   if (game.phase === 3) {
     return game.hand[side].some(inst => {
@@ -267,7 +318,7 @@ function phaseHasAction(game, side) {
       return card && card.abilityCard && card.cost <= game.availablePower[side];
     });
   }
-  if (game.phase === 5) return game.board[side].some(inst => !inst.exhausted);
+  if (game.phase === 5) return game.board[side].some(inst => canAttack(game, side, inst));
   return false;
 }
 function advanceAutomaticPhases(game) {
@@ -287,23 +338,48 @@ function advanceAutomaticPhases(game) {
       draw(game, side, 1);
       if (checkEnd(game)) return;
     }
-    if (game.phase === 2) game.availablePower[side] = 0;
+    if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
   }
+}
+function highestLevelBaseAttack(game, side) {
+  const inPlay = [...game.board[side], ...game.powers[side]]
+    .map(inst => BY_ID.get(inst.cardId))
+    .filter(Boolean);
+  if (!inPlay.length) return 0;
+  const highestLevel = Math.max(...inPlay.map(card => Number(card.level) || 0));
+  return Math.max(0, ...inPlay.filter(card => (Number(card.level) || 0) === highestLevel).map(card => Number(card.atk) || 0));
+}
+function gameScore(game, side) {
+  return Math.max(0, Number(game.hp[side]) || 0)
+    + game.board[side].length
+    + game.powers[side].length
+    + game.deck[side].length
+    + highestLevelBaseAttack(game, side);
+}
+function resolveByScore(game, reason) {
+  if (game.gameOver) return true;
+  const a = gameScore(game, "a");
+  const b = gameScore(game, "b");
+  game.gameOver = true;
+  game.winner = a === b ? "draw" : a > b ? "a" : "b";
+  gameLog(game, reason + " Puntuación final: A " + a + " · B " + b + ".");
+  if (game.winner === "draw") gameLog(game, "La partida termina en empate por puntuación.");
+  else gameLog(game, game.winner === "a" ? "El jugador A gana por puntuación." : "El jugador B gana por puntuación.");
+  return true;
 }
 function checkEnd(game) {
   if (game.gameOver) return true;
+  if (game.deadlineAt && Date.now() >= game.deadlineAt) {
+    return resolveByScore(game, "Se alcanza el límite de 40 minutos.");
+  }
   const aLost = game.hp.a <= 0 || game.deckOut.a;
   const bLost = game.hp.b <= 0 || game.deckOut.b;
   if (!aLost && !bLost) return false;
 
+  if (aLost && bLost) return resolveByScore(game, "Ambos jugadores alcanzan una condición de derrota al mismo tiempo.");
   game.gameOver = true;
-  if (aLost && bLost) {
-    game.winner = "draw";
-    gameLog(game, "El duelo termina en empate.");
-  } else {
-    game.winner = aLost ? "b" : "a";
-    gameLog(game, game.winner === "a" ? "El jugador A gana el duelo." : "El jugador B gana el duelo.");
-  }
+  game.winner = aLost ? "b" : "a";
+  gameLog(game, game.winner === "a" ? "El jugador A gana el duelo." : "El jugador B gana el duelo.");
   return true;
 }
 function resolveAbility(game, side, inst) {
@@ -331,109 +407,82 @@ function resolveAbility(game, side, inst) {
 }
 function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
-  return (card?.def || 0) + (inst.defBonus || 0);
+  return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
 }
-function declareAttack(game, side) {
+function resolveTargetedAttack(game, side, targets = {}) {
   const foe = sideOther(side);
-  const attackers = game.board[side].filter(c => c.selected && !c.exhausted);
+  const attackers = game.board[side].filter(inst => inst.selected && canAttack(game, side, inst));
   if (!attackers.length) return false;
-  attackers.forEach(c => { c.exhausted = true; });
-  game.pendingAttack = {
-    attackerSide: side,
-    defenderSide: foe,
-    attackers: attackers.map(c => c.uid),
-    blocks: {}
-  };
-  gameLog(game, "Ataque declarado con " + attackers.length + " criatura(s). Las atacantes quedan giradas.");
+
+  for (const attacker of attackers) {
+    const currentAttacker = game.board[side].find(c => c.uid === attacker.uid);
+    if (!currentAttacker || !canAttack(game, side, currentAttacker)) continue;
+    const ac = BY_ID.get(currentAttacker.cardId);
+    currentAttacker.attacksThisTurn = (Number(currentAttacker.attacksThisTurn) || 0) + 1;
+    currentAttacker.exhausted = currentAttacker.attacksThisTurn >= attackLimit(ac);
+    currentAttacker.selected = false;
+
+    const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
+    const requested = cleanText(targets && targets[currentAttacker.uid], 100);
+    let defender = requested ? defenders.find(inst => inst.uid === requested) : null;
+    if (!defender) defender = defenders[0] || null;
+
+    if (!defender) {
+      const dealt = Math.max(0, Number(ac?.atk) || 0);
+      game.hp[foe] -= dealt;
+      game.damage[side] += dealt;
+      gameLog(game, ac.name + " ataca directamente y causa " + dealt + " PV.");
+      continue;
+    }
+
+    const bc = BY_ID.get(defender.cardId);
+    const attackerAttack = Math.max(0, Number(ac?.atk) || 0);
+    const defenderAttack = Math.max(0, Number(bc?.atk) || 0);
+    const attackerDefBefore = effectiveDef(currentAttacker);
+    const defenderDefBefore = effectiveDef(defender);
+
+    defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
+    defender.exhausted = defender.defensesThisTurn >= defenseLimit(bc);
+    defender.damage = (Number(defender.damage) || 0) + attackerAttack;
+    currentAttacker.damage = (Number(currentAttacker.damage) || 0) + defenderAttack;
+
+    const overflow = Math.max(0, attackerAttack - defenderDefBefore);
+    if (overflow > 0) {
+      game.hp[foe] -= overflow;
+      game.damage[side] += overflow;
+    }
+
+    gameLog(
+      game,
+      ac.name + " (" + attackerAttack + " ATQ) combate con " + bc.name + " (" + defenderAttack + " ATQ / " + defenderDefBefore + " DEF)."
+      + (overflow ? " " + overflow + " de daño atraviesa al jugador defensor." : "")
+    );
+
+    const defenderDead = effectiveDef(defender) <= 0;
+    const attackerDead = effectiveDef(currentAttacker) <= 0;
+    if (defenderDead) {
+      game.board[foe] = game.board[foe].filter(c => c.uid !== defender.uid);
+      gameLog(game, bc.name + " es destruida.");
+    }
+    if (attackerDead) {
+      game.board[side] = game.board[side].filter(c => c.uid !== currentAttacker.uid);
+      gameLog(game, ac.name + " es destruida por el contraataque.");
+    }
+    if (game.hp[foe] <= 0) break;
+  }
   return true;
 }
 
-function assignBlock(game, side, attackerUid, defenderUid) {
-  const pending = game.pendingAttack;
-  if (!pending || pending.defenderSide !== side || !pending.attackers.includes(attackerUid)) return;
-
-  const previousUid = pending.blocks[attackerUid];
-  if (previousUid && previousUid !== defenderUid) {
-    const previous = game.board[side].find(c => c.uid === previousUid);
-    if (previous) previous.exhausted = false;
-    delete pending.blocks[attackerUid];
-  }
-
-  if (!defenderUid) {
-    if (previousUid) {
-      const previous = game.board[side].find(c => c.uid === previousUid);
-      if (previous) previous.exhausted = false;
-    }
-    delete pending.blocks[attackerUid];
-    return;
-  }
-
-  let movedFrom = null;
-  for (const [a, d] of Object.entries(pending.blocks)) {
-    if (d === defenderUid && a !== attackerUid) {
-      movedFrom = a;
-      delete pending.blocks[a];
-      break;
-    }
-  }
-
-  const defender = game.board[side].find(c => c.uid === defenderUid);
-  if (!defender) return;
-  const alreadyAssigned = Object.values(pending.blocks).includes(defenderUid) || movedFrom !== null || previousUid === defenderUid;
-  if (defender.exhausted && !alreadyAssigned) return;
-
-  defender.exhausted = true;
-  pending.blocks[attackerUid] = defenderUid;
-}
-
-function resolveDeclaredAttack(game) {
-  const pending = game.pendingAttack;
-  if (!pending) return;
-  const side = pending.attackerSide;
-  const foe = pending.defenderSide;
-
-  for (const attackerUid of pending.attackers) {
-    const attacker = game.board[side].find(c => c.uid === attackerUid);
-    if (!attacker) continue;
-    const ac = BY_ID.get(attacker.cardId);
-    const blockerUid = pending.blocks[attackerUid];
-    const blocker = blockerUid ? game.board[foe].find(c => c.uid === blockerUid) : null;
-
-    if (blocker) {
-      const bc = BY_ID.get(blocker.cardId);
-      const attack = ac?.atk || 0;
-      const defense = effectiveDef(blocker);
-      gameLog(game, ac.name + " (" + attack + " ATQ) ataca la defensa " + defense + " de " + bc.name + ".");
-      if (attack >= defense) {
-        game.board[foe] = game.board[foe].filter(c => c.uid !== blocker.uid);
-        gameLog(game, bc.name + " es destruida.");
-      } else {
-        game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
-        gameLog(game, ac.name + " no supera la DEF y es destruida.");
-      }
-    } else {
-      const dealt = ac?.atk || 0;
-      game.hp[foe] -= dealt;
-      game.damage[side] += dealt;
-      gameLog(game, ac.name + " causa " + dealt + " PV.");
-    }
-    const survivor = game.board[side].find(c => c.uid === attacker.uid);
-    if (survivor) survivor.selected = false;
-  }
-  game.pendingAttack = null;
-}
-
 function initDuel(match) {
-  const size = DECK_SIZE;
-  match.deckSize = DECK_SIZE;
+  const startedAt = Date.now();
   const game = {
     turn: 1,
-    active: match.start === "random" && Math.random() < 0.5 ? "b" : "a",
+    active: Math.random() < 0.5 ? "b" : "a",
     phase: 0,
     hp: { a: 30, b: 30 },
     deck: {
-      a: sanitizeDeck(match.hostDeck, size, match.hostLevel),
-      b: sanitizeDeck(match.guestDeck, size, match.guestLevel)
+      a: sanitizeDeck(match.hostDeck, match.hostLevel),
+      b: sanitizeDeck(match.guestDeck, match.guestLevel)
     },
     hand: { a: [], b: [] },
     board: { a: [], b: [] },
@@ -446,14 +495,24 @@ function initDuel(match) {
     deckOut: { a: false, b: false },
     gameOver: false,
     winner: null,
+    startedAt,
+    deadlineAt: startedAt + MATCH_LIMIT_MS,
     log: []
   };
-  draw(game, "a", 7);
-  draw(game, "b", 7);
+  draw(game, "a", INITIAL_HAND);
+  draw(game, "b", INITIAL_HAND);
+  draw(game, sideOther(game.active), SECOND_PLAYER_BONUS);
   beginTurn(game, game.active);
-  advanceAutomaticPhases(game);
-  gameLog(game, "Duelo online iniciado con 7 cartas por jugador.");
   match.duel = game;
+  gameLog(game, "Duelo iniciado. El jugador inicial fue elegido al azar; el segundo recibió una carta adicional.");
+  advanceAutomaticPhases(game);
+
+  setTimeout(() => {
+    const live = matches.get(match.id);
+    if (!live || live.duel !== game || game.gameOver) return;
+    resolveByScore(game, "Se alcanza el límite de 40 minutos.");
+    emitDuel(match);
+  }, MATCH_LIMIT_MS + 50);
 }
 function snapshotFor(match, socketId) {
   const game = match.duel;
@@ -465,7 +524,7 @@ function snapshotFor(match, socketId) {
   return {
     matchId: match.id,
     side,
-    myTurn: game.pendingAttack ? game.pendingAttack.defenderSide === side : game.active === side,
+    myTurn: game.active === side,
     phase: game.phase,
     turn: game.turn,
     playerHp: game.hp[side],
@@ -486,9 +545,9 @@ function snapshotFor(match, socketId) {
     gameOver: game.gameOver,
     result: game.gameOver ? (game.winner === "draw" ? "draw" : game.winner === side ? "win" : "loss") : null,
     won: game.gameOver ? (game.winner === "draw" ? null : game.winner === side) : null,
-    defending: !!(game.pendingAttack && game.pendingAttack.defenderSide === side),
-    attackDeclared: !!(game.pendingAttack && game.pendingAttack.attackerSide === side),
-    blockAssignments: game.pendingAttack ? { ...game.pendingAttack.blocks } : {},
+    defending: false,
+    attackDeclared: false,
+    blockAssignments: {},
     damageDealt: game.damage[side],
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
     log: game.log.slice(-35)
@@ -550,14 +609,19 @@ function playCard(match, side, uid) {
     game.powerPlayed[side] = true;
     inst.exhausted = false;
     game.powers[side].push(inst);
-    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " pone " + card.name + " en su zona de Poder.");
+    game.availablePower[side] = totalPower(game, side);
+    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " pone " + card.name + " en su zona de Poder. Poder disponible: " + game.availablePower[side] + ".");
     return;
   }
   if (game.phase === 3 && !card.powerCard && !card.abilityCard && card.cost <= game.availablePower[side]) {
     game.availablePower[side] -= card.cost;
     game.hand[side].splice(index, 1);
+    inst.summonedTurn = game.turn;
+    inst.damage = 0;
+    inst.attacksThisTurn = 0;
+    inst.defensesThisTurn = 0;
     game.board[side].push(inst);
-    gameLog(game, card.name + " entra en juego.");
+    gameLog(game, card.name + " entra en juego y no puede atacar este turno salvo que tenga Berserker.");
     return;
   }
   if (game.phase === 4 && card.abilityCard && card.cost <= game.availablePower[side]) {
@@ -581,66 +645,21 @@ function handleDuelAction(match, socketId, payload) {
     return;
   }
 
-  if (game.pendingAttack) {
-    if (game.pendingAttack.defenderSide !== side) return;
-    if (type === "assignBlock") {
-      assignBlock(
-        game,
-        side,
-        cleanText(payload && payload.attackerUid, 100),
-        cleanText(payload && payload.defenderUid, 100)
-      );
-      emitDuel(match);
-      return;
-    }
-    if (type === "resolveDefense") {
-      resolveDeclaredAttack(game);
-      if (!checkEnd(game)) {
-        game.turn += 1;
-        beginTurn(game, sideOther(game.active));
-        advanceAutomaticPhases(game);
-      }
-      emitDuel(match);
-      return;
-    }
-    return;
-  }
-
   if (game.active !== side) return;
 
   if (type === "play") {
     playCard(match, side, cleanText(payload && payload.uid, 100));
     advanceAutomaticPhases(game);
-  } else if (type === "tapPower" && game.phase === 2) {
-    const power = game.powers[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
-    if (power && !power.exhausted) {
-      power.exhausted = true;
-      const value = powerValue(BY_ID.get(power.cardId));
-      game.availablePower[side] += value;
-      gameLog(game, "Se gira una carta de Poder y genera +" + value + " Poder.");
-    }
-    advanceAutomaticPhases(game);
   } else if (type === "toggleAttack" && game.phase === 5) {
     const unit = game.board[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
-    if (unit && !unit.exhausted) unit.selected = !unit.selected;
+    if (unit && canAttack(game, side, unit)) unit.selected = !unit.selected;
   } else if (type === "nextPhase") {
     if (game.phase === 5) {
-      const declared = declareAttack(game, side);
-      if (!declared) {
+      resolveTargetedAttack(game, side, payload && payload.targets && typeof payload.targets === "object" ? payload.targets : {});
+      if (!checkEnd(game)) {
         game.turn += 1;
         beginTurn(game, sideOther(side));
         advanceAutomaticPhases(game);
-      } else {
-        const foe = sideOther(side);
-        const defenders = game.board[foe].filter(c => !c.exhausted);
-        if (!defenders.length) {
-          resolveDeclaredAttack(game);
-          if (!checkEnd(game)) {
-            game.turn += 1;
-            beginTurn(game, foe);
-            advanceAutomaticPhases(game);
-          }
-        }
       }
     } else {
       game.phase += 1;
@@ -649,7 +668,7 @@ function handleDuelAction(match, socketId, payload) {
         checkEnd(game);
       }
       if (game.phase === 2) {
-        game.availablePower[side] = 0;
+        game.availablePower[side] = totalPower(game, side);
       }
       advanceAutomaticPhases(game);
     }
@@ -757,18 +776,19 @@ io.on("connection", socket => {
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
     removeSocketMatches(socket.id);
-    const deckSize = DECK_SIZE;
-    if (!Array.isArray(user.deck) || user.deck.length !== DECK_SIZE) {
-      socket.emit("match:error", { message: "Tu mazo guardado debe tener exactamente 20 cartas." });
+    const deckError = playDeckError(user.deck, user.level);
+    if (deckError) {
+      socket.emit("match:error", { message: deckError });
       return;
     }
+    const deckSize = user.deck.length;
     const match = {
       id: id("match"),
       player: user.name,
       level: user.level,
       elo: user.elo,
       deckSize,
-      start: payload && payload.start === "random" ? "random" : "normal",
+      start: "random",
       status: "waiting",
       hostSocketId: socket.id,
       guestSocketId: null,
@@ -814,12 +834,9 @@ io.on("connection", socket => {
     user.wins = Math.max(0, Number(fresh.wins) || 0);
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
-    if (match.deckSize !== DECK_SIZE) {
-      socket.emit("match:error", { message: "Ese reto usa un formato de mazo no permitido." });
-      return;
-    }
-    if (!Array.isArray(user.deck) || user.deck.length !== DECK_SIZE) {
-      socket.emit("match:error", { message: "Tu mazo guardado debe tener exactamente 20 cartas." });
+    const deckError = playDeckError(user.deck, user.level);
+    if (deckError) {
+      socket.emit("match:error", { message: deckError });
       return;
     }
     match.status = "playing";
