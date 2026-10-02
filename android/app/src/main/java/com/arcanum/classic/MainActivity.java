@@ -242,7 +242,11 @@ public class MainActivity extends Activity {
             try {
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
             } catch (Throwable ignored) {}
-            exitImmersiveMode();
+            // Keep the Android app edge-to-edge after combat. Only the
+            // landscape lock belongs to combat; immersive fullscreen belongs
+            // to the native app itself so returning to the lobby never leaves
+            // system-bar gutters or a visible outer margin.
+            enableImmersiveMode();
         }
     }
 
@@ -305,7 +309,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (webView != null) webView.onResume();
-        if (combatMode) enableImmersiveMode();
+        enableImmersiveMode();
     }
 
     @Override
@@ -317,7 +321,7 @@ public class MainActivity extends Activity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus && combatMode) enableImmersiveMode();
+        if (hasFocus) enableImmersiveMode();
     }
 
     @Override
