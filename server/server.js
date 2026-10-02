@@ -422,7 +422,7 @@ function resolveAbility(game, side, inst) {
 }
 function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
-  return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
+  return Math.max(0, (card?.def || 0) + (inst.defBonus || 0));
 }
 function resolvePendingAttack(game, defenderSide, defenderUid) {
   const pending = game.pendingAttack;
@@ -461,11 +461,12 @@ function resolvePendingAttack(game, defenderSide, defenderUid) {
   const attackerAttack = Math.max(0, Number(ac?.atk) || 0);
   const defenderAttack = Math.max(0, Number(bc?.atk) || 0);
   const defenderDefBefore = effectiveDef(defender);
+  const attackerDefBefore = effectiveDef(attacker);
 
   defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
   defender.exhausted = true;
-  defender.damage = (Number(defender.damage) || 0) + attackerAttack;
-  attacker.damage = (Number(attacker.damage) || 0) + defenderAttack;
+  const defenderDestroyed = attackerAttack >= defenderDefBefore;
+  const attackerDestroyed = defenderAttack >= attackerDefBefore;
 
   const overflow = Math.max(0, attackerAttack - defenderDefBefore);
   if (overflow > 0) {
@@ -475,15 +476,15 @@ function resolvePendingAttack(game, defenderSide, defenderUid) {
 
   gameLog(
     game,
-    ac.name + " (" + attackerAttack + " ATQ) combate con " + bc.name + " (" + defenderAttack + " ATQ / " + defenderDefBefore + " DEF)."
+    ac.name + " (" + attackerAttack + " ATQ / " + attackerDefBefore + " DEF) combate con " + bc.name + " (" + defenderAttack + " ATQ / " + defenderDefBefore + " DEF). Las estadísticas no se desgastan."
     + (overflow ? " " + overflow + " de daño atraviesa al jugador defensor." : "")
   );
 
-  if (effectiveDef(defender) <= 0) {
+  if (defenderDestroyed) {
     game.board[foe] = game.board[foe].filter(c => c.uid !== defender.uid);
     gameLog(game, bc.name + " es destruida.");
   }
-  if (effectiveDef(attacker) <= 0) {
+  if (attackerDestroyed) {
     game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
     gameLog(game, ac.name + " es destruida por el contraataque.");
   }
