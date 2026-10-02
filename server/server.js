@@ -11,6 +11,10 @@ const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
 const ROLPLAY_API_URL = process.env.ROLPLAY_API_URL || "https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
 const SERVER_VERSION = "0.7.1";
+// Shared secret proving to rolplay-api that match/trade settlements come from this server.
+const ROLPLAY_SERVER_KEY = process.env.ROLPLAY_SERVER_KEY || "";
+if (!ROLPLAY_SERVER_KEY) console.warn("ROLPLAY_SERVER_KEY is not set: match and trade settlements will be rejected.");
+const SETTLEMENT_HEADERS = Object.freeze({ "content-type": "application/json", "x-rolplay-server-key": ROLPLAY_SERVER_KEY });
 
 const LEVEL1_COMBAT_STATS = Object.freeze({
   "Duende": { atk: 1, def: 1 },
@@ -134,7 +138,7 @@ async function settleTradeProfiles(trade) {
   try {
     const response = await fetch(ROLPLAY_API_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: SETTLEMENT_HEADERS,
       body: JSON.stringify({
         action: "settle_trade",
         tradeKey: "trade:" + trade.id,
@@ -160,7 +164,7 @@ async function settleMatchProfiles(match) {
   try {
     const response = await fetch(ROLPLAY_API_URL, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: SETTLEMENT_HEADERS,
       body: JSON.stringify({
         action: "settle_match",
         matchKey: match.id,
@@ -906,7 +910,7 @@ function scheduleCombatIdleWatch(match, side) {
   combatIdleTimers.set(key, timer);
 }
 
-function markCombatActivity(match, side, growAllowance = false, deferEmit = false) {
+function markCombatActivity(match, side, growAllowance = false, deferEmit = false, presenceReturn = false) {
   if (!match || !side || match.status !== "playing" || !match.duel || match.duel.gameOver) return;
   match.lastActivityAt = match.lastActivityAt || { a: Date.now(), b: Date.now() };
   match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
@@ -915,6 +919,13 @@ function markCombatActivity(match, side, growAllowance = false, deferEmit = fals
   const hadGrace = Number(match.disconnectDeadlineAt[side]) > 0;
   if (growAllowance) {
     match.idleAllowanceMs[side] = Math.min(COMBAT_IDLE_MAX_MS, combatIdleAllowance(match, side) + COMBAT_IDLE_ACTION_BONUS_MS);
+  }
+  // Leaving fullscreen or going to the lobby is only undone by an explicit
+  // "active" presence update, never by ordinary clicks or game actions.
+  const reason = String(match.disconnectReason[side] || "");
+  if (hadGrace && !presenceReturn && (reason === "fullscreen" || reason === "lobby")) {
+    match.lastActivityAt[side] = Date.now();
+    return;
   }
   match.lastActivityAt[side] = Date.now();
   match.disconnectDeadlineAt[side] = 0;
@@ -1184,12 +1195,13 @@ io.on("connection", socket => {
     const mid = cleanText(payload && payload.id, 80);
     const match = matches.get(mid);
     const user = users.get(socket.id);
-    if (!match || !user || match.status !== "waiting" || match.hostSocketId === socket.id) {
+    const joinable = () => !!match && !!user && matches.get(mid) === match && match.status === "waiting" && match.hostSocketId !== socket.id;
+    if (!joinable()) {
       socket.emit("match:error", { message: "La partida ya no está disponible." });
       return;
     }
     if (String(match.hostAccountId) === String(user.accountId)) {
-      socket.emit("match:error", { message: "No puedes unirte a un reto creado por tu propia cuenta." });
+      socket.emit("match:error", { message: "No puedes unirte a tu propia partida." });
       return;
     }
     if (activeMatchForSocket(socket.id)) {
@@ -1201,8 +1213,8 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
       return;
     }
-    // Another player may have joined (or the host cancelled) while we awaited.
-    if (matches.get(mid) !== match || match.status !== "waiting" || !users.has(match.hostSocketId) || users.get(socket.id) !== user) {
+    // The host may have cancelled, or another player joined, while the profile was loading.
+    if (!joinable() || !users.has(match.hostSocketId) || users.get(socket.id) !== user) {
       socket.emit("match:error", { message: "La partida ya no está disponible." });
       return;
     }
@@ -1279,7 +1291,7 @@ io.on("connection", socket => {
       const reason = rawReason === "fullscreen" || rawReason === "inactive" || rawReason === "lobby" ? rawReason : "fullscreen";
       startCombatLeaveGrace(match, side, reason);
     } else if (presence === "active") {
-      markCombatActivity(match, side);
+      markCombatActivity(match, side, false, false, true);
     }
   });
 
@@ -1300,39 +1312,65 @@ io.on("connection", socket => {
     const user = users.get(socket.id);
     const to = cleanText(payload && payload.to, 100);
     if (!user || !users.has(to) || to === socket.id) return;
-    if (String(users.get(to).accountId) === String(user.accountId)) return;
+    if (users.get(to).accountId === user.accountId) return;
+    const involves = sid => [...trades.values()].filter(t => t.a === sid || t.b === sid);
+    if (involves(to).length) {
+      socket.emit("trade:busy", { to, message: "Ese jugador ya está en otro intercambio." });
+      return;
+    }
+    // Starting a new trade abandons any trade this player still had open.
+    for (const old of involves(socket.id)) {
+      if (old.settling) {
+        socket.emit("trade:busy", { to, message: "Tu intercambio anterior todavía se está completando." });
+        return;
+      }
+    }
+    for (const old of involves(socket.id)) {
+      io.to(old.a === socket.id ? old.b : old.a).emit("trade:cancelled", { tradeId: old.id });
+      trades.delete(old.id);
+    }
     const tradeId = id("trade");
-    trades.set(tradeId, { id: tradeId, a: socket.id, b: to, acceptedA: false, acceptedB: false, offers: { a: { cards: [], gold: 0 }, b: { cards: [], gold: 0 } } });
+    trades.set(tradeId, { id: tradeId, a: socket.id, b: to, acceptedA: false, acceptedB: false, revision: 0, settling: false, offers: { a: { cards: [], gold: 0 }, b: { cards: [], gold: 0 } } });
     io.to(to).emit("trade:invited", { tradeId, from: publicUser(socket.id, user) });
     socket.emit("trade:waiting", { tradeId, to });
   });
 
   socket.on("trade:offer", payload => {
     const trade = trades.get(cleanText(payload && payload.tradeId, 100));
-    if (!trade || (trade.a !== socket.id && trade.b !== socket.id)) return;
+    if (!trade || (trade.a !== socket.id && trade.b !== socket.id) || trade.settling) return;
     const other = trade.a === socket.id ? trade.b : trade.a;
     const side = trade.a === socket.id ? "a" : "b";
     const cards = Array.isArray(payload && payload.cards) ? payload.cards.map(Number).filter(id => BY_ID.has(id)).slice(0, 20) : [];
     const gold = Math.max(0, Math.floor(Number(payload && payload.gold) || 0));
     trade.offers[side] = { cards, gold };
     trade.acceptedA = false; trade.acceptedB = false;
+    trade.revision += 1;
     io.to(other).emit("trade:offer", {
       tradeId: trade.id,
       from: socket.id,
       cards,
-      gold
+      gold,
+      revision: trade.revision
     });
+    socket.emit("trade:offerAck", { tradeId: trade.id, revision: trade.revision });
   });
 
   socket.on("trade:accept", async payload => {
     const trade = trades.get(cleanText(payload && payload.tradeId, 100));
-    if (!trade || (trade.a !== socket.id && trade.b !== socket.id)) return;
+    if (!trade || (trade.a !== socket.id && trade.b !== socket.id) || trade.settling) return;
+    // An acceptance only counts for the exact offers the player was looking at.
+    if (Number(payload && payload.revision) !== trade.revision) {
+      socket.emit("trade:stale", { tradeId: trade.id, message: "La oferta ha cambiado. Revísala antes de aceptar." });
+      return;
+    }
     if (trade.a === socket.id) trade.acceptedA = true;
     if (trade.b === socket.id) trade.acceptedB = true;
     const other = trade.a === socket.id ? trade.b : trade.a;
     io.to(other).emit("trade:accepted", { tradeId: trade.id, by: socket.id });
     if (trade.acceptedA && trade.acceptedB) {
+      trade.settling = true;
       const result = await settleTradeProfiles(trade);
+      trade.settling = false;
       if (!result.ok) {
         trade.acceptedA = false; trade.acceptedB = false;
         io.to(trade.a).emit("trade:error", { tradeId: trade.id, message: result.error || "No se pudo completar el intercambio." });
@@ -1352,7 +1390,7 @@ io.on("connection", socket => {
   socket.on("trade:cancel", payload => {
     const tradeId = cleanText(payload && payload.tradeId, 100);
     const trade = trades.get(tradeId);
-    if (!trade || (trade.a !== socket.id && trade.b !== socket.id)) return;
+    if (!trade || (trade.a !== socket.id && trade.b !== socket.id) || trade.settling) return;
     const other = trade.a === socket.id ? trade.b : trade.a;
     io.to(other).emit("trade:cancelled", { tradeId });
     trades.delete(tradeId);

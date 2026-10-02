@@ -76,7 +76,7 @@ const state={
   marketListings:[],marketLoading:false,marketKind:"gold"
 };
 
-function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
+function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false,revision:null}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function norm(s){return String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
 function summonCost(name,level,powerCard){
@@ -425,10 +425,20 @@ function emitDuelPresence(stateName,reason=""){
   if(!d?.online||!state.connected||!state.socket||!d.matchId)return;
   state.socket.emit("duel:presence",{matchId:d.matchId,state:stateName,reason});
 }
+// Leaving fullscreen can only be undone by going back to fullscreen: clicks or
+// keys while windowed must not cancel the forfeit countdown.
+function fullscreenAwayActive(d=state.duel){
+  if(!d||d.gameOver||!fullscreenApiAvailable()||fullscreenElement())return false;
+  return playerLeaveReason()==="fullscreen"&&!!playerLeaveDeadline();
+}
 function markDuelActivity(kind="activity"){
   const d=state.duel;
   if(state.view!=="duel"||!d||d.gameOver)return;
   const now=Date.now();
+  if(fullscreenAwayActive(d)){
+    duelLastActivityAt=now;
+    return;
+  }
   const hadGrace=!!playerLeaveDeadline();
   const hadFinalCountdown=duelIdleFinalCountdownVisible;
   if(kind==="gameAction"&&!d.online){
@@ -446,7 +456,9 @@ function markDuelActivity(kind="activity"){
     d.playerLeaveReason="";
     if(state.connected&&state.socket&&(hadGrace||kind==="return"||now-duelActivityEmitAt>=5000)){
       duelActivityEmitAt=now;
-      state.socket.emit("duel:activity",{matchId:d.matchId});
+      // Only an explicit presence update may lift a lobby/fullscreen grace on the server.
+      if(hadGrace)emitDuelPresence("active");
+      else state.socket.emit("duel:activity",{matchId:d.matchId});
     }
   }
   if(hadGrace||hadFinalCountdown)renderView();
@@ -1446,9 +1458,9 @@ function proposeTrade(){
   renderView();
 }
 function acceptTrade(){
-  if(!state.trade.ready||!state.trade.onlineId||!state.connected)return;
+  if(!state.trade.ready||!state.trade.onlineId||!state.connected||!Number.isFinite(state.trade.revision))return;
   state.trade.ownGold=clamp(Number($("tradeGold")?.value)||state.trade.ownGold||0,0,state.profile.coins);
-  state.socket.emit("trade:accept",{tradeId:state.trade.onlineId});
+  state.socket.emit("trade:accept",{tradeId:state.trade.onlineId,revision:state.trade.revision});
   state.trade.status="Has aceptado. Esperando la confirmación del otro jugador…";renderView();
 }
 function handleSettledTrade(profile){
@@ -1581,12 +1593,19 @@ function connectOnline(){
       updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
     socket.on("trade:invited",m=>{
-      state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";
-      if(state.view==="duel"&&state.duel&&!state.duel.gameOver)toast(state.trade.partnerName+" quiere intercambiar contigo. Abre Intercambios al terminar el combate.");
-      else go("trade");
+      const from=m.from?.name||"Otro jugador";
+      if((state.trade.onlineId&&state.trade.onlineId!==m.tradeId)||(state.duel&&!state.duel.gameOver)){
+        socket.emit("trade:cancel",{tradeId:m.tradeId});
+        toast(from+" quiso intercambiar, pero ya estás ocupado.","bad");
+        return;
+      }
+      state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";go("trade");
     });
     socket.on("trade:waiting",m=>{state.trade.onlineId=m.tradeId;state.trade.partnerId=m.to;state.trade.status="Solicitud aceptada por el servidor. Enviando oferta…";socket.emit("trade:offer",{tradeId:m.tradeId,cards:state.trade.mine.slice(),gold:state.trade.ownGold||0});if(state.view==="trade")renderView()});
-    socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
+    socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.revision=Number(m.revision);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
+    socket.on("trade:offerAck",m=>{if(m.tradeId===state.trade.onlineId)state.trade.revision=Number(m.revision)});
+    socket.on("trade:stale",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.status=m.message||"La oferta ha cambiado. Revísala antes de aceptar.";toast(state.trade.status,"bad");if(state.view==="trade")renderView()});
+    socket.on("trade:busy",m=>{if(state.trade.onlineId)return;state.trade.status=m?.message||"Ese jugador no puede intercambiar ahora.";toast(state.trade.status,"bad");if(state.view==="trade")renderView()});
     socket.on("trade:accepted",m=>{if(m.tradeId===state.trade.onlineId){state.trade.status="El otro jugador ha aceptado. Falta la segunda confirmación.";if(state.view==="trade")renderView()}});
     socket.on("trade:settled",m=>{if(m.tradeId===state.trade.onlineId&&m.profile)handleSettledTrade(m.profile)});
     socket.on("trade:error",m=>{if(m.tradeId===state.trade.onlineId){state.trade.ready=false;state.trade.status="Error: "+(m.message||"No se pudo completar el intercambio.");toast(state.trade.status,"bad");if(state.view==="trade")renderView()}});
@@ -1698,8 +1717,9 @@ function renderDuel(){
   const awayDeadline=playerLeaveDeadline();
   const awayLeft=Math.max(0,awayDeadline-Date.now());
   const awayReason=playerLeaveReason();
-  const awayText=awayReason==="inactive"?"Llevas más de 3 minutos inactivo. Vuelve o realiza una acción":awayReason==="lobby"?"Has vuelto al lobby. Reanuda la partida":"Has salido de la pantalla completa. Vuelve a la partida";
-  const awayWarning=awayLeft>0?`<div class="duel-disconnect-warning"><b>${awayReason==="inactive"?"Inactividad detectada":"Vuelve a la partida"}</b><span>${awayText} · <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong></span></div>`:"";
+  const awayText=awayReason==="inactive"?"Llevas más de 3 minutos inactivo. Vuelve o realiza una acción":awayReason==="lobby"?"Has vuelto al lobby. Reanuda la partida":"Has salido de la pantalla completa. Solo volver a pantalla completa detiene la cuenta atrás";
+  const awayFullscreenButton=awayReason==="fullscreen"&&fullscreenApiAvailable()&&!fullscreenElement()?'<button class="btn small primary" data-action="enterDuelFullscreen">Volver a pantalla completa</button>':"";
+  const awayWarning=awayLeft>0?`<div class="duel-disconnect-warning"><b>${awayReason==="inactive"?"Inactividad detectada":"Vuelve a la partida"}</b><span>${awayText} · <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong></span>${awayFullscreenButton}</div>`:"";
   const idleLeft=!awayDeadline?Math.max(0,playerIdleDeadline()-Date.now()):0;
   const idleFinalWarning=idleLeft>0&&idleLeft<=10*1000?`<div class="duel-disconnect-warning"><b>Inactividad</b><span>Realiza una acción en <strong data-duel-idle-countdown>${Math.max(1,Math.ceil(idleLeft/1000))}</strong>s</span></div>`:"";
   const fullscreenButton=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver
