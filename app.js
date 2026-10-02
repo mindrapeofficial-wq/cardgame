@@ -217,44 +217,44 @@ async function boot(){
   }catch(e){
     console.error(e);$("bootError")?.classList.remove("hidden");return;
   }
-  const last=localStorage.getItem(LAST_KEY)||"";
-  if($("loginName"))$("loginName").value=last;
-  $("bootLoader")?.classList.add("hidden");
-  $("loginForm")?.classList.remove("hidden");
   if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
-}
-
-function login(name){
-  name=String(name||"").trim().replace(/[<>]/g,"").slice(0,24);
-  if(!name){toast("Escribe un nombre de jugador.","bad");return}
-  loadProfile(name);
-  $("loginScreen").classList.add("hidden");$("appShell").classList.remove("hidden");
-  updateChrome();connectOnline();go("home");
-}
-function logout(){
-  if(state.socket){state.socket.disconnect();state.socket=null}
-  state.connected=false;state.duel=null;state.trade=freshTrade();
-  $("appShell").classList.add("hidden");$("loginScreen").classList.remove("hidden");
+  if(sessionToken){
+    const result=await api("me",{},true);
+    if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
+    if(result.network){
+      const cached=cachedProfile();
+      if(cached){state.offlineSession=true;applyProfile(cached);enterGame();toast("Sin conexión: progreso cargado en modo offline.","bad");return}
+    }
+    sessionToken="";localStorage.removeItem(SESSION_KEY);
+  }
+  showAuth();
 }
 
 function updateChrome(){
   if(!state.profile)return;
   $("playerName").textContent=state.profile.name;$("playerAvatar").textContent=initial(state.profile.name);
-  $("playerMeta").textContent="Nv "+playerLevel()+" · "+state.profile.wins+" victorias";
+  $("playerMeta").textContent="Nv "+playerLevel()+" · "+state.profile.xp+"/"+(state.profile.xpRequired||"MAX")+" XP";
   $("coins").textContent=state.profile.coins;
+  const fill=$("playerXpFill");if(fill)fill.style.width=xpPercent()+"%";
   $("connectionDot").className="dot "+(state.connected?"online":"");
-  $("connectionText").textContent=state.connected?"Online":"Local";
+  $("connectionText").textContent=state.connected?"Online":state.offlineSession?"Offline":"Conectando";
   $("onlineBadge").textContent=state.users.length||0;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
 }
-function playerLevel(){return clamp(1+Math.floor((state.profile?.wins||0)/5),1,50)}
+function playerLevel(){return clamp(Number(state.profile?.level)||1,1,50)}
+function xpPercent(){if(!state.profile||playerLevel()>=50)return 100;return clamp(Math.round((state.profile.xp/Math.max(1,state.profile.xpRequired))*100),0,100)}
 function winrate(){
   const total=(state.profile?.wins||0)+(state.profile?.losses||0);
   return total?Math.round(state.profile.wins/total*100):0;
 }
 function deckValid(size=20){
   if(!state.profile||state.profile.deck.length<size)return false;
-  const count={};for(const id of state.profile.deck)count[id]=(count[id]||0)+1;
+  const count={};
+  for(const id of state.profile.deck){
+    const c=card(id);if(!c||c.level>playerLevel())return false;
+    if(isBasicPower(c))continue;
+    count[id]=(count[id]||0)+1;
+  }
   return Object.keys(count).every(id=>count[id]<=owned(id));
 }
 function collectionTotal(){return Object.values(state.profile?.collection||{}).reduce((a,b)=>a+Number(b||0),0)}
