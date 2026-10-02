@@ -135,10 +135,6 @@ img{max-width:100%}
 .pack-hero{min-height:285px;display:grid;place-items:center;text-align:center;padding:24px;background:
   radial-gradient(circle at 50% 30%,rgba(230,185,92,.18),transparent 38%),
   linear-gradient(145deg,#1d1b1a,#11151c)}
-.pack-card{width:145px;aspect-ratio:10/14;border-radius:15px;border:1px solid #a77d38;background:
-  radial-gradient(circle at 50% 42%,#d9b75d 0 4%,transparent 5%),
-  radial-gradient(circle at 50% 42%,transparent 0 17%,#8b6229 18% 20%,transparent 21%),
-  linear-gradient(145deg,#392817,#17130f);box-shadow:0 20px 50px #0008,0 0 45px rgba(214,174,88,.13);display:grid;place-items:center;font:900 24px Georgia,serif;letter-spacing:.12em;color:#f2d998}
 .reveal-grid{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:10px}
 .trade-layout{display:grid;grid-template-columns:minmax(0,1fr) 340px minmax(0,1fr);gap:14px}
 .trade-offer{min-height:280px}
@@ -911,16 +907,6 @@ body{
   background:
     radial-gradient(circle at 50% 28%,rgba(201,163,91,.105),transparent 38%),
     linear-gradient(145deg,#12100d,#0a0d11);
-}
-.pack-card{
-  width:132px;
-  border-color:#7d6234;
-  background:
-    radial-gradient(circle at 50% 42%,#b89755 0 4%,transparent 5%),
-    radial-gradient(circle at 50% 42%,transparent 0 17%,#69502c 18% 20%,transparent 21%),
-    linear-gradient(145deg,#2c2115,#0e0d0b);
-  box-shadow:0 20px 46px rgba(0,0,0,.58),0 0 40px rgba(201,163,91,.06);
-  color:#d8bd82;
 }
 .reward-card,.reward-rules,.odds-row,.trade-item{
   border-color:#20262e;
@@ -4686,21 +4672,14 @@ html.arcanum-tcg-android-app .shell.duel-mode .duel-turn-strip{
   width:min(100%,520px);
   margin-inline:auto;
 }
-.pack-hero .pack-card{
-  display:block;
-  width:132px;
-  height:auto;
-  aspect-ratio:5/7;
-  object-fit:contain;
-  margin:0 auto 18px;
-  border:1px solid rgba(201,163,91,.42);
-  border-radius:8px;
-  background:none;
-  box-shadow:0 18px 42px rgba(0,0,0,.58),0 0 32px rgba(201,163,91,.08);
-}
-@media(max-width:850px){
-  .pack-hero .pack-card{
-    width:118px;
-    margin-bottom:14px;
-  }
-}
+
+/* Cards whose artwork is a complete printed card (Level 1 creatures and basic Power):
+   the cost and stats are already on the card, so keep the art unobstructed. */
+.card-art.full-card:after{display:none}
+.card-art.full-card .card-cost{display:none}
+.card-art.full-card .card-qty{top:auto;left:50%;bottom:4.5%;transform:translateX(-50%)}
+.card-art.full-card .card-qty.infinity-badge{left:auto;right:7%;transform:none}
+
+/* Shop pack: printed pack artwork instead of the CSS-drawn placeholder. */
+.pack-art{display:block;width:150px;height:auto;margin:0 auto 10px;filter:drop-shadow(0 18px 30px rgba(0,0,0,.6))}
+@media (max-width:760px){.pack-art{width:120px}}

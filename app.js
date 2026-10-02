@@ -80,9 +80,21 @@ function card(id){return state.byId.get(Number(id))}
 function imageKey(s){
   return norm(s).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").replace(/[^a-z0-9]+/g,"");
 }
+// Complete card artwork (frame, name, stats and cost already printed), same 700x994 canvas as the Power card.
+const LEVEL1_CARD_ART=Object.freeze({
+  "Duende":"assets/cards/lvl1-duende.webp",
+  "Elfo Bardo":"assets/cards/lvl1-elfo-bardo.webp",
+  "Guerrero Menor":"assets/cards/lvl1-guerrero-menor.webp",
+  "Mel":"assets/cards/lvl1-mel.webp",
+  "Mimit":"assets/cards/lvl1-mimit.webp",
+  "Dophan":"assets/cards/lvl1-dophan.webp",
+  "Gorad Menor":"assets/cards/lvl1-gorad-menor.webp"
+});
+function hasFullCardArt(c){return !!c&&(isBasicPower(c)||(c.level===1&&!!LEVEL1_CARD_ART[c.name]))}
 function cardImage(c){
   if(!c)return CARD_BACK_IMAGE;
   if(isBasicPower(c))return"assets/arcanum-power-lvl1.png";
+  if(c.level===1&&LEVEL1_CARD_ART[c.name])return LEVEL1_CARD_ART[c.name];
   const k=imageKey(c.name);
   if(k==="arpada")return"legacy-assets/imagenes/crt_arpia_g.jpg";
   if(k==="dragonoscuro")return"legacy-assets/imagenes/crt_dragon_sombra_g.jpg";
@@ -1027,7 +1039,7 @@ function cardTile(c,opt={}){
   const canSell=!basic&&freeCopies(c.id)>0;
   const addLabel=basic&&inDeck>0?"Al mazo · "+inDeck:"Al mazo";
   return `<article class="game-card r-${r.key}" data-action="cardDetail" data-id="${c.id}">
-    <div class="card-art" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty '+(basic?'infinity-badge':'')+'">'+(basic?'∞ básico':'x'+qtyLabel)+'</span>':""}${locked?'<div class="level-lock">Requiere<br>Nivel '+c.level+'</div>':""}</div>
+    <div class="card-art${hasFullCardArt(c)?" full-card":""}" style="background-image:url('${cardImage(c)}')"><span class="card-cost">${c.cost}</span>${qty?'<span class="card-qty '+(basic?'infinity-badge':'')+'">'+(basic?'∞ básico':'x'+qtyLabel)+'</span>':""}${locked?'<div class="level-lock">Requiere<br>Nivel '+c.level+'</div>':""}</div>
     <div class="card-info"><div class="card-name">${esc(c.name)}</div><div class="card-sub">${cardType(c)} · Nv ${c.level} · ${r.name}${basic?" · Infinito":""}</div></div>
     <div class="card-stats"><span>${c.powerCard?"Poder +"+powerValue(c):"ATQ "+c.atk}</span><span>${c.powerCard?"":"DEF "+c.def}</span></div>
     ${opt.collection?'<div class="card-actions"><button class="btn small" data-action="addDeck" data-id="'+c.id+'" '+(canAdd?"":"disabled")+'>'+addLabel+'</button><button class="btn small ghost" data-action="sellCard" data-id="'+c.id+'" '+(canSell?"":"disabled")+'>'+(basic?'No vendible':'Vender +'+Math.max(1,Math.floor(cardValue(c)/2)))+'</button></div>':""}
@@ -1285,7 +1297,7 @@ function renderShop(){
   const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
     <div class="grid two">
-      <section class="panel pack-hero"><div><img class="pack-card" src="assets/arcanum-card-back.webp" alt="Mazo de cartas ARCANUM"><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
+      <section class="panel pack-hero"><div><img class="pack-art" src="assets/packs/pack-lvl1.webp" alt="Sobre ARCANUM TCG"><h2>Sobre Nivel ${lvl}</h2><p class="muted">5 cartas coleccionables · niveles 1–${lvl} · 20 oro</p><div class="field" style="max-width:260px;margin:14px auto"><label>Nivel del sobre</label><select class="select" id="packLevelSelect">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button><p class="muted" style="max-width:460px">Cuanto mayor es el nivel del sobre, más peso reciben las cartas cercanas a ese nivel. El Poder básico Nv 1 sigue siendo infinito y nunca ocupa un hueco.</p></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
