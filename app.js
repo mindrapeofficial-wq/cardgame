@@ -1552,10 +1552,11 @@ function cardDetail(id){
 
 function openMobileMenu(){
   $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal" style="max-width:420px"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
-    <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="collection"><span class="quick-icon">◇</span><span><b>Colección</b><small class="muted" style="display:block">Tus cartas</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="manual"><span class="quick-icon">?</span><span><b>Manual</b><small class="muted" style="display:block">Reglas y referencia</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
-    <button class="quick-row btn" data-action="nav" data-view="manual"><span class="quick-icon">?</span><span><b>Manual</b><small class="muted" style="display:block">Reglas y referencia</small></span></button>\n    <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
   </div></div></div></div>`;
 }
 function closeModal(){$("modalRoot").innerHTML=""}
