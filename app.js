@@ -356,15 +356,31 @@ function renderPlay(){
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo sin esperar rival. Usa las mismas seis fases, poder, invocaciones y combate.</p><button class="btn" data-action="training">Iniciar entrenamiento</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training">Iniciar entrenamiento</button></div>
       </section>
     </div>
+    <section class="panel reward-panel" style="margin-top:14px">
+      <div class="panel-head"><h2>Recompensas PvP</h2><span class="pill">Servidor autoritativo</span></div>
+      <div class="panel-body">
+        <div class="grid three">
+          <div class="reward-card win"><div class="kicker">Victoria</div><strong>+15 oro</strong><span>+40 XP contra rival de tu mismo nivel</span></div>
+          <div class="reward-card draw"><div class="kicker">Empate</div><strong>+5 oro</strong><span>+8 XP contra rival de tu mismo nivel</span></div>
+          <div class="reward-card loss"><div class="kicker">Derrota</div><strong>0 oro</strong><span>−15 XP contra rival de tu mismo nivel</span></div>
+        </div>
+        <div class="reward-rules">
+          <b>Ajuste por diferencia de nivel</b>
+          <p>Victoria: ±4 XP por cada nivel de diferencia, mínimo +20 y máximo +70. Empate: ±2 XP por nivel, mínimo +3 y máximo +20. Derrota: pierdes menos contra rivales superiores y más contra rivales inferiores, entre −5 y −30 XP.</p>
+          <p>Una derrota nunca te hace bajar de nivel: solo puede reducir la barra de XP del nivel actual hasta 0.</p>
+        </div>
+      </div>
+    </section>
     <section class="panel" style="margin-top:14px">
       <div class="panel-head"><h2>Retos disponibles</h2><span class="pill">${waiting.length} abiertos</span></div>
       <div class="panel-body"><div class="match-list">${renderMatches(waiting)}</div></div>
     </section>
   </div>`;
 }
+
 function renderMatches(list){
   if(!list.length)return'<div class="empty">No hay retos abiertos. Puedes crear el primero.</div>';
   return list.map(m=>{
