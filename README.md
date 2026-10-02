@@ -34,11 +34,12 @@ Rolplay Reborn now has a complete playable loop:
 - online match creation and joining
 - authoritative Socket.IO PvP state
 - six recovered historical turn phases
-- one Power card per Power phase
+- one Power card per Power phase, with automatic Power generation up to 200
+- 20–50 card decks with 7–40 Power cards
+- random starting player and an extra opening card for the second player
 - creature summoning and recovered ability subset
-- attacker selection
-- manual defender assignment in online PvP
-- life and deck-exhaustion win conditions
+- attacker target selection with simultaneous combat, persistent defense damage and overflow to life
+- life, deck-exhaustion, concession/disconnect and 40-minute score win conditions
 - conceding and disconnect handling
 - player-to-player card + gold exchanges with two-party locking
 - local guild-merchant exchange fallback
@@ -160,7 +161,7 @@ Level difference modifies XP:
 
 A PvP loss can reduce the XP bar of the current level, but never causes de-leveling. XP cannot fall below 0 inside the current level.
 
-Draws are persisted as a separate statistic. A simultaneous defeat condition for both players resolves as a draw.
+Draws are persisted as a separate statistic. If both players reach a defeat condition simultaneously, or the 40-minute limit is reached, the winner is determined by the canonical score: remaining life + cards on the battlefield + cards left in deck + base attack of the highest-level card in play. An exact score tie is a draw.
 
 Training rewards are intentionally much smaller and never remove XP.
 
