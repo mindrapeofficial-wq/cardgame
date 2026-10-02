@@ -1,4 +1,4 @@
-const CACHE="arcanum-tcg-v48";
+const CACHE="arcanum-tcg-v49";
 const CORE=["./","index.html","modern.css","visual-editor.css","app.js","visual-editor.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp","assets/arcanum-card-back.webp","assets/arcanum-login-background.webp","assets/arcanum-logo-oficial.webp"];
 const FRESH=new Set(["/","/index.html","/modern.css","/visual-editor.css","/app.js","/visual-editor.js","/cards.csv","/legacy-assets/image-index.json"]);
 
