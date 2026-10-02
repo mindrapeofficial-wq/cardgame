@@ -561,7 +561,7 @@ Poder x 20;100;2;50
 var $=function(id){return document.getElementById(id)};
 var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 var SAVE_KEY="rolplay-restoration-v2";
-var profile=null, duel=null, CATALOG=[], IMAGE_MAP={}, localMatches=[], tradeState={mine:[],theirs:[],theirGold:0,ready:false};
+var profile=null, duel=null, CATALOG=[], IMAGE_MAP={}, localMatches=[], tradeState={mine:[],theirs:[],theirGold:0,ready:false,onlineId:null,partnerId:null,partnerName:"",ownGold:0};
 var SERVER_URL="https://cardgame-server-erng.onrender.com", socket=null, onlineUsers=[], onlineMatches=[], socketBooting=false, onlineResultsApplied={};
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
@@ -704,6 +704,35 @@ function connectOnline(){
       appendSystem("Reto aceptado contra "+(m.opponent&&m.opponent.name||"otro jugador")+". Entrando al tablero online.");
     });
     socket.on("duel:snapshot",applyOnlineSnapshot);
+
+    socket.on("trade:invited",function(m){
+      tradeState.onlineId=m.tradeId;tradeState.partnerId=m.from&&m.from.socketId||null;tradeState.partnerName=m.from&&m.from.name||"Jugador";tradeState.theirs=[];tradeState.theirGold=0;tradeState.ready=true;
+      showView("intercambios");renderTradePartners();
+      if($("tradePartner")&&tradeState.partnerId)$("tradePartner").value=tradeState.partnerId;
+      $("tradeStatus").textContent=tradeState.partnerName+" te ha propuesto un intercambio. Prepara tu oferta y pulsa Proponer.";
+      $("acceptTrade").disabled=true;
+    });
+    socket.on("trade:waiting",function(m){
+      tradeState.onlineId=m.tradeId;tradeState.partnerId=m.to;tradeState.ready=true;
+      $("tradeStatus").textContent="Solicitud de intercambio enviada. Puedes enviar tu oferta.";
+      sendOnlineTradeOffer();
+    });
+    socket.on("trade:offer",function(m){
+      if(!tradeState.onlineId||m.tradeId!==tradeState.onlineId)return;
+      tradeState.theirs=(m.cards||[]).map(Number).filter(function(id){return !!cardById(id)});tradeState.theirGold=Math.max(0,Number(m.gold)||0);tradeState.ready=true;
+      renderTheirOnlineOffer();
+      $("tradeStatus").textContent="Nueva oferta recibida. Si cambias tu oferta, vuelve a pulsar Proponer.";
+      $("acceptTrade").disabled=false;
+    });
+    socket.on("trade:accepted",function(m){
+      if(m.tradeId===tradeState.onlineId)$("tradeStatus").textContent="El otro jugador ha aceptado. Falta tu aceptación si aún no la has confirmado.";
+    });
+    socket.on("trade:locked",function(m){
+      if(m.tradeId===tradeState.onlineId)finalizeOnlineTrade();
+    });
+    socket.on("trade:cancelled",function(m){
+      if(m.tradeId===tradeState.onlineId){resetTradeState("El otro jugador ha cancelado el intercambio.");}
+    });
   }
   if(window.io){start();return}
   var sc=document.createElement("script");
@@ -853,9 +882,25 @@ function renderTrade(){
   $("tradeInventory").querySelectorAll("[data-tradeadd]").forEach(function(b){b.onclick=function(){tradeState.mine.push(Number(b.dataset.tradeadd));tradeState.ready=false;renderTrade()}});
   $("myTradeOffer").querySelectorAll("[data-traderem]").forEach(function(b){b.onclick=function(){tradeState.mine.splice(Number(b.dataset.traderem),1);tradeState.ready=false;renderTrade()}});
 }
+function sendOnlineTradeOffer(){
+  if(!socket||!socket.connected||!tradeState.onlineId)return;
+  var gold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));tradeState.ownGold=gold;
+  socket.emit("trade:offer",{tradeId:tradeState.onlineId,cards:tradeState.mine.slice(),gold:gold});
+  $("tradeStatus").textContent="Oferta enviada: "+tradeState.mine.length+" carta(s) y "+gold+" oro.";
+}
+function renderTheirOnlineOffer(){
+  $("theirTradeOffer").innerHTML=tradeState.theirs.length?tradeState.theirs.map(function(id){var c=cardById(id);return "<div class='trade-card'><img src='"+cardImage(c)+"'><div><b>"+esc(c.name)+"</b><small>Nv "+c.level+" · valor "+cardValue(c)+"</small></div></div>"}).join("")+"<div style='padding:6px'><b>Oro: "+tradeState.theirGold+"</b></div>":"<div class='small'>Oferta sin cartas · Oro: "+tradeState.theirGold+"</div>";
+}
 function requestTrade(){
   var gold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));
   if(!tradeState.mine.length&&!gold){$("tradeStatus").textContent="Debes ofrecer al menos una carta o algo de oro.";return}
+  var partner=$("tradePartner")&&$("tradePartner").value||"";
+  if(partner&&socket&&socket.connected){
+    tradeState.partnerId=partner;var u=onlineUsers.find(function(x){return x.socketId===partner});tradeState.partnerName=u&&u.name||"Jugador";
+    if(tradeState.onlineId)sendOnlineTradeOffer();
+    else{socket.emit("trade:invite",{to:partner});$("tradeStatus").textContent="Enviando solicitud a "+tradeState.partnerName+"…";}
+    return;
+  }
   var myValue=tradeState.mine.reduce(function(n,id){return n+cardValue(cardById(id))},0)+gold;
   var pool=CATALOG.filter(function(c){return c.level<=Math.max(10,Math.floor(myValue/2)+2)});
   var target=Math.max(1,Math.round(myValue*.9)),sum=0,offer=[],tries=0;
@@ -867,6 +912,10 @@ function requestTrade(){
 }
 function acceptTrade(){
   if(!tradeState.ready)return;
+  if(tradeState.onlineId){
+    if(socket&&socket.connected){tradeState.ownGold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));socket.emit("trade:accept",{tradeId:tradeState.onlineId});$("tradeStatus").textContent="Has aceptado. Esperando la aceptación del otro jugador…";}
+    return;
+  }
   var gold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));
   var counts={};tradeState.mine.forEach(function(id){counts[id]=(counts[id]||0)+1});
   for(var k in counts){if(owned(k)<counts[k]){$("tradeStatus").textContent="La oferta ya no es válida.";return}}
@@ -876,7 +925,23 @@ function acceptTrade(){
   saveProfile();tradeState={mine:[],theirs:[],theirGold:0,ready:false};$("tradeGold").value=0;$("theirTradeOffer").innerHTML="<div class='small'>Sin oferta.</div>";
   $("tradeStatus").textContent="Intercambio completado.";renderTrade();renderCollection();renderDeck();$("acceptTrade").disabled=true;
 }
-function cancelTrade(){tradeState={mine:[],theirs:[],theirGold:0,ready:false};$("tradeGold").value=0;$("theirTradeOffer").innerHTML="<div class='small'>Sin oferta.</div>";$("tradeStatus").textContent="Intercambio cancelado.";$("acceptTrade").disabled=true;renderTrade()}
+function finalizeOnlineTrade(){
+  var counts={};tradeState.mine.forEach(function(id){counts[id]=(counts[id]||0)+1});
+  for(var k in counts){if(owned(k)<counts[k]){resetTradeState("El intercambio se bloqueó, pero tu reserva cambió y no puede aplicarse.");return}}
+  if(profile.coins<tradeState.ownGold){resetTradeState("No tienes ya el oro comprometido en la oferta.");return}
+  tradeState.mine.forEach(function(id){profile.collection[id]=Math.max(0,owned(id)-1)});
+  tradeState.theirs.forEach(function(id){profile.collection[id]=(profile.collection[id]||0)+1});
+  profile.coins=profile.coins-tradeState.ownGold+tradeState.theirGold;
+  saveProfile();resetTradeState("Intercambio online completado y bloqueado por ambas partes.");renderCollection();renderDeck();
+}
+function resetTradeState(message){
+  tradeState={mine:[],theirs:[],theirGold:0,ready:false,onlineId:null,partnerId:null,partnerName:"",ownGold:0};
+  $("tradeGold").value=0;$("theirTradeOffer").innerHTML="<div class='small'>Sin oferta.</div>";$("tradeStatus").textContent=message||"Intercambio reiniciado.";$("acceptTrade").disabled=true;renderTrade();
+}
+function cancelTrade(){
+  if(tradeState.onlineId&&socket&&socket.connected)socket.emit("trade:cancel",{tradeId:tradeState.onlineId});
+  resetTradeState("Intercambio cancelado.");
+}
 
 function makeTrainingDeck(useProfile,size){
   var arr=[], target=Math.max(20,Number(size)||30);
