@@ -4519,3 +4519,17 @@ html.arcanum-tcg-android-app.duel-viewport-lock #appShell.duel-mode #viewRoot{
 @media (hover:none) and (pointer:coarse){
   .shell.duel-mode .duel-top-actions{display:none!important}
 }
+
+
+/* === MOBILE DUEL HIDE TURN COPY 2026-10-02 === */
+/* On mobile combat the top turn/instruction strip is redundant and steals
+   valuable vertical space. Desktop keeps the full turn copy unchanged. */
+html.duel-mobile-client .shell.duel-mode .duel-turn-strip,
+body.duel-mobile-client .shell.duel-mode .duel-turn-strip,
+html.arcanum-tcg-android-app .shell.duel-mode .duel-turn-strip{
+  display:none!important;
+}
+
+@media (hover:none) and (pointer:coarse){
+  .shell.duel-mode .duel-turn-strip{display:none!important}
+}
