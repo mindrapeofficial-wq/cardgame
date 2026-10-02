@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "server/**"
+      - "supabase/functions/rolplay-api/**"
       - ".github/workflows/server-check.yml"
   push:
     branches:
       - "synthetic-population-v1"
     paths:
       - "server/**"
+      - "supabase/functions/rolplay-api/**"
       - ".github/workflows/server-check.yml"
 
 jobs:
@@ -27,3 +29,12 @@ jobs:
       - run: node --check server.js
       - run: node --check synthetic-population.js
       - run: node -e "require('./synthetic-population'); console.log('synthetic population module loads')"
+
+  edge-function-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/rolplay-api/index.ts
