@@ -11,9 +11,10 @@ const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 const RARITIES=[
   {name:"Común",key:"common",min:0},
-  {name:"Rara",key:"rare",min:26},
-  {name:"Épica",key:"epic",min:61},
-  {name:"Legendaria",key:"legendary",min:91}
+  {name:"Poco común",key:"uncommon",min:10},
+  {name:"Rara",key:"rare",min:40},
+  {name:"Épica",key:"epic",min:70},
+  {name:"Legendaria",key:"legendary",min:90}
 ];
 const $=id=>document.getElementById(id);
 const state={
@@ -452,6 +453,29 @@ async function removeDeck(index){
 }
 async function clearDeck(){await persistDeck([],"Mazo vaciado.")}
 
+function levelOneOdds(){
+  return[
+    {id:2,chance:20,tier:"Común"},
+    {id:3,chance:20,tier:"Común"},
+    {id:4,chance:20,tier:"Común"},
+    {id:8,chance:20,tier:"Común"},
+    {id:7,chance:15,tier:"Poco común"},
+    {id:5,chance:3.5,tier:"Rara"},
+    {id:6,chance:1.5,tier:"Rara"}
+  ];
+}
+function renderLevelOneOdds(){
+  if(playerLevel()!==1)return"";
+  const rows=levelOneOdds().map(o=>{
+    const c=card(o.id);if(!c)return"";
+    return`<div class="odds-row"><span><b>${esc(c.name)}</b><small class="muted">${o.tier} · ATQ ${c.atk} · DEF ${c.def} · coste ${c.cost}</small></span><strong>${String(o.chance).replace(".",",")}%</strong></div>`;
+  }).join("");
+  return`<section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Probabilidades · Nivel 1</h2><span class="pill">por hueco del sobre</span></div><div class="panel-body">
+    <div class="grid three" style="margin-bottom:12px"><div class="stat-card"><small>Común</small><strong>80%</strong></div><div class="stat-card"><small>Poco común</small><strong>15%</strong></div><div class="stat-card"><small>Rara</small><strong>5%</strong></div></div>
+    <div class="odds-list">${rows}</div>
+    <p class="muted" style="margin:10px 0 0">El Poder de Nivel 1 no aparece en sobres: tienes copias infinitas. Dentro de las raras, Gorad Menor tiene menor frecuencia porque ofrece la mejor presión ofensiva del nivel.</p>
+  </div></section>`;
+}
 function renderShop(){
   return `<div class="page">
     ${pageHead("Mercado","Tienda","Los sobres se generan en el servidor y jamás contienen una carta por encima de tu nivel actual.")}
@@ -460,8 +484,10 @@ function renderShop(){
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Tu punto de partida</h2><span class="muted">Progresión por nivel</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
+    ${renderLevelOneOdds()}
   </div>`;
 }
+
 async function buyPack(){
   if(state.profile.coins<20)return;
   const r=await api("buy_pack",{},true);
