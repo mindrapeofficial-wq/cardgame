@@ -4533,3 +4533,67 @@ html.arcanum-tcg-android-app .shell.duel-mode .duel-turn-strip{
 @media (hover:none) and (pointer:coarse){
   .shell.duel-mode .duel-turn-strip{display:none!important}
 }
+
+
+/* === MOBILE PLAYER DECK + HP VISIBILITY 2026-10-02 === */
+/* Reserve a little more vertical room for the player's hand/deck HUD on
+   landscape phones, keep the deck aligned with the hand cards, and prevent
+   the player name / PV / red HP bar from being clipped by the bottom actions. */
+@media (orientation:landscape) and (max-width:1180px){
+  .shell.duel-mode .board{
+    grid-template-rows:minmax(0,.92fr) auto minmax(0,.92fr) minmax(0,1.32fr)!important;
+  }
+
+  .shell.duel-mode .player-hand-layout{
+    min-height:0!important;
+    padding-bottom:2px!important;
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .player-deck-rail{
+    align-items:flex-start!important;
+    justify-content:center!important;
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .player-deck-rail .duel-deck-column{
+    height:auto!important;
+    min-height:0!important;
+    justify-content:flex-start!important;
+    padding-top:1px!important;
+    transform:translateY(-2px);
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .player-deck-rail .deck-player-meta{
+    flex:0 0 auto!important;
+    width:100%!important;
+    min-width:0!important;
+    margin-top:3px!important;
+    gap:1px!important;
+    overflow:visible!important;
+  }
+
+  .shell.duel-mode .player-deck-rail .deck-player-meta b,
+  .shell.duel-mode .player-deck-rail .deck-player-meta>span{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    line-height:1.05!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+  }
+
+  .shell.duel-mode .player-deck-rail .deck-hp-bar{
+    display:block!important;
+    width:100%!important;
+    min-width:100%!important;
+    height:4px!important;
+    min-height:4px!important;
+    margin-top:1px!important;
+    overflow:hidden!important;
+    opacity:1!important;
+    visibility:visible!important;
+  }
+}
