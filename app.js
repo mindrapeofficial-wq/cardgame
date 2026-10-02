@@ -21,6 +21,15 @@ const RARITIES=[
   {name:"Legendaria",key:"legendary",min:Infinity}
 ];
 const LEGENDARY_IDS=new Set([76,115,142,157,158,160,161,176,183,190,191,192,193,194,203,210,213,215,216,229,230,236,237,238,242,248,253,265,269,272,273,279,283,284,285]);
+const LEVEL1_COMBAT_STATS=Object.freeze({
+  "Duende":{atk:1,def:1},
+  "Elfo Bardo":{atk:0,def:2},
+  "Guerrero Menor":{atk:1,def:1},
+  "Dophan":{atk:2,def:1},
+  "Gorad Menor":{atk:1,def:2},
+  "Mimit":{atk:0,def:3},
+  "Mel":{atk:1,def:1}
+});
 const LEVEL1_POWER_COSTS=Object.freeze({
   "Duende":1,
   "Elfo Bardo":2,
@@ -86,10 +95,11 @@ function parseCards(text){
   state.catalog=text.trim().split(/\r?\n/).slice(1).filter(Boolean).map((line,i)=>{
     const p=line.split(";"),name=p[0],rar=Number(p[1])||1,quantity=Number(p[2])||1,level=Number(p[3])||1;
     const powerCard=isPowerName(name),abilityCard=isAbilityName(name);
+    const fixedStats=Number(level)===1?LEVEL1_COMBAT_STATS[name]:undefined;
     return{id:i+1,name,rarity:rar,quantity,level,powerCard,abilityCard,
       cost:summonCost(name,level,powerCard),
-      atk:(powerCard||abilityCard)?0:Math.max(1,Math.ceil(level*.52)+Math.floor(rar/30)),
-      def:(powerCard||abilityCard)?0:Math.max(1,Math.ceil(level*.40)+Math.floor((101-rar)/40))
+      atk:(powerCard||abilityCard)?0:(fixedStats?fixedStats.atk:Math.max(1,Math.ceil(level*.52)+Math.floor(rar/30))),
+      def:(powerCard||abilityCard)?0:(fixedStats?fixedStats.def:Math.max(1,Math.ceil(level*.40)+Math.floor((101-rar)/40)))
     };
   });
   state.byId=new Map(state.catalog.map(c=>[c.id,c]));
