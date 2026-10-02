@@ -50,13 +50,16 @@ Implemented:
 
 - Historical-style login and main salon.
 - Original 2013 visual assets used directly where available.
-- Original card artwork mapping.
+- Original card artwork mapping: 285/285 catalogue cards now resolve to recovered legacy artwork (including historical filename aliases).
 - Local chat facade and classic salon layout.
 - Pack purchases, persistent collection and deck builder.
 - Minimum 20-card deck rules.
-- Waiting-match browser plus local match creation/joining.
-- Configurable 20/30/40/50-card local matches.
-- Functional local card + gold exchange prototype.
+- Waiting-match browser plus local and online match creation/joining.
+- Configurable 20/30/40/50-card matches.
+- Replacement Node/Socket.IO server deployed on Render.
+- Real-time online presence and shared salon chat.
+- Authoritative online duel state: private hands, decks, life, power, board, phases, attacks and match result are maintained by the server.
+- Functional local and player-to-player card + gold exchanges with two-party acceptance/locking.
 - Seven-card opening hand.
 - Six historical turn phases.
 - Tapped attackers cannot defend.
@@ -67,8 +70,8 @@ Implemented:
 
 ## Next restoration milestones
 
-1. Replace provisional card statistics/effects with exact decoded legacy values.
-2. Add authoritative online lobby presence, chat and challenges.
-3. Synchronize multiplayer matches through a replacement server.
-4. Synchronize exchanges and lock offers after acceptance.
-5. Restore card selling, clans, private messages, statistics and tournaments.
+1. Replace provisional card statistics/effects with exact decoded legacy values from the original client/cards.
+2. Restore manual defender assignment during the online attack phase.
+3. Restore card selling and the historical market/economy values.
+4. Restore private messages, channels and user statistics.
+5. Restore clans, tournaments, betting and advanced historical abilities.
