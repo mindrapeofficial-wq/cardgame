@@ -1321,7 +1321,7 @@ function renderDuel(){
   return `<div class="duel-page">
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.trainingDefending?"Defiende el ataque":d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
+      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -1421,7 +1421,7 @@ function training(){
   const startedAt=Date.now();
   const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",trainingDefending:false,blockAssignments:{},attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
     gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
     log:["Entrenamiento iniciado. El jugador inicial se decide al azar."]};
   state.duel=d;
@@ -1884,7 +1884,6 @@ document.addEventListener("click",e=>{
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
-  else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"});else if(d&&!d.online&&d.trainingDefending)resolveTrainingDefense()}
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
   else if(a==="refreshRanking")void loadRanking();
