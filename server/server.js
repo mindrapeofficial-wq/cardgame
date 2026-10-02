@@ -409,105 +409,45 @@ function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
   return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
 }
-function eligibleDefenders(game, side) {
-  return game.board[side].filter(inst => canDefend(game, side, inst));
+function effectiveDef(inst) {
+  const card = BY_ID.get(inst.cardId);
+  return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
 }
-function declareAttack(game, side) {
+function resolveTargetedAttack(game, side, targets = {}) {
   const foe = sideOther(side);
   const attackers = game.board[side].filter(inst => inst.selected && canAttack(game, side, inst));
-  if (!attackers.length) return { declared: false, autoResolved: false };
+  if (!attackers.length) return false;
 
   for (const attacker of attackers) {
-    const card = BY_ID.get(attacker.cardId);
-    attacker.attacksThisTurn = (Number(attacker.attacksThisTurn) || 0) + 1;
-    // Una carta que ataca queda girada inmediatamente y así la ve también el rival.
-    attacker.exhausted = true;
-    attacker.selected = true;
-    if ((Number(attacker.attacksThisTurn) || 0) > attackLimit(card)) {
-      attacker.attacksThisTurn = attackLimit(card);
-    }
-  }
+    const currentAttacker = game.board[side].find(c => c.uid === attacker.uid);
+    if (!currentAttacker || !canAttack(game, side, currentAttacker)) continue;
+    const ac = BY_ID.get(currentAttacker.cardId);
+    currentAttacker.attacksThisTurn = (Number(currentAttacker.attacksThisTurn) || 0) + 1;
+    currentAttacker.exhausted = currentAttacker.attacksThisTurn >= attackLimit(ac);
+    currentAttacker.selected = false;
 
-  game.pendingAttack = {
-    attackerSide: side,
-    defenderSide: foe,
-    attackers: attackers.map(c => c.uid),
-    blocks: {}
-  };
-  gameLog(game, "Ataque declarado con " + attackers.length + " criatura(s). Las atacantes quedan giradas.");
-
-  if (!eligibleDefenders(game, foe).length) {
-    gameLog(game, "No hay defensores disponibles. La fase de Defensa se omite y se pasa automáticamente a Daño.");
-    resolveDeclaredAttack(game);
-    return { declared: true, autoResolved: true };
-  }
-
-  gameLog(game, "Fase de Defensa: el jugador defensor puede asignar bloqueadores.");
-  return { declared: true, autoResolved: false };
-}
-function assignBlock(game, side, attackerUid, defenderUid) {
-  const pending = game.pendingAttack;
-  if (!pending || pending.defenderSide !== side || !pending.attackers.includes(attackerUid)) return;
-
-  const previousUid = pending.blocks[attackerUid];
-  if (previousUid) {
-    const previous = game.board[side].find(c => c.uid === previousUid);
-    if (previous) {
-      previous.exhausted = false;
-      previous.defensesThisTurn = Math.max(0, (Number(previous.defensesThisTurn) || 0) - 1);
-    }
-    delete pending.blocks[attackerUid];
-  }
-
-  if (!defenderUid) return;
-
-  // Una misma criatura no puede bloquear dos atacantes.
-  for (const [otherAttacker, assignedUid] of Object.entries(pending.blocks)) {
-    if (assignedUid === defenderUid && otherAttacker !== attackerUid) return;
-  }
-
-  const defender = game.board[side].find(c => c.uid === defenderUid);
-  if (!defender || !canDefend(game, side, defender)) return;
-
-  defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
-  defender.exhausted = true;
-  pending.blocks[attackerUid] = defenderUid;
-}
-function resolveDeclaredAttack(game) {
-  const pending = game.pendingAttack;
-  if (!pending) return false;
-  const side = pending.attackerSide;
-  const foe = pending.defenderSide;
-
-  gameLog(game, "Fase de Daño.");
-
-  for (const attackerUid of pending.attackers) {
-    const attacker = game.board[side].find(c => c.uid === attackerUid);
-    if (!attacker) continue;
-    const ac = BY_ID.get(attacker.cardId);
-    if (!ac) continue;
-
-    const blockerUid = pending.blocks[attackerUid];
-    const defender = blockerUid ? game.board[foe].find(c => c.uid === blockerUid) : null;
+    const defenders = game.board[foe].filter(inst => canDefend(game, foe, inst));
+    const requested = cleanText(targets && targets[currentAttacker.uid], 100);
+    let defender = requested ? defenders.find(inst => inst.uid === requested) : null;
+    if (!defender) defender = defenders[0] || null;
 
     if (!defender) {
-      const dealt = Math.max(0, Number(ac.atk) || 0);
+      const dealt = Math.max(0, Number(ac?.atk) || 0);
       game.hp[foe] -= dealt;
       game.damage[side] += dealt;
       gameLog(game, ac.name + " ataca directamente y causa " + dealt + " PV.");
-      attacker.selected = false;
-      if (game.hp[foe] <= 0) break;
       continue;
     }
 
     const bc = BY_ID.get(defender.cardId);
-    if (!bc) continue;
-    const attackerAttack = Math.max(0, Number(ac.atk) || 0);
-    const defenderAttack = Math.max(0, Number(bc.atk) || 0);
+    const attackerAttack = Math.max(0, Number(ac?.atk) || 0);
+    const defenderAttack = Math.max(0, Number(bc?.atk) || 0);
     const defenderDefBefore = effectiveDef(defender);
 
+    defender.defensesThisTurn = (Number(defender.defensesThisTurn) || 0) + 1;
+    defender.exhausted = defender.defensesThisTurn >= defenseLimit(bc);
     defender.damage = (Number(defender.damage) || 0) + attackerAttack;
-    attacker.damage = (Number(attacker.damage) || 0) + defenderAttack;
+    currentAttacker.damage = (Number(currentAttacker.damage) || 0) + defenderAttack;
 
     const overflow = Math.max(0, attackerAttack - defenderDefBefore);
     if (overflow > 0) {
@@ -525,23 +465,13 @@ function resolveDeclaredAttack(game) {
       game.board[foe] = game.board[foe].filter(c => c.uid !== defender.uid);
       gameLog(game, bc.name + " es destruida.");
     }
-    if (effectiveDef(attacker) <= 0) {
-      game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
+    if (effectiveDef(currentAttacker) <= 0) {
+      game.board[side] = game.board[side].filter(c => c.uid !== currentAttacker.uid);
       gameLog(game, ac.name + " es destruida por el contraataque.");
-    } else {
-      attacker.selected = false;
     }
     if (game.hp[foe] <= 0) break;
   }
-
-  game.pendingAttack = null;
   return true;
-}
-function finishAttackAndAdvance(game) {
-  if (checkEnd(game)) return;
-  game.turn += 1;
-  beginTurn(game, sideOther(game.active));
-  advanceAutomaticPhases(game);
 }
 
 function initDuel(match) {
@@ -595,7 +525,7 @@ function snapshotFor(match, socketId) {
   return {
     matchId: match.id,
     side,
-    myTurn: game.pendingAttack ? game.pendingAttack.defenderSide === side : game.active === side,
+    myTurn: game.active === side,
     phase: game.phase,
     turn: game.turn,
     playerHp: game.hp[side],
@@ -616,9 +546,9 @@ function snapshotFor(match, socketId) {
     gameOver: game.gameOver,
     result: game.gameOver ? (game.winner === "draw" ? "draw" : game.winner === side ? "win" : "loss") : null,
     won: game.gameOver ? (game.winner === "draw" ? null : game.winner === side) : null,
-    defending: !!(game.pendingAttack && game.pendingAttack.defenderSide === side),
-    attackDeclared: !!(game.pendingAttack && game.pendingAttack.attackerSide === side),
-    blockAssignments: game.pendingAttack ? { ...game.pendingAttack.blocks } : {},
+    defending: false,
+    attackDeclared: false,
+    blockAssignments: {},
     damageDealt: game.damage[side],
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
     log: game.log.slice(-35)
@@ -716,27 +646,6 @@ function handleDuelAction(match, socketId, payload) {
     return;
   }
 
-  if (game.pendingAttack) {
-    if (game.pendingAttack.defenderSide !== side) return;
-    if (type === "assignBlock") {
-      assignBlock(
-        game,
-        side,
-        cleanText(payload && payload.attackerUid, 100),
-        cleanText(payload && payload.defenderUid, 100)
-      );
-      emitDuel(match);
-      return;
-    }
-    if (type === "resolveDefense") {
-      resolveDeclaredAttack(game);
-      finishAttackAndAdvance(game);
-      emitDuel(match);
-      return;
-    }
-    return;
-  }
-
   if (game.active !== side) return;
 
   if (type === "play") {
@@ -747,14 +656,11 @@ function handleDuelAction(match, socketId, payload) {
     if (unit && canAttack(game, side, unit)) unit.selected = !unit.selected;
   } else if (type === "nextPhase") {
     if (game.phase === 5) {
-      const result = declareAttack(game, side);
-      if (!result.declared) {
-        gameLog(game, "No se declara ningún ataque.");
+      resolveTargetedAttack(game, side, payload && payload.targets && typeof payload.targets === "object" ? payload.targets : {});
+      if (!checkEnd(game)) {
         game.turn += 1;
         beginTurn(game, sideOther(side));
         advanceAutomaticPhases(game);
-      } else if (result.autoResolved) {
-        finishAttackAndAdvance(game);
       }
     } else {
       game.phase += 1;
@@ -762,9 +668,7 @@ function handleDuelAction(match, socketId, payload) {
         draw(game, side, 1);
         checkEnd(game);
       }
-      if (game.phase === 2) {
-        game.availablePower[side] = totalPower(game, side);
-      }
+      if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
       advanceAutomaticPhases(game);
     }
   }
