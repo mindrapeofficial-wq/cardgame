@@ -1618,6 +1618,9 @@ function renderDuel(){
         <div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}</div>
         ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
         <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
+        <div class="duel-deck-rail enemy-deck-rail">
+          <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
+        </div>
       </section>
       <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
       <section class="board-zone player-zone">${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
@@ -1626,8 +1629,7 @@ function renderDuel(){
           <div class="zone-title"><span>Tu mano</span></div>
           <div class="player-hand-layout">
             <div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div>
-            <div class="duel-decks-corner" aria-label="Mazos de la partida">
-              <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
+            <div class="duel-deck-rail player-deck-rail">
               <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div>
             </div>
           </div>
