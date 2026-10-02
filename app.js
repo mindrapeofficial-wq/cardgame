@@ -314,18 +314,12 @@ function pageHead(kicker,title,desc,actions=""){
 function renderHome(){
   const deckReady=deckValid(20),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
   return `<div class="page">
-    <section class="panel hero">
-      <div class="hero-copy">
-        <div class="kicker">Rolplay · Reborn</div>
-        <h1>${empty?"Tu historia empieza<br>con las manos vacías.":"La leyenda vuelve<br>con otra armadura."}</h1>
-        <p>${empty?"Eres Nivel 1. No posees cartas todavía, pero tienes Poder básico infinito y 100 de oro para abrir sobres. Los sobres solo pueden darte cartas de tu nivel o inferior.":"Construye tu colección, sube de nivel y desbloquea cartas cada vez más poderosas."}</p>
-        <div class="actions" style="margin-top:15px">
-          ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
-          <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
-        </div>
-      </div><div class="hero-visual"></div>
-    </section>
-    <div class="xp-card" style="margin-top:14px">
+    <div class="home-actions">
+      ${empty?'<button class="btn primary" data-action="nav" data-view="shop">Abrir primeros sobres</button>':'<button class="btn primary" data-action="nav" data-view="play">Buscar partida</button>'}
+      ${matches>0?'<button class="btn" data-action="nav" data-view="play">Unirse a partida</button>':""}
+      <button class="btn" data-action="nav" data-view="deck">Construir mazo</button>
+    </div>
+    <div class="xp-card">
       <div class="xp-row"><div><div class="kicker">Progresión</div><b>Nivel ${playerLevel()}</b></div><div class="muted">${playerLevel()>=50?"Nivel máximo":state.profile.xp+" / "+state.profile.xpRequired+" XP"}</div></div>
       <div class="xp-bar"><span style="width:${xpPercent()}%"></span></div>
     </div>
