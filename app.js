@@ -568,7 +568,18 @@ function updateChrome(){
   const fill=$("playerXpFill");if(fill)fill.style.width=xpPercent()+"%";
   $("connectionDot").className="dot "+(state.connected?"online":"");
   $("connectionText").textContent=state.connected?"Online":state.offlineSession?"Offline":"Conectando";
-  $("onlineBadge").textContent=state.users.length||0;
+  // "Jugar" badge: open challenges you can join (not your own); hidden when there are none.
+  const openChallenges=state.matches.filter(m=>m.status==="waiting"&&!(state.socket&&m.hostSocketId===state.socket.id)).length;
+  const badge=$("onlineBadge");
+  if(badge){badge.textContent=openChallenges;badge.hidden=!openChallenges;badge.title=openChallenges===1?"1 reto abierto":openChallenges+" retos abiertos"}
+  const online=$("onlineCounter");
+  if(online){
+    const n=state.users.length;
+    online.hidden=!state.connected;
+    online.querySelector("b").textContent=n;
+    online.querySelector("span:last-child").textContent=n===1?"conectado":"conectados";
+    online.setAttribute("aria-label",n+(n===1?" jugador conectado":" jugadores conectados"));online.title=online.getAttribute("aria-label");
+  }
   const inCombat=state.view==="duel"&&!!state.duel;
   const mobileCombat=isMobileCombatClient();
   const nativeCombat=isNativeAndroidCombatClient();
@@ -1568,7 +1579,7 @@ function connectOnline(){
     socket.on("disconnect",()=>{state.connected=false;updateChrome();if(state.view!=="duel")renderView()});
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
-    socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];if(["home","play"].includes(state.view))renderView()});
+    socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
     socket.on("chat:system",m=>{pushChat({system:true,text:m.text});if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});

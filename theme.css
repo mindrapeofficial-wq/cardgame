@@ -450,3 +450,23 @@
   .login-art-copy{width:min(640px,78%)!important;margin:0 auto}
   .login-panel-brand{display:none!important}
 }
+
+/* Online players: small counter in the bottom-right corner (above the mobile bar). Hidden in combat. */
+.online-counter{
+  position:fixed;right:18px;bottom:18px;z-index:64;
+  display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
+  border:1px solid var(--arc-line);border-radius:999px;
+  background:rgba(8,7,6,.82);box-shadow:0 8px 22px rgba(0,0,0,.45);
+  font-size:11.5px;color:var(--arc-muted);pointer-events:none;
+}
+.online-counter b{font-family:var(--arc-display);font-size:13px;color:var(--arc-gold-hi)}
+.online-counter-dot{width:7px;height:7px;border-radius:50%;background:#7fd08a;box-shadow:0 0 8px rgba(127,208,138,.85)}
+.online-counter[hidden],
+.shell.duel-mode .online-counter{display:none!important}
+.nav-badge[hidden]{display:none!important}
+@media (max-width:850px){
+  .online-counter{right:10px;bottom:calc(74px + env(safe-area-inset-bottom));padding:4px 10px;font-size:10.5px}
+}
+/* Compact form: just the dot and the number, so it covers as little as possible. */
+.online-counter{gap:6px;padding:6px 11px;opacity:.85}
+.online-counter span:last-child{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
