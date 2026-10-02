@@ -11,6 +11,21 @@ const PORT = process.env.PORT || 10000;
 const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || "https://cardgame-l9ld.onrender.com";
 const ROLPLAY_API_URL = process.env.ROLPLAY_API_URL || "https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
 
+const LEVEL1_POWER_COSTS = Object.freeze({
+  "Duende": 1,
+  "Elfo Bardo": 2,
+  "Guerrero Menor": 2,
+  "Mel": 2,
+  "Dophan": 3,
+  "Gorad Menor": 3,
+  "Mimit": 3
+});
+function summonCost(name, level, powerCard) {
+  if (powerCard) return 0;
+  const fixed = Number(level) === 1 ? LEVEL1_POWER_COSTS[name] : undefined;
+  return Number.isFinite(fixed) ? fixed : Math.max(1, Math.min(10, Math.ceil((Number(level) || 1) / 5)));
+}
+
 function parseCatalog() {
   const raw = fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8");
   return raw.trim().split(/\r?\n/).slice(1).map((line, index) => {
@@ -27,7 +42,7 @@ function parseCatalog() {
       level: lv,
       powerCard,
       abilityCard,
-      cost: powerCard ? 0 : Math.max(1, Math.min(10, Math.ceil(lv / 5))),
+      cost: summonCost(name, lv, powerCard),
       atk: (powerCard || abilityCard) ? 0 : Math.max(1, Math.ceil(lv * 0.52) + Math.floor(rar / 30)),
       def: (powerCard || abilityCard) ? 0 : Math.max(1, Math.ceil(lv * 0.40) + Math.floor((101 - rar) / 40))
     };
@@ -217,7 +232,8 @@ function beginTurn(game, side) {
   game.pendingAttack = null;
   game.powerPlayed[side] = false;
   game.board[side].forEach(c => { c.exhausted = false; c.selected = false; });
-  game.availablePower[side] = totalPower(game, side);
+  game.powers[side].forEach(c => { c.exhausted = false; });
+  game.availablePower[side] = 0;
 }
 function checkEnd(game) {
   if (game.gameOver) return true;
@@ -445,9 +461,10 @@ function playCard(match, side, uid) {
   if (game.phase === 2 && card.powerCard && !game.powerPlayed[side]) {
     game.hand[side].splice(index, 1);
     game.powerPlayed[side] = true;
+    inst.exhausted = true;
     game.powers[side].push(inst);
     game.availablePower[side] = totalPower(game, side);
-    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " conjura " + card.name + ".");
+    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " conjura " + card.name + " girada y obtiene +" + powerValue(card) + " Poder.");
     return;
   }
   if (game.phase === 3 && !card.powerCard && !card.abilityCard && card.cost <= game.availablePower[side]) {
@@ -532,7 +549,10 @@ function handleDuelAction(match, socketId, payload) {
         draw(game, side, 1);
         checkEnd(game);
       }
-      if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
+      if (game.phase === 2) {
+        game.powers[side].forEach(c => { c.exhausted = true; });
+        game.availablePower[side] = totalPower(game, side);
+      }
     }
   }
   checkEnd(game);
