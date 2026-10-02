@@ -1080,7 +1080,7 @@ function renderDuel(){
   return `<div class="duel-page">
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.trainingDefending?"Defiende el ataque":d.aiActing?(d.aiMessage||"Turno del Guardián"):"Entrenamiento")}</b></div>
+      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.trainingDefending?"Defiende el ataque":d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -1124,7 +1124,8 @@ function duelCardClickable(c,zone){
   const d=state.duel;if(!d||d.gameOver||(!d.online&&d.aiActing))return false;
   if(d.online&&(d.defending||d.attackDeclared))return false;
   if(d.online&&!d.myTurn)return false;
-  if(zone==="hand")return(d.phase===2&&c.powerCard&&!d.powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
+  const powerPlayed=d.online?d.powerPlayed:d.playerPowerPlayed;
+  if(zone==="hand")return(d.phase===2&&c.powerCard&&!powerPlayed)||(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power)||(d.phase===4&&c.abilityCard&&c.cost<=d.power);
   if(zone==="player")return d.phase===5&&!c.exhausted;
   return false;
 }
@@ -1218,12 +1219,13 @@ function localPhaseHasAction(d){
   }
   if(d.phase===3)return d.playerHand.some(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.power);
   if(d.phase===4)return d.playerHand.some(c=>c.abilityCard&&c.cost<=d.power);
-  if(d.phase===5)return d.playerBoard.some(c=>!c.exhausted);
+  if(d.phase===5)return d.playerBoard.some(c=>!c.exhausted&&(Number(c.atk)||0)>0);
   return false;
 }
 function startLocalEnemyTurn(d){
   if(!d||d.gameOver||d.aiActing||d.trainingDefending)return;
   d.aiActing=true;
+  d.phase=0;
   d.aiMessage="El Guardián prepara su turno";
   d.log.push("Tu turno ha terminado. Ahora juega el Guardián.");
   renderView();
@@ -1370,6 +1372,7 @@ async function runEnemyTurn(d){
     d.enemyPowerPlayed=false;
     d.enemyPower=0;
     d.enemyMaxPower=powerTotal(d.enemyPowers);
+    d.phase=1;
     d.aiMessage="Fase de robo";
     drawLocal("enemy",1);
     d.log.push("El Guardián roba una carta.");
@@ -1377,6 +1380,7 @@ async function runEnemyTurn(d){
     if(checkLocalEnd())return;
     await aiPause(550);if(!aiStillActive(d))return;
 
+    d.phase=2;
     d.aiMessage="Fase de Poder";
     const p=aiBestPower(d);
     if(p&&!d.enemyPowerPlayed){
@@ -1398,6 +1402,7 @@ async function runEnemyTurn(d){
       await aiPause(500);if(!aiStillActive(d))return;
     }
 
+    d.phase=4;
     d.aiMessage="Fase táctica";
     for(let i=0;i<2;i++){
       const ability=aiBestAbility(d,7);if(!ability)break;
@@ -1410,6 +1415,7 @@ async function runEnemyTurn(d){
       await aiPause(500);if(!aiStillActive(d))return;
     }
 
+    d.phase=3;
     d.aiMessage="Fase de invocación";
     let safe=20;
     while(safe--){
@@ -1423,6 +1429,7 @@ async function runEnemyTurn(d){
       await aiPause(380);if(!aiStillActive(d))return;
     }
 
+    d.phase=4;
     d.aiMessage="Fase de habilidades";
     for(let i=0;i<3;i++){
       const ability=aiBestAbility(d,3);if(!ability)break;
@@ -1445,6 +1452,7 @@ async function runEnemyTurn(d){
       }
     }
 
+    d.phase=5;
     d.aiMessage="Fase de ataque";
     const attackers=aiChooseAttackers(d);
     d.enemyBoard.forEach(c=>c.selected=attackers.some(a=>a.uid===c.uid));
