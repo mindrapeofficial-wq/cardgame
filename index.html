@@ -25,6 +25,44 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
 .duelhead{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}.vitals{display:flex;gap:6px;flex-wrap:wrap}.phasebar{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:8px 0}.phase{padding:7px 4px;text-align:center;border:1px solid #544027;background:#160f0a;color:#8f8066;font-size:11px}.phase.active{color:#fff0c9;border-color:#d0a858;background:#51341a}.battle{display:grid;gap:8px}.zone{background:#17100bea;border:1px solid #664d2f;padding:8px}.zone.enemy{background:#1d1010e8}.zonehead{display:flex;justify-content:space-between;margin-bottom:6px;color:#dbc698}.battlecards{display:flex;gap:7px;overflow-x:auto;min-height:142px}.battlecard{width:110px;min-width:110px;height:136px;background:#2a1c11;border:1px solid #715635;position:relative;display:flex;flex-direction:column}.battlecard .miniart{height:70px;background:center/cover no-repeat;border-bottom:1px solid #5e452f}.battlecard .n{font:700 11px Georgia,serif;padding:5px}.battlecard .s{margin-top:auto;padding:4px 5px;font-size:10px;display:flex;justify-content:space-between}.battlecard.playable,.battlecard.selectable{cursor:pointer;border-color:#b68a47}.battlecard.selected{outline:2px solid #e2bd67}.battlecard.exhausted{opacity:.47;filter:grayscale(.65)}.empty{display:grid;place-items:center;min-width:100%;min-height:118px;border:1px dashed #4c3927;color:#7f715e}
 .duelbottom{display:grid;grid-template-columns:1fr 300px;gap:8px}.log{height:175px;overflow:auto;background:#0e0907;border:1px inset #5a4329;padding:8px;font-size:11px;white-space:pre-line}.good{color:#9ecb8f}.bad{color:#e39083}.actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:7px}.status{font-size:11px;color:#b5a282}.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.shot{background:#130d09;border:1px solid #60482d;padding:6px}.shot img{width:100%;display:block}
 @media(max-width:850px){.grid2,.duelbottom{grid-template-columns:1fr}.grid3,.gallery{grid-template-columns:1fr}.phasebar{grid-template-columns:repeat(3,1fr)}.legacy-header{height:115px}.legacy-header:after{font-size:28px}.legacy-header .tag{display:none}.cards{grid-template-columns:repeat(auto-fill,minmax(125px,1fr))}}
+
+/* Literal-client restoration layer based on the archived 2013 screenshots */
+.classic-client{background:#050505;border:2px ridge #c9c9c9;color:#eee;font:12px Tahoma,Verdana,sans-serif;box-shadow:0 10px 25px #0009}
+.classic-title{height:24px;display:flex;align-items:center;padding:0 7px;background:linear-gradient(90deg,#15337b,#5f83c8);color:white;font-weight:700;border-bottom:1px solid #c6c6c6}
+.classic-title span{margin-left:auto;font-weight:400;font-size:11px}
+.classic-main{display:grid;grid-template-columns:minmax(0,1fr) 250px;min-height:310px}
+.classic-chat-area{display:grid;grid-template-rows:1fr auto;border-right:2px ridge #d0d0d0}
+.classic-chatlog{background:#fbfbfb;color:#111;min-height:275px;max-height:330px;overflow:auto;padding:5px;border-bottom:2px ridge #d0d0d0}
+.classic-chatline{padding:2px 3px}
+.classic-chatline.system{background:#06297a;color:white;margin:-5px -5px 4px;padding:3px 6px}
+.classic-send{display:grid;grid-template-columns:1fr 82px;gap:8px;padding:4px;background:#050505}
+.classic-send input{height:24px;border:2px inset #d7d7d7;border-radius:0;background:white;color:#111;padding:2px 5px}
+.classic-send button,.classic-menu button{border:2px outset #ddd;border-radius:0;background:#d5d5d5;color:#111;box-shadow:none;padding:3px 7px;font:12px Tahoma,Verdana,sans-serif}
+.classic-send button:active,.classic-menu button:active{border-style:inset}
+.classic-channel{background:#050505;color:#ddd;padding:4px;overflow:hidden}
+.classic-channel-title{font-weight:700;border-bottom:1px solid #777;padding-bottom:3px;margin-bottom:3px}
+.classic-users{height:230px;overflow:auto;background:#f4f4f4;color:#333;border:2px inset #aaa;padding:3px}
+.classic-users div{padding:1px 2px}
+.classic-presence{padding-top:5px;display:grid;gap:2px}
+.classic-lower{display:grid;grid-template-columns:195px 112px 1fr 132px;border-top:2px ridge #aaa;min-height:164px}
+.classic-stats{padding:9px 10px;background:#393536;color:white;border-right:2px ridge #aaa}
+.classic-stat{display:grid;grid-template-columns:1fr auto;gap:8px;padding:3px 0}.classic-stat b{color:#fff}.classic-stat .diamond{color:#28ff3f;margin-right:5px}
+.classic-menu{padding:3px;background:#080808;display:grid;gap:3px;align-content:start}
+.classic-menu button{width:100%}
+.classic-welcome{padding:16px 10px;color:#ddd;line-height:1.45}
+.classic-logo{display:grid;place-items:center;padding:8px}.classic-logo img{max-width:92px;image-rendering:auto}
+.classic-footer{border-top:2px ridge #aaa;padding:6px 10px;font:italic 15px Georgia,serif;color:white}
+#view-coleccion>.panel,#view-mazos>.grid2>.panel,#view-tienda>.grid2>.pack,#view-tienda>.grid2>.panel{background:#e9cd82;color:#1b1711;border:4px solid #1e1710}
+#view-coleccion .titlebar,#view-mazos .titlebar,#view-tienda .titlebar{background:#201911;color:#f3e2b2;border-color:#0e0b08}
+#view-coleccion .small,#view-mazos .small,#view-tienda .small{color:#55472d}
+#view-coleccion input,#view-coleccion select,#view-mazos input,#view-mazos select{background:#f3dda4;color:#20170e;border-color:#5e482d}
+#view-coleccion .cards{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));max-width:850px;margin:auto}
+#view-coleccion .card,#view-mazos .card,#view-tienda .card{background:#d8bd7a;border-color:#6b5331;color:#1c160e;box-shadow:4px 5px 7px #0005}
+.cardart{height:174px;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:#cfb570!important}
+.cardmeta{color:#5c4b2f}.cardstats{border-color:#8c7145}
+.battlecard .miniart{height:92px;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:#1b130e!important}
+@media(max-width:850px){.classic-main{grid-template-columns:1fr}.classic-channel{border-top:2px ridge #aaa}.classic-lower{grid-template-columns:1fr 1fr}.classic-welcome,.classic-logo{grid-column:span 1}.classic-client{font-size:11px}}
+
 </style>
 </head>
 <body>
@@ -62,21 +100,52 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
     </nav>
 
     <section class="view" id="view-salon">
-      <div class="grid2">
-        <div class="panel">
-          <div class="titlebar">Salones de juego</div>
-          <div class="room"><div><h3>Salón de Novatos</h3><p>Partidas de entrenamiento y primeros mazos.</p></div><div class="state">modo local<br><button data-start="starter">Entrenar</button></div></div>
-          <div class="room"><div><h3>Salón General</h3><p>La estructura de salas del cliente clásico, preparada para el servidor moderno.</p></div><div class="state">multijugador pendiente<br><button data-start="deck">Duelo local</button></div></div>
-          <div class="room"><div><h3>Salón Veteranos</h3><p>Reserva para reglas completas, intercambio y ranking.</p></div><div class="state">en restauración</div></div>
-        </div>
-        <div class="panel">
-          <div class="titlebar">Usuarios y chat</div>
-          <div class="panelbody">
-            <div class="playerlist"><div class="player">● <span id="selfPlayer">Invitado</span></div><div class="player">○ Guardián de entrenamiento</div></div>
-            <div class="chatlog" id="chatLog"><div><b>Sistema:</b> Bienvenido al salón restaurado de Rolplay.</div></div>
-            <div class="chatrow"><input id="chatInput" placeholder="Escribe un mensaje local…"><button id="chatSend">Enviar</button></div>
+      <div class="classic-client">
+        <div class="classic-title">▣ Rolplay.net <span>Cliente restaurado · Sala de Retos</span></div>
+        <div class="classic-main">
+          <div class="classic-chat-area">
+            <div class="classic-chatlog" id="chatLog">
+              <div class="classic-chatline system">&gt;&gt; Bienvenido a Rolplay.net. Has entrado en la Sala de Retos.</div>
+              <div class="classic-chatline"><b>Sistema:</b> el servidor original está sustituido por el modo local de restauración.</div>
+            </div>
+            <div class="classic-send"><input id="chatInput" placeholder="Escribe en el canal…"><button id="chatSend">Enviar</button></div>
           </div>
+          <aside class="classic-channel">
+            <div class="classic-channel-title">Canal: Principiantes (local)</div>
+            <div class="classic-users">
+              <div>◉ <span id="selfPlayer">Invitado</span> (En Reto)</div>
+              <div>○ AshRa (No disp.)</div>
+              <div>○ blind (En Reto)</div>
+              <div>○ elessar (En Reto)</div>
+              <div>○ Guardián (Entrenamiento)</div>
+              <div>○ RolplayBot (Local)</div>
+            </div>
+            <div class="classic-presence"><label><input type="checkbox" id="noDisponible"> No Disponible</label><label><input type="checkbox" id="aceptarPrivados" checked> Aceptar Privados</label></div>
+          </aside>
         </div>
+        <div class="classic-lower">
+          <div class="classic-stats">
+            <div class="classic-stat"><span><span class="diamond">◆</span>Personaje:</span><b id="classicName">Invitado</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>Nivel:</span><b>1</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>P. Experiencia:</span><b id="classicXP">0</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>P. Vida:</span><b>30</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>Oro:</span><b id="classicCoins">100</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>Stat:</span><b id="classicStat">0</b></div>
+            <div class="classic-stat"><span><span class="diamond">◆</span>Partidas:</span><b id="classicGames">0 / 0</b></div>
+          </div>
+          <div class="classic-menu">
+            <button data-start="deck">Partidas</button>
+            <button data-go="coleccion">Cartas</button>
+            <button id="tradeBtn">Intercambios</button>
+            <button>Canales</button>
+            <button id="statsBtn">Estadísticas</button>
+            <button data-go="archivo">Manual</button>
+            <button id="classicExit">Salir</button>
+          </div>
+          <div class="classic-welcome">Bienvenido a Rolplay.net.<br>Pásate por el archivo histórico para ver las capturas y documentación original del juego.<br><br><span class="small">Esta reconstrucción mantiene la navegación del cliente y sustituye la red Winsock por estado local mientras se restaura el multijugador.</span></div>
+          <div class="classic-logo"><img src="legacy-assets/imagenes/deck2.jpg" alt="Rolplay"></div>
+        </div>
+        <div class="classic-footer">Bienvenido a la nueva versión del juego de Rolplay.net</div>
       </div>
     </section>
 
@@ -430,7 +499,7 @@ Poder x 20;100;2;50
 var $=function(id){return document.getElementById(id)};
 var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 var SAVE_KEY="rolplay-restoration-v2";
-var profile=null, duel=null, CATALOG=[];
+var profile=null, duel=null, CATALOG=[], IMAGE_MAP={};
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))}
@@ -451,9 +520,28 @@ function parseCards(){
   });
 }
 function cardById(id){return CATALOG.find(function(c){return c.id===Number(id)})}
+function imageKey(s){
+  return normalize(s).replace(/\\bx\\s+(\\d+)/g,"$1").replace(/\\b(del|de|la|el)\\b/g," ").replace(/[^a-z0-9]+/g,"");
+}
 function cardImage(c){
-  var s=normalize(c.name).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").trim().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
-  return "legacy-assets/imagenes/crt_"+s+".jpg";
+  var k=imageKey(c.name);
+  if(IMAGE_MAP[k])return IMAGE_MAP[k];
+  var slug=normalize(c.name).replace(/\\bx\\s+(\\d+)/g,"$1").replace(/\\b(del|de|la|el)\\b/g," ").trim().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+  return "legacy-assets/imagenes/crt_"+slug+".jpg";
+}
+function loadLegacyImageIndex(){
+  fetch("legacy-config/version_data_host_chr.txt").then(function(r){if(!r.ok)throw new Error("manifest");return r.text()}).then(function(t){
+    var files=t.split(/\\r?\\n/).map(function(x){return x.split(",")[0]}).filter(function(x){return /^imagenes\\/crt_.*\\.(jpg|gif)$/i.test(x)});
+    files.forEach(function(path){
+      var file=path.split("/").pop(),stem=file.replace(/\\.(jpg|gif)$/i,""),isG=/_g$/i.test(stem),isH=/_h$/i.test(stem);
+      stem=stem.replace(/^crt_/i,"").replace(/_(g|h)$/i,"");
+      var k=imageKey(stem.replace(/_/g," "));
+      var full="legacy-assets/"+path;
+      if(!IMAGE_MAP[k]||isG)IMAGE_MAP[k]=full;
+      if(isH&&IMAGE_MAP[k]&&/_g\\./i.test(IMAGE_MAP[k]))return;
+    });
+    if(profile){renderCollection();renderDeck();if(duel)renderDuel()}
+  }).catch(function(){});
 }
 function defaultProfile(name){
   return {name:name||"Invitado",coins:100,wins:0,losses:0,collection:{},deck:[]};
@@ -475,6 +563,11 @@ function enter(name){
 function renderAccount(){
   if(!profile)return;
   $("accountName").textContent=profile.name;$("selfPlayer").textContent=profile.name;$("coins").textContent=profile.coins;$("wins").textContent=profile.wins;$("losses").textContent=profile.losses;
+  if($("classicName"))$("classicName").textContent=profile.name;
+  if($("classicCoins"))$("classicCoins").textContent=profile.coins;
+  if($("classicXP"))$("classicXP").textContent=profile.wins*25;
+  if($("classicStat"))$("classicStat").textContent=profile.wins-profile.losses;
+  if($("classicGames"))$("classicGames").textContent=profile.wins+" / "+(profile.wins+profile.losses);
 }
 function showView(name){
   document.querySelectorAll(".view").forEach(function(v){v.classList.add("hidden")});
@@ -638,12 +731,17 @@ $("enterGame").onclick=function(){enter(($("loginName").value||"Invitado").trim(
 $("logout").onclick=function(){$("gameShell").classList.add("hidden");$("loginView").classList.remove("hidden")};
 document.querySelectorAll("#nav button").forEach(function(b){b.onclick=function(){showView(b.dataset.view)}});
 document.querySelectorAll("[data-start]").forEach(function(b){b.onclick=function(){startDuel(b.dataset.start)}});
+document.querySelectorAll("[data-go]").forEach(function(b){b.onclick=function(){showView(b.dataset.go)}});
+if($("classicExit"))$("classicExit").onclick=function(){$("logout").click()};
+if($("tradeBtn"))$("tradeBtn").onclick=function(){alert("El intercambio entre usuarios se restaurará con el servidor multijugador.")};
+if($("statsBtn"))$("statsBtn").onclick=function(){alert("Partidas ganadas: "+profile.wins+"\\nDerrotas: "+profile.losses+"\\nMonedas: "+profile.coins)};
 $("buyPack").onclick=buyPack;$("collectionSearch").oninput=renderCollection;$("collectionFilter").onchange=renderCollection;
 $("autoDeck").onclick=autoDeck;$("clearDeck").onclick=function(){profile.deck=[];saveProfile();renderDeck();renderCollection()};$("playDeck").onclick=function(){startDuel("deck")};
 $("restart").onclick=function(){startDuel(profile.deck.length>=10?"deck":"starter")};$("next").onclick=nextPhase;
 $("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;var d=document.createElement("div");d.innerHTML="<b>"+esc(profile.name)+":</b> "+esc(v);$("chatLog").appendChild(d);$("chatInput").value="";$("chatLog").scrollTop=$("chatLog").scrollHeight};
 $("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter")$("chatSend").click()});
 parseCards();
+loadLegacyImageIndex();
 })();
 </script>
 </body>
