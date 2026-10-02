@@ -17,6 +17,7 @@ const MAX_POWER_CARDS=40;
 const MAX_POWER_POINTS=200;
 const MATCH_LIMIT_MS=40*60*1000;
 const COMBAT_LEAVE_GRACE_MS=2*60*1000;
+const CARD_DEATH_ANIMATION_MS=900;
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
@@ -1306,12 +1307,42 @@ function wireInstance(inst){
   return{...base,uid:inst.uid,exhausted:!!inst.exhausted,selected:!!inst.selected,defBonus:Number(inst.defBonus)||0,damage:Number(inst.damage)||0,
     summonedTurn:inst.summonedTurn==null?null:Number(inst.summonedTurn),attacksThisTurn:Number(inst.attacksThisTurn)||0,defensesThisTurn:Number(inst.defensesThisTurn)||0}
 }
+function pruneDeathGhosts(d){
+  if(!d)return;
+  const now=Date.now();
+  const ghosts=d.deathGhosts||{player:[],enemy:[]};
+  ghosts.player=(ghosts.player||[]).filter(c=>(Number(c.deathExpiresAt)||0)>now);
+  ghosts.enemy=(ghosts.enemy||[]).filter(c=>(Number(c.deathExpiresAt)||0)>now);
+  d.deathGhosts=ghosts;
+}
+function queueDeathGhost(d,zone,c,slotIndex){
+  if(!d||!c||(zone!=="player"&&zone!=="enemy"))return;
+  pruneDeathGhosts(d);
+  const list=d.deathGhosts[zone];
+  if(list.some(x=>x.uid===c.uid))return;
+  const ghost={...c,deathGhost:true,deathSlot:Number.isFinite(slotIndex)?slotIndex:list.length,deathExpiresAt:Date.now()+CARD_DEATH_ANIMATION_MS};
+  list.push(ghost);
+  const duelKey=d.online?d.matchId:d.rewardKey;
+  const wasOnline=!!d.online;
+  setTimeout(()=>{
+    const current=state.duel;
+    if(!current)return;
+    if(wasOnline&&current.matchId!==duelKey)return;
+    if(!wasOnline&&current.rewardKey!==duelKey)return;
+    pruneDeathGhosts(current);
+    if(state.view==="duel")renderView();
+  },CARD_DEATH_ANIMATION_MS+80);
+}
 function applyOnlineSnapshot(s){
   if(!s)return;
   const previous=state.duel&&state.duel.online&&state.duel.matchId===s.matchId?state.duel:null;
   const playerBoard=(s.playerBoard||[]).map(wireInstance).filter(Boolean);
   const ownBoardUids=new Set(playerBoard.map(c=>c.uid));
   const enemyBoard=(s.enemyBoard||[]).map(wireInstance).filter(c=>c&&!ownBoardUids.has(c.uid));
+  const nextPlayerUids=new Set(playerBoard.map(c=>c.uid));
+  const nextEnemyUids=new Set(enemyBoard.map(c=>c.uid));
+  const removedPlayer=(previous?.playerBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextPlayerUids.has(x.c.uid));
+  const removedEnemy=(previous?.enemyBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextEnemyUids.has(x.c.uid));
   state.duel={online:true,matchId:s.matchId,myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
     playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
     enemyPower:Number(s.enemyPower)||0,enemyMaxPower:Number(s.enemyMaxPower)||0,playerDeckCount:Number(s.playerDeckCount)||0,enemyDeckCount:Number(s.enemyDeckCount)||0,
@@ -1320,8 +1351,12 @@ function applyOnlineSnapshot(s){
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
     gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,pendingAttack:s.pendingAttack||null,drawOfferIncoming:!!s.drawOfferIncoming,drawOfferOutgoing:!!s.drawOfferOutgoing,blockAssignments:{},attackTargets:{},
     damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false,
+    deathGhosts:previous?.deathGhosts||{player:[],enemy:[]},
     opponentDisconnectDeadlineAt:Number(s.opponentDisconnectDeadlineAt)||0,serverNow:Number(s.serverNow)||Date.now()
   };
+  removedPlayer.forEach(x=>queueDeathGhost(state.duel,"player",x.c,x.index));
+  removedEnemy.forEach(x=>queueDeathGhost(state.duel,"enemy",x.c,x.index));
+  pruneDeathGhosts(state.duel);
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
 }
 
@@ -1396,14 +1431,21 @@ function cardCanAttackUi(d,c){
   return true;
 }
 function battleCards(list,zone){
-  if(!list?.length)return'<div class="battle-empty" aria-hidden="true"></div>';
-  return list.map(c=>{
-    const clickable=duelCardClickable(c,zone);
+  const cards=(list||[]).map(c=>({card:c,dying:false}));
+  if(zone==="player"||zone==="enemy"){
+    pruneDeathGhosts(state.duel);
+    const ghosts=[...(state.duel?.deathGhosts?.[zone]||[])].sort((a,b)=>(a.deathSlot||0)-(b.deathSlot||0));
+    ghosts.forEach(g=>cards.splice(Math.max(0,Math.min(cards.length,Number(g.deathSlot)||0)),0,{card:g,dying:true}));
+  }
+  if(!cards.length)return'<div class="battle-empty" aria-hidden="true"></div>';
+  return cards.map(entry=>{
+    const c=entry.card,dying=entry.dying;
+    const clickable=!dying&&duelCardClickable(c,zone);
     const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}${c.damage?" · Daño "+c.damage:""}`;
-    return `<article class="battle-card ${clickable?"clickable":""} ${c.selected?"selected":""} ${c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} data-detail="${c.id}" title="${esc(label)}" aria-label="${esc(label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>`;
+    return `<article class="battle-card ${dying?"dying":""} ${clickable?"clickable":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label)}" aria-label="${esc(dying?c.name+" destruida":label)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
@@ -1544,8 +1586,18 @@ function resolveLocalSingleAttack(side,attacker,defender){
   const overflow=Math.max(0,aAtk-bDef);
   if(overflow){d[foe+"Hp"]-=overflow;if(side==="player")d.damageDealt+=overflow}
   d.log.push(liveAttacker.name+" ("+aAtk+" ATQ) combate con "+liveDefender.name+" ("+bAtk+" ATQ / "+bDef+" DEF)."+(overflow?" "+overflow+" de daño atraviesa al jugador.":""));
-  if(currentDef(liveDefender)<=0){d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==liveDefender.uid);d.log.push(liveDefender.name+" es destruida.")}
-  if(currentDef(liveAttacker)<=0){d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);d.log.push(liveAttacker.name+" es destruida por el contraataque.")}
+  if(currentDef(liveDefender)<=0){
+    const deathIndex=d[foe+"Board"].findIndex(x=>x.uid===liveDefender.uid);
+    queueDeathGhost(d,foe,liveDefender,deathIndex);
+    d[foe+"Board"]=d[foe+"Board"].filter(x=>x.uid!==liveDefender.uid);
+    d.log.push(liveDefender.name+" es destruida.");
+  }
+  if(currentDef(liveAttacker)<=0){
+    const deathIndex=d[side+"Board"].findIndex(x=>x.uid===liveAttacker.uid);
+    queueDeathGhost(d,side,liveAttacker,deathIndex);
+    d[side+"Board"]=d[side+"Board"].filter(x=>x.uid!==liveAttacker.uid);
+    d.log.push(liveAttacker.name+" es destruida por el contraataque.");
+  }
   return true;
 }
 function declareLocalAttack(uid){
