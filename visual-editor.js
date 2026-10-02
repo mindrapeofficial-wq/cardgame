@@ -4,6 +4,8 @@
 var STORAGE_KEY="arcanum.visualDesign.v1";
 var IMAGE_KEY="arcanum.visualImages.v1";
 var MODE_KEY="arcanum.visualEditor.mode";
+var PANEL_SIDE_KEY="arcanum.visualEditor.side";
+var PANEL_MIN_KEY="arcanum.visualEditor.minimized";
 var rules={};
 var imageRules={};
 var selected=null;
@@ -14,6 +16,10 @@ var root=null;
 var styleEl=null;
 var badge=null;
 var dragState=null;
+var panelSide=localStorage.getItem(PANEL_SIDE_KEY)==="left"?"left":"right";
+var panelMinimized=localStorage.getItem(PANEL_MIN_KEY)==="1";
+var resizeBase=null;
+var resizeSaveTimer=null;
 
 function loadRules(){
   try{rules=JSON.parse(localStorage.getItem(STORAGE_KEY)||"{}")||{}}catch(e){rules={}}
@@ -296,8 +302,119 @@ function normalizeSize(v){
 function select(el){
   if(selected)selected.classList.remove("ve-target");
   selected=el;
-  if(selected)selected.classList.add("ve-target");
+  if(selected){
+    selected.classList.add("ve-target");
+    var rect=selected.getBoundingClientRect();
+    resizeBase={
+      el:selected,
+      width:Math.max(1,rect.width||pxValue(getComputedStyle(selected).width)||1),
+      height:Math.max(1,rect.height||pxValue(getComputedStyle(selected).height)||1)
+    };
+  }else resizeBase=null;
   refreshPanel();
+}
+function clampNumber(n,min,max){return Math.min(max,Math.max(min,n))}
+function scheduleResizeSave(){
+  clearTimeout(resizeSaveTimer);
+  resizeSaveTimer=setTimeout(function(){saveRules()},140);
+}
+function setResizeRule(width,height){
+  if(!selected)return;
+  var selector=selectorFor(selected);
+  var r=getRule(selector);
+  if(Number.isFinite(width))r.width=Math.max(1,Math.round(width))+"px";
+  if(Number.isFinite(height))r.height=Math.max(1,Math.round(height))+"px";
+  applyRules();
+  scheduleResizeSave();
+}
+function resizeSelected(kind,value){
+  if(!selected||!resizeBase)return;
+  value=Number(value);
+  if(!Number.isFinite(value))return;
+  if(kind==="scale"){
+    var factor=clampNumber(value,10,400)/100;
+    setResizeRule(resizeBase.width*factor,resizeBase.height*factor);
+  }else if(kind==="width"){
+    setResizeRule(value,NaN);
+  }else if(kind==="height"){
+    setResizeRule(NaN,value);
+  }
+  refreshResizeControls();
+}
+function resetSelectedSize(){
+  if(!selected)return;
+  var selector=selectorFor(selected);
+  var r=rules[selector];
+  if(r){
+    delete r.width;
+    delete r.height;
+    if(!Object.keys(r).length)delete rules[selector];
+  }
+  applyRules();saveRules();
+  var rect=selected.getBoundingClientRect();
+  resizeBase={el:selected,width:Math.max(1,rect.width||1),height:Math.max(1,rect.height||1)};
+  refreshPanel();
+  setStatus("Tamaño restaurado.","good");
+}
+function refreshResizeControls(){
+  if(!root)return;
+  var scale=root.querySelector('[data-ve-resize="scale"]');
+  var width=root.querySelector('[data-ve-resize="width"]');
+  var height=root.querySelector('[data-ve-resize="height"]');
+  var scaleOut=root.querySelector("[data-ve-scale-out]");
+  var widthOut=root.querySelector("[data-ve-width-out]");
+  var heightOut=root.querySelector("[data-ve-height-out]");
+  [scale,width,height].forEach(function(input){if(input)input.disabled=!selected});
+  if(!selected||!resizeBase){
+    if(scale)scale.value=100;
+    if(width)width.value=100;
+    if(height)height.value=100;
+    if(scaleOut)scaleOut.textContent="100%";
+    if(widthOut)widthOut.textContent="—";
+    if(heightOut)heightOut.textContent="—";
+    return;
+  }
+  var rect=selected.getBoundingClientRect();
+  var w=Math.max(1,Math.round(rect.width));
+  var h=Math.max(1,Math.round(rect.height));
+  var maxW=Math.max(300,Math.round(resizeBase.width*3),w);
+  var maxH=Math.max(300,Math.round(resizeBase.height*3),h);
+  if(width){width.min=10;width.max=maxW;width.value=clampNumber(w,10,maxW)}
+  if(height){height.min=10;height.max=maxH;height.value=clampNumber(h,10,maxH)}
+  var pct=Math.round(((rect.width/resizeBase.width)+(rect.height/resizeBase.height))*50);
+  pct=clampNumber(pct,25,250);
+  if(scale)scale.value=pct;
+  if(scaleOut)scaleOut.textContent=pct+"%";
+  if(widthOut)widthOut.textContent=w+" px";
+  if(heightOut)heightOut.textContent=h+" px";
+}
+function applyPanelState(){
+  if(!root)return;
+  root.classList.toggle("ve-side-left",panelSide==="left");
+  root.classList.toggle("ve-side-right",panelSide!=="left");
+  root.classList.toggle("ve-minimized",!!panelMinimized);
+  var sideBtn=root.querySelector("[data-ve-side]");
+  var minBtn=root.querySelector("[data-ve-minimize]");
+  if(sideBtn){
+    sideBtn.textContent=panelSide==="left"?"→":"←";
+    sideBtn.title=panelSide==="left"?"Mover editor a la derecha":"Mover editor a la izquierda";
+  }
+  if(minBtn){
+    minBtn.textContent=panelMinimized?"□":"—";
+    minBtn.title=panelMinimized?"Restaurar editor":"Minimizar editor";
+  }
+  var fab=document.querySelector(".ve-fab");
+  if(fab)fab.classList.toggle("ve-fab-left",panelSide==="left");
+}
+function togglePanelSide(){
+  panelSide=panelSide==="left"?"right":"left";
+  localStorage.setItem(PANEL_SIDE_KEY,panelSide);
+  applyPanelState();
+}
+function togglePanelMinimize(){
+  panelMinimized=!panelMinimized;
+  localStorage.setItem(PANEL_MIN_KEY,panelMinimized?"1":"0");
+  applyPanelState();
 }
 function refreshPanel(){
   if(!root)return;
@@ -335,6 +452,7 @@ function refreshPanel(){
       fit.value=["cover","contain","100% 100%","auto"].indexOf(fv)>=0?fv:"";
     }
   }
+  refreshResizeControls();
   if(pos){
     if(!selected)pos.value="";
     else{
@@ -474,7 +592,7 @@ function build(){
   root.id="ve-root";
   root.setAttribute("aria-hidden","true");
   root.innerHTML=
-    '<div class="ve-head"><strong>ARCANUM · Editor visual</strong><small>LIVE</small></div>'+
+    '<div class="ve-head"><strong>ARCANUM · Editor visual</strong><small>LIVE</small><div class="ve-head-actions"><button class="ve-head-btn" data-ve-side title="Mover editor al otro lado">←</button><button class="ve-head-btn" data-ve-minimize title="Minimizar editor">—</button></div></div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Modo</span>'+
       '<div class="ve-row three"><button class="ve-btn active" data-ve-mode="select">Seleccionar</button><button class="ve-btn" data-ve-mode="move">Mover</button><button class="ve-btn" data-ve-mode="interact">Interactuar</button></div>'+
@@ -484,6 +602,14 @@ function build(){
       '<span class="ve-label">Elemento</span>'+
       '<div class="ve-current" data-ve-current>Haz clic en un elemento de la página</div>'+
       '<div class="ve-row"><select class="ve-select" data-ve-scope><option value="class">Todos los iguales</option><option value="single">Solo este</option></select><button class="ve-btn danger" data-ve-reset-one>Limpiar elemento</button></div>'+
+    '</div>'+
+    '<div class="ve-section">'+
+      '<span class="ve-label">Redimensionar</span>'+
+      '<div class="ve-resize-line"><div><b>Escala</b><output data-ve-scale-out>100%</output></div><input type="range" min="25" max="250" value="100" step="1" data-ve-resize="scale"></div>'+
+      '<div class="ve-resize-line"><div><b>Ancho</b><output data-ve-width-out>—</output></div><input type="range" min="10" max="1200" value="100" step="1" data-ve-resize="width"></div>'+
+      '<div class="ve-resize-line"><div><b>Alto</b><output data-ve-height-out>—</output></div><input type="range" min="10" max="1200" value="100" step="1" data-ve-resize="height"></div>'+
+      '<button class="ve-btn" data-ve-reset-size>Restaurar tamaño</button>'+
+      '<div class="ve-help">La escala mantiene la proporción. Ancho y alto permiten afinar cada dimensión por separado.</div>'+
     '</div>'+
     '<div class="ve-section">'+
       '<span class="ve-label">Tamaño y espacio</span>'+
@@ -522,15 +648,20 @@ function build(){
     '</div>'+
     '<div class="ve-section"><button class="ve-btn" data-ve-close>Cerrar editor</button><div class="ve-help">Atajo: Ctrl + Shift + D</div></div>';
   document.body.appendChild(root);
+  applyPanelState();
 
   var fab=document.createElement("button");
   fab.className="ve-fab";
   fab.textContent="✦ Editor visual";
   fab.addEventListener("click",activate);
   document.body.appendChild(fab);
+  applyPanelState();
 
   root.addEventListener("click",function(e){
     e.stopPropagation();
+    if(e.target.closest("[data-ve-side]")){togglePanelSide();return}
+    if(e.target.closest("[data-ve-minimize]")){togglePanelMinimize();return}
+    if(e.target.closest("[data-ve-reset-size]")){resetSelectedSize();return}
     var m=e.target.closest("[data-ve-mode]");
     if(m){
       var next=m.getAttribute("data-ve-mode");
@@ -568,6 +699,11 @@ function build(){
     if(e.target.closest("[data-ve-reset]")){resetAll();return}
     if(e.target.closest("[data-ve-reset-one]")){resetSelection();return}
     if(e.target.closest("[data-ve-close]")){deactivate();return}
+  });
+  root.addEventListener("input",function(e){
+    e.stopPropagation();
+    var resize=e.target.getAttribute&&e.target.getAttribute("data-ve-resize");
+    if(resize){resizeSelected(resize,e.target.value);return}
   });
   root.addEventListener("change",function(e){
     e.stopPropagation();
