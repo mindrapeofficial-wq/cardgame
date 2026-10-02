@@ -8,6 +8,7 @@ const SESSION_KEY="rolplay.session.v1";
 const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
 const LAST_USER_KEY="rolplay.last.username";
 const PENDING_REWARDS_KEY="rolplay.pending.rewards.v1";
+const CARD_BACK_IMAGE="assets/arcanum-card-back.webp";
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
@@ -58,11 +59,11 @@ function imageKey(s){
   return norm(s).replace(/\bx\s+(\d+)/g,"$1").replace(/\b(del|de|la|el)\b/g," ").replace(/[^a-z0-9]+/g,"");
 }
 function cardImage(c){
-  if(!c)return"legacy-assets/imagenes/crt_back.jpg";
+  if(!c)return CARD_BACK_IMAGE;
   const k=imageKey(c.name);
   if(k==="arpada")return"legacy-assets/imagenes/crt_arpia_g.jpg";
   if(k==="dragonoscuro")return"legacy-assets/imagenes/crt_dragon_sombra_g.jpg";
-  return state.imageMap[k]||"legacy-assets/imagenes/crt_back.jpg";
+  return state.imageMap[k]||CARD_BACK_IMAGE;
 }
 function parseCards(text){
   state.catalog=text.trim().split(/\r?\n/).slice(1).filter(Boolean).map((line,i)=>{
@@ -802,14 +803,23 @@ function renderDuel(){
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
     <div class="board">
-      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
+      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div><div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
       <section class="board-zone"><div class="zone-title"><span>Tu campo · Poder en juego ${(d.playerPowers||[]).map(c=>esc(c.name)).join(", ")||"ninguno"}</span><span>${phase}</span></div><div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
-        <section class="board-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div><div class="duel-controls">${duelControls(d)}</div></section>
+        <section class="board-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
         <section class="panel"><div class="panel-head"><h3>Registro</h3><span class="pill">${phase}</span></div><div class="panel-body"><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></section>
       </div>
     </div>
   </div>`;
+}
+function hiddenCardBacks(count){
+  const total=Math.max(0,Number(count)||0),shown=Math.min(total,10);
+  if(!shown)return'<div class="hidden-hand-empty">Sin cartas ocultas</div>';
+  return `<div class="hidden-hand" aria-label="${total} cartas ocultas">${Array.from({length:shown},()=>'<div class="hidden-card-back" aria-hidden="true"></div>').join("")}${total>shown?`<span class="hidden-card-more">+${total-shown}</span>`:""}</div>`;
+}
+function deckBack(count,label){
+  const total=Math.max(0,Number(count)||0);
+  return `<div class="duel-deck-back ${total?"":"empty"}" title="${esc(label||"Mazo")} · ${total} cartas" aria-label="${esc(label||"Mazo")} con ${total} cartas"><span>${total}</span></div>`;
 }
 function battleCards(list,zone){
   if(!list?.length)return'<div class="empty" style="min-width:100%">Sin cartas</div>';
