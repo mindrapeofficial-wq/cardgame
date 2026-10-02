@@ -2552,7 +2552,7 @@ document.addEventListener("submit",e=>{
 });
 $("logoutBtn")?.addEventListener("click",logout);
 
-// Floating player card (desktop): can be minimized to the avatar; the choice is remembered per browser.
+// Floating player card (desktop): starts minimized to the avatar; expanding/minimizing is remembered per browser.
 const PLAYER_CARD_KEY="arcanum.playerCard.collapsed";
 function setPlayerCardCollapsed(collapsed){
   const chip=document.querySelector(".player-chip"),btn=$("playerCardToggle");if(!chip)return;
@@ -2563,7 +2563,8 @@ function setPlayerCardCollapsed(collapsed){
 }
 $("playerCardToggle")?.addEventListener("click",()=>setPlayerCardCollapsed(true));
 $("playerAvatar")?.addEventListener("click",()=>{if(document.querySelector(".player-chip.collapsed"))setPlayerCardCollapsed(false)});
-try{setPlayerCardCollapsed(localStorage.getItem(PLAYER_CARD_KEY)==="1")}catch{}
+// Minimized by default; it only opens on load if the player expanded it last time.
+try{setPlayerCardCollapsed(localStorage.getItem(PLAYER_CARD_KEY)!=="0")}catch{setPlayerCardCollapsed(true)}
 
 document.addEventListener("keydown",e=>{
   if(e.defaultPrevented||e.ctrlKey||e.metaKey||e.altKey)return;
