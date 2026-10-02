@@ -47,7 +47,8 @@ const state={
   savedDecks:[],activeDeckId:null,deckName:"",decksLoading:false,
   duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
   authMode:"login",authBusy:false,offlineSession:false,
-  ranking:[],rankingLoading:false,myRank:null
+  ranking:[],rankingLoading:false,myRank:null,
+  marketListings:[],marketLoading:false,marketKind:"gold"
 };
 
 function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
@@ -162,7 +163,21 @@ function authErrorMessage(code){
     deck_name_invalid:"Ponle un nombre al mazo.",
     deck_name_taken:"Ya tienes un mazo con ese nombre.",
     deck_limit_reached:"Has alcanzado el límite de 12 mazos guardados.",
-    deck_not_found:"Ese mazo ya no existe."
+    deck_not_found:"Ese mazo ya no existe.",
+    basic_power_not_tradeable:"Los Poderes básicos de nivel 1 no pueden anunciarse ni intercambiarse.",
+    market_listing_limit:"Has alcanzado el límite de 30 anuncios activos.",
+    market_price_invalid:"Indica un precio de oro válido.",
+    wanted_card_required:"Selecciona la carta que buscas a cambio.",
+    wanted_card_not_found:"La carta solicitada ya no existe.",
+    same_card_trade:"No puedes pedir exactamente la misma carta que ofreces.",
+    wanted_card_above_player_level:"No puedes pedir una carta por encima de tu nivel.",
+    wanted_card_above_seller_level:"El vendedor todavía no puede recibir esa carta.",
+    no_free_wanted_card:"No tienes una copia libre de la carta solicitada.",
+    market_listing_not_found:"Ese anuncio ya no está disponible.",
+    market_not_owner:"Ese anuncio pertenece a otro jugador.",
+    market_self_accept:"No puedes aceptar tu propio anuncio.",
+    market_listing_invalid:"El anuncio no es válido.",
+    market_kind_invalid:"El tipo de anuncio no es válido."
   };
   return map[code]||"No se pudo completar la operación.";
 }
@@ -316,6 +331,7 @@ function go(view){
   if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
   if(view==="deck")void loadDecks();
   if(view==="ranking")void loadRanking();
+  if(view==="trade")void loadMarketListings();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function renderView(){
@@ -728,8 +744,32 @@ async function sellCard(id){
 function renderTrade(){
   const partners=state.users.filter(u=>!state.socket||u.socketId!==state.socket.id);
   const inventory=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()&&freeCopies(c.id)>state.trade.mine.filter(x=>x===c.id).length).slice(0,120);
+  const publishable=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()&&freeCopies(c.id)>0).slice(0,180);
+  const wanted=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()).slice(0,285);
+  const marketKind=state.marketKind==="trade"?"trade":"gold";
   return `<div class="page">
-    ${pageHead("Comercio","Intercambios","Negocia cartas y oro con jugadores conectados. El intercambio se aplica de forma persistente a ambas cuentas solo cuando los dos aceptan.")}
+    ${pageHead("Comercio","Intercambios","Publica una carta a cambio de oro o anuncia el intercambio que buscas. Los anuncios quedan guardados y pueden aceptarse aunque el otro jugador no esté conectado.",'<button class="btn" data-action="marketRefresh">Actualizar anuncios</button>')}
+    <div class="grid two">
+      <section class="panel">
+        <div class="panel-head"><h2>Publicar anuncio</h2><span class="muted">${publishable.length} cartas libres</span></div>
+        <div class="panel-body">
+          <div class="field"><label>Carta que ofreces</label><select class="select" id="marketCard"><option value="">Selecciona una carta…</option>${publishable.map(c=>`<option value="${c.id}">${esc(c.name)} · Nv ${c.level} · libres ${freeCopies(c.id)}</option>`).join("")}</select></div>
+          <div class="field" style="margin-top:10px"><label>Tipo de anuncio</label><select class="select" id="marketKind"><option value="gold" ${marketKind==="gold"?"selected":""}>Vender por oro</option><option value="trade" ${marketKind==="trade"?"selected":""}>Buscar intercambio</option></select></div>
+          ${marketKind==="gold"
+            ? '<div class="field" style="margin-top:10px"><label>Precio en oro</label><input class="input" id="marketPrice" type="number" min="1" step="1" placeholder="Ej. 25"></div>'
+            : `<div class="field" style="margin-top:10px"><label>Carta que buscas</label><select class="select" id="marketWanted"><option value="">Selecciona la carta que quieres recibir…</option>${wanted.map(c=>`<option value="${c.id}">${esc(c.name)} · Nv ${c.level}</option>`).join("")}</select></div>`
+          }
+          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="marketPublish" ${publishable.length?"":"disabled"}>Publicar anuncio</button></div>
+          <p class="muted" style="margin-bottom:0">La carta publicada queda reservada fuera de tu colección disponible hasta que canceles el anuncio o se complete la operación.</p>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Tablón de anuncios</h2><span class="pill">${state.marketListings.length} activos</span></div>
+        <div class="panel-body trade-offer">${renderMarketListings()}</div>
+      </section>
+    </div>
+
+    <div class="page-head" style="margin-top:26px"><div><div class="kicker">En tiempo real</div><h2 style="margin:4px 0 0">Intercambio directo</h2><p>Negocia cartas y oro con un jugador conectado. Ambos deben aceptar antes de aplicar el intercambio.</p></div></div>
     <div class="trade-layout">
       <section class="panel"><div class="panel-head"><h2>Tu reserva</h2><span class="muted">${inventory.length} disponibles</span></div><div class="panel-body trade-offer">${inventory.map(c=>`<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · valor ${cardValue(c)} · libres ${freeCopies(c.id)-state.trade.mine.filter(x=>x===c.id).length}</small></div><button class="btn small" data-action="tradeAdd" data-id="${c.id}">+</button></div>`).join("")||'<div class="empty">No tienes cartas libres para intercambiar.</div>'}</div></section>
       <section class="panel"><div class="panel-head"><h2>Negociación</h2></div><div class="panel-body">
@@ -744,6 +784,83 @@ function renderTrade(){
     </div>
   </div>`;
 }
+
+function renderMarketListings(){
+  if(state.marketLoading&&!state.marketListings.length)return'<div class="empty">Cargando anuncios…</div>';
+  if(!state.marketListings.length)return'<div class="empty">Todavía no hay anuncios publicados.</div>';
+  const me=String(state.profile?.id||"");
+  return state.marketListings.map(l=>{
+    const c=card(l.cardId)||{id:l.cardId,name:l.cardName||"Carta",level:l.cardLevel||1};
+    const w=l.wantedCardId?card(l.wantedCardId):null;
+    const own=String(l.sellerId)===me;
+    const canReceive=(Number(c.level)||1)<=playerLevel();
+    const price=Math.max(0,Number(l.priceGold)||0);
+    const wantedId=Number(l.wantedCardId)||0;
+    const canPay=l.kind==="gold"?state.profile.coins>=price:(wantedId&&freeCopies(wantedId)>0);
+    const disabled=!own&&(!canReceive||!canPay);
+    const terms=l.kind==="gold"
+      ? `Vende por <b>${price} oro</b>`
+      : `Busca <b>${esc(w?.name||l.wantedCardName||"otra carta")}</b>${w?` · Nv ${w.level}`:""}`;
+    const reason=!canReceive?"Tu nivel no permite recibir esta carta.":(l.kind==="gold"&&!canPay?"No tienes oro suficiente.":(l.kind==="trade"&&!canPay?"No tienes una copia libre de la carta solicitada.":""));
+    const action=own
+      ? `<button class="btn small danger" data-action="marketCancel" data-id="${esc(l.id)}">Cancelar</button>`
+      : `<button class="btn small ${disabled?"":"primary"}" data-action="marketAccept" data-id="${esc(l.id)}" ${disabled?"disabled":""}>${l.kind==="gold"?"Comprar":"Intercambiar"}</button>`;
+    return `<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">Nv ${c.level} · ${terms} · por ${esc(l.sellerName||"Jugador")}</small>${reason?`<small class="bad">${esc(reason)}</small>`:""}</div>${action}</div>`;
+  }).join("");
+}
+
+async function loadMarketListings(silent=false){
+  if(!sessionToken||state.marketLoading)return;
+  state.marketLoading=true;
+  if(state.view==="trade"&&!silent)renderView();
+  const r=await api("market_list",{limit:100},true);
+  state.marketLoading=false;
+  if(!r.ok){
+    if(!silent)toast(authErrorMessage(r.error),"bad");
+    if(state.view==="trade")renderView();
+    return;
+  }
+  state.marketListings=Array.isArray(r.listings)?r.listings:[];
+  if(state.view==="trade")renderView();
+}
+async function publishMarketListing(){
+  const cardId=Number($("marketCard")?.value)||0;
+  const kind=$("marketKind")?.value==="trade"?"trade":"gold";
+  state.marketKind=kind;
+  if(!cardId){toast("Selecciona la carta que quieres anunciar.","bad");return}
+  const payload={cardId,kind};
+  if(kind==="gold"){
+    const priceGold=Math.floor(Number($("marketPrice")?.value)||0);
+    if(priceGold<1){toast("Indica un precio de oro válido.","bad");return}
+    payload.priceGold=priceGold;
+  }else{
+    const wantedCardId=Number($("marketWanted")?.value)||0;
+    if(!wantedCardId){toast("Selecciona la carta que buscas.","bad");return}
+    if(wantedCardId===cardId){toast("Elige una carta distinta para el intercambio.","bad");return}
+    payload.wantedCardId=wantedCardId;
+  }
+  const r=await api("market_publish",payload,true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  toast(kind==="gold"?"Anuncio de venta publicado.":"Anuncio de intercambio publicado.","good");
+  await loadMarketListings(true);
+}
+async function cancelMarketListing(listingId){
+  const r=await api("market_cancel",{listingId},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");return}
+  applyProfile(r.profile);
+  toast("Anuncio cancelado. La carta vuelve a estar disponible.","good");
+  await loadMarketListings(true);
+}
+async function acceptMarketListing(listingId){
+  const listing=state.marketListings.find(x=>x.id===listingId);
+  const r=await api("market_accept",{listingId},true);
+  if(!r.ok){toast(authErrorMessage(r.error),"bad");await loadMarketListings(true);return}
+  applyProfile(r.profile);
+  toast(listing?.kind==="gold"?"Compra completada.":"Intercambio completado.","good");
+  await loadMarketListings(true);
+}
+
 function renderMyOffer(){
   if(!state.trade.mine.length)return'<div class="empty">Sin cartas en la oferta.</div>';
   return state.trade.mine.map((id,i)=>{const c=card(id);return`<div class="trade-item"><img src="${cardImage(c)}"><div><b>${esc(c.name)}</b><small class="muted">valor ${cardValue(c)}</small></div><button class="btn small danger" data-action="tradeRemove" data-index="${i}">×</button></div>`}).join("");
@@ -1464,6 +1581,10 @@ document.addEventListener("click",e=>{
   else if(a==="autoDeck")autoDeck();
   else if(a==="clearDeck")clearDeck()
   else if(a==="buyPack")buyPack();
+  else if(a==="marketRefresh")void loadMarketListings();
+  else if(a==="marketPublish")void publishMarketListing();
+  else if(a==="marketAccept")void acceptMarketListing(el.dataset.id);
+  else if(a==="marketCancel")void cancelMarketListing(el.dataset.id);
   else if(a==="tradeAdd")tradeAdd(Number(el.dataset.id));
   else if(a==="tradeRemove")tradeRemove(Number(el.dataset.index));
   else if(a==="tradePropose")proposeTrade();
@@ -1493,6 +1614,7 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
+  else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
   else if(e.target.matches("[data-block-attacker]")){
     const d=state.duel,attackerUid=e.target.dataset.blockAttacker,defenderUid=e.target.value||"";
