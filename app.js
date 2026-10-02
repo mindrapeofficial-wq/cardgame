@@ -270,7 +270,7 @@ function go(view){
 }
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
-  const renderers={home:renderHome,play:renderPlay,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,profile:renderProfile,archive:renderArchive,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,profile:renderProfile,duel:renderDuel};
   root.innerHTML=(renderers[state.view]||renderHome)();
 }
 
@@ -573,17 +573,9 @@ function renderProfile(){
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP total: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Cada nivel requiere progresivamente más experiencia. Al subir de nivel se amplía el nivel máximo de las cartas que pueden aparecer en tus sobres y entrar en tu mazo.</p></div>
     <div class="grid four" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
-      <section class="panel"><div class="panel-head"><h2>Ajustes de cuenta</h2></div><div class="panel-body"><label class="quick-row"><span class="quick-icon">♪</span><span><b>Sonidos del juego</b><small class="muted" style="display:block">Efectos originales recuperados</small></span><input type="checkbox" id="soundToggle" ${state.sound?"checked":""}></label><div class="actions" style="margin-top:12px"><button class="btn" data-action="nav" data-view="archive">Ver archivo histórico</button><button class="btn danger" data-action="logout">Cerrar sesión</button></div></div></section>
+      <section class="panel"><div class="panel-head"><h2>Ajustes de cuenta</h2></div><div class="panel-body"><label class="quick-row"><span class="quick-icon">♪</span><span><b>Sonidos del juego</b><small class="muted" style="display:block">Efectos originales recuperados</small></span><input type="checkbox" id="soundToggle" ${state.sound?"checked":""}></label><div class="actions" style="margin-top:12px"><button class="btn danger" data-action="logout">Cerrar sesión</button></div></div></section>
       <section class="panel"><div class="panel-head"><h2>Resumen</h2></div><div class="panel-body"><div class="quick-list"><div class="quick-row"><span class="quick-icon">◇</span><span><b>${uniqueOwned()} cartas distintas</b><small class="muted" style="display:block">${collectionTotal()} cartas coleccionables · Poder básico Nv 1 infinito</small></span></div><div class="quick-row"><span class="quick-icon">▦</span><span><b>${state.profile.packs||0} sobres</b><small class="muted" style="display:block">abiertos</small></span></div><div class="quick-row"><span class="quick-icon">⚔</span><span><b>${total} partidas</b><small class="muted" style="display:block">registradas en la cuenta</small></span></div></div></div></section>
     </div>
-  </div>`;
-}
-
-function renderArchive(){
-  return `<div class="page">
-    ${pageHead("2002–2005","Archivo histórico","La interfaz moderna se construye sobre los archivos originales. Aquí puedes comparar el nuevo cliente con algunas capturas conservadas.")}
-    <div class="archive-grid"><div class="archive-shot"><img src="legacy-assets/imagenes/screen_shot_1.gif"><p class="muted">Salón clásico de Rolplay.net</p></div><div class="archive-shot"><img src="2013/screenshot2.jpg"><p class="muted">Tablero histórico</p></div><div class="archive-shot"><img src="2013/screenshot3.jpg"><p class="muted">Álbum y colección</p></div></div>
-    <section class="panel" style="margin-top:14px"><div class="panel-body"><h2>Qué se conserva</h2><p class="muted">El catálogo de 285 cartas, arte original, sonidos, música, reglas recuperadas, economía, estructura de salas, intercambios y las seis fases del duelo. La capa de presentación y red ha sido reconstruida para navegadores actuales.</p></div></section>
   </div>`;
 }
 
@@ -597,7 +589,6 @@ function openMobileMenu(){
     <button class="quick-row btn" data-action="nav" data-view="shop"><span class="quick-icon">✦</span><span><b>Tienda</b><small class="muted" style="display:block">Sobres y economía</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="profile"><span class="quick-icon">◎</span><span><b>Perfil</b><small class="muted" style="display:block">Estadísticas y ajustes</small></span></button>
-    <button class="quick-row btn" data-action="nav" data-view="archive"><span class="quick-icon">⌛</span><span><b>Archivo</b><small class="muted" style="display:block">Historia del cliente clásico</small></span></button>
   </div></div></div></div>`;
 }
 function closeModal(){$("modalRoot").innerHTML=""}
