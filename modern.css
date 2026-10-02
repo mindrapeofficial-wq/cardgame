@@ -1009,12 +1009,12 @@ body{
   }
 }
 
-/* === POWER CARD STACKS === */
-.deck-row.power-stack{
+/* === CARD STACKS === */
+.deck-row.card-stack{
   border-color:rgba(201,163,91,.24);
   background:linear-gradient(90deg,rgba(201,163,91,.07),#0b0e12 42%);
 }
-.deck-row.power-stack img{
+.deck-row.card-stack img{
   box-shadow:0 0 0 1px rgba(201,163,91,.14);
 }
 .deck-stack-count{
