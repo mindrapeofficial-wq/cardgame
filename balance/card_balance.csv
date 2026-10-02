@@ -1,286 +1,286 @@
-id,name,level,historical_rarity,rarity_tier,cost,attack,defense,gameplay_score
-1,"Poder",1,1,common,0,0,0,7.5
-2,"Elfo Bardo",1,1,common,1,1,3,4.25
-3,"Duende",1,1,common,1,1,3,4.25
-4,"Guerrero Menor",1,1,common,1,1,3,4.25
-5,"Dophan",1,50,rare,1,2,2,4.5
-6,"Gorad Menor",1,60,rare,1,3,2,5.75
-7,"Mimit",1,20,uncommon,1,1,3,4.25
-8,"Mel",1,1,common,1,1,3,4.25
-9,"Guerrero Mediano",2,1,common,1,2,3,5.5
-10,"Aries Menor",2,1,common,1,2,3,5.5
-11,"Ninfa",2,50,rare,1,3,2,5.75
-12,"Lestat",2,60,rare,1,4,2,7
-13,"Guarda",2,60,rare,1,4,2,7
-14,"Ozk",2,80,epic,1,4,1,6
-15,"Aries Mediano",3,20,uncommon,1,2,4,6.5
-16,"Gorad Mediano",3,20,uncommon,1,2,4,6.5
-17,"Atia",3,20,uncommon,1,2,4,6.5
-18,"Enano Menor",3,20,uncommon,1,2,4,6.5
-19,"Chapanhan",3,70,epic,1,4,2,7
-20,"Eio Menor",3,1,common,1,2,4,6.5
-21,"Explorador",3,95,epic,1,5,2,8.25
-22,"Bashi",4,60,rare,1,5,3,9.25
-23,"Lancero",4,90,epic,1,6,2,9.5
-24,"Enano Mayor",4,20,uncommon,1,3,4,7.75
-25,"Gorad Mayor",4,40,rare,1,4,3,8
-26,"Momia",4,95,epic,1,6,2,9.5
-27,"Orco",4,45,rare,1,4,3,8
-28,"Golem",4,20,uncommon,1,3,4,7.75
-29,"Eio Mayor",5,70,epic,1,5,2,8.25
-30,"Zoa",5,40,rare,1,4,3,8
-31,"Aries Mayor",5,10,uncommon,1,3,4,7.75
-32,"Poder x 3",5,65,rare,0,0,0,10.5
-33,"Chamad",5,50,rare,1,4,3,8
-34,"Mercenario",5,10,uncommon,1,3,4,7.75
-35,"Arlequin Menor",5,50,rare,1,4,3,8
-36,"Celestial",5,80,epic,1,5,2,8.25
-37,"Arlequin Mayor",6,20,uncommon,2,4,5,5
-38,"Elfo Negro",6,60,rare,2,6,4,5.75
-39,"Ave de noche",6,10,uncommon,2,4,5,5
-40,"Paleo",6,10,uncommon,2,4,5,5
-41,"Radia",6,90,epic,2,7,3,5.875
-42,"Rukia",6,50,rare,2,5,4,5.125
-43,"Umbral",6,95,epic,2,7,3,5.875
-44,"Minotauro",6,20,uncommon,2,4,5,5
-45,"Atea",6,99,epic,2,7,3,5.875
-46,"Fuente de vida",6,60,rare,2,0,0,7.5
-47,"Escudal",6,55,rare,2,0,0,8.25
-48,"Poderador",6,60,rare,2,0,0,8.7
-49,"Gran Guerrero",7,10,uncommon,2,4,5,5
-50,"Gran Elfo",7,10,uncommon,2,4,5,5
-51,"Gusold",7,10,uncommon,2,4,5,5
-52,"Oratio",7,40,rare,2,5,4,5.125
-53,"Rush",7,60,rare,2,6,4,5.75
-54,"Mago Blanco",7,60,rare,2,6,4,5.75
-55,"Blitz Menor",7,20,uncommon,2,4,5,5
-56,"Cobald",7,90,epic,2,7,3,5.875
-57,"Ordrihn",7,30,uncommon,2,5,4,5.125
-58,"Poder x 4",7,65,rare,0,0,0,12
-59,"Veneno",7,60,rare,2,0,0,9
-60,"Atriad",8,10,uncommon,2,5,6,6.125
-61,"Enano de Oro",8,10,uncommon,2,5,6,6.125
-62,"Blitz Mediano",8,20,uncommon,2,5,6,6.125
-63,"Hidra",8,90,epic,2,8,4,7
-64,"Eretik",8,1,common,2,5,6,6.125
-65,"Trasgo Menor",8,90,epic,2,8,4,7
-66,"Mercane",8,75,epic,2,7,4,6.375
-67,"Ador",8,55,rare,2,6,5,6.25
-68,"Drenador",8,55,rare,2,0,0,10.5
-69,"Hada",8,90,epic,2,8,4,7
-70,"Tachi",9,60,rare,2,7,5,6.875
-71,"Bebe Dragon",9,90,epic,2,8,4,7
-72,"Lancero Menor",9,80,epic,2,7,4,6.375
-73,"Blitz Mayor",9,50,rare,2,6,5,6.25
-74,"Moriel",9,80,epic,2,7,4,6.375
-75,"Oracty",9,85,epic,2,7,4,6.375
-76,"Mujer Aguila",9,100,legendary,2,8,4,7
-77,"Suza",10,10,uncommon,2,6,6,6.75
-78,"Dehil",10,80,epic,2,8,4,7
-79,"Poder x 5",10,70,epic,0,0,0,13.5
-80,"Gran Oso",10,80,epic,2,8,4,7
-81,"Vampiro",10,20,uncommon,2,6,6,6.75
-82,"Fureh",10,60,rare,2,8,5,7.5
-83,"Arpada",10,80,epic,2,8,4,7
-84,"Aguila Gigante",10,35,rare,2,7,5,6.875
-85,"Veneno x 2",10,70,epic,2,0,0,10.44
-86,"Trasgo Mayor",11,80,epic,3,8,5,5
-87,"Gran Blitz",11,10,uncommon,3,6,7,4.8333
-88,"Sombra",11,60,rare,3,8,6,5.3333
-89,"Mole",11,65,rare,3,8,5,5
-90,"Demonio",11,75,epic,3,8,5,5
-91,"Sardo",11,30,uncommon,3,7,6,4.9167
-92,"Hongo",11,99,epic,3,9,5,5.4167
-93,"Malar",11,90,epic,3,9,5,5.4167
-94,"Lancero Mayor",12,10,uncommon,3,7,7,5.25
-95,"Gran Trasgo",12,60,rare,3,9,6,5.75
-96,"Presenter",12,95,epic,3,10,5,5.8333
-97,"Hombre Lobo",12,70,epic,3,9,5,5.4167
-98,"Fuente de vida x 2",12,70,epic,3,0,0,5.8
-99,"Escudal x 2",12,60,rare,3,0,0,6.38
-100,"Elfo Arquero",12,95,epic,3,10,5,5.8333
-101,"Lanzador",13,10,uncommon,3,7,8,5.5833
-102,"Arcero",13,10,uncommon,3,7,8,5.5833
-103,"Tumbadil",13,20,uncommon,3,7,8,5.5833
-104,"Hyel",13,50,rare,3,8,7,5.6667
-105,"Taros",13,99,epic,3,10,6,6.1667
-106,"Inevitables",13,99,epic,3,10,6,6.1667
-107,"Poder x 6",13,95,epic,0,0,0,15
-108,"Poderador x 2",13,65,rare,3,0,0,6.728
-109,"Poder Mental",13,99,epic,3,0,0,6.5
-110,"Dragon Rojo",14,90,epic,3,11,6,6.5833
-111,"Ithids Menores",14,60,rare,3,10,7,6.5
-112,"Azote",14,40,rare,3,9,7,6.0833
-113,"Oscuro",14,70,epic,3,10,6,6.1667
-114,"Morthen",14,90,epic,3,11,6,6.5833
-115,"Korth",14,100,legendary,3,11,6,6.5833
-116,"Sirena",15,10,uncommon,3,8,8,6
-117,"Poder x 7",15,80,epic,0,0,0,16.5
-118,"Ithids Mayores",15,50,rare,3,9,7,6.0833
-119,"Urgul",15,99,epic,3,11,6,6.5833
-120,"Basilisco",15,80,epic,3,10,6,6.1667
-121,"Thrul",15,90,epic,3,11,6,6.5833
-122,"Escudal x 3",15,70,epic,3,0,0,7.26
-123,"Barrera Mistica",15,80,epic,3,0,0,5.5
-124,"Atea Mayor",15,99,epic,3,11,6,6.5833
-125,"Albala",15,70,epic,3,10,6,6.1667
-126,"Poder x 7 Poderal",15,100,legendary,0,0,0,16.5
-127,"Poder x 7 Natural",15,100,legendary,0,0,0,16.5
-128,"Poder x 7 Ametal",15,100,legendary,0,0,0,16.5
-129,"Poder x 7 Domica",15,100,legendary,0,0,0,16.5
-130,"Espinal",16,50,rare,4,10,8,5.125
-131,"Saga",16,99,epic,4,12,7,5.5
-132,"Colossus",16,99,epic,4,12,7,5.5
-133,"Poder Mental x 2",16,99,epic,4,0,0,5.655
-134,"Kurth Arth",16,80,epic,4,11,7,5.1875
-135,"Esteagol",17,30,uncommon,4,10,8,5.125
-136,"Osgo",17,20,uncommon,4,9,9,5.0625
-137,"Viguil",17,60,rare,4,11,8,5.4375
-138,"Astral",17,99,epic,4,12,7,5.5
-139,"Drenador x 2",17,70,epic,4,0,0,6.09
-140,"Muralez",17,95,epic,4,12,7,5.5
-141,"Elfo Avanzado",17,75,epic,4,11,7,5.1875
-142,"Poder x 8 Mayor",17,100,legendary,0,0,0,18
-143,"Alchemia",18,60,rare,4,12,9,6
-144,"Kehanar",18,80,epic,4,12,8,5.75
-145,"Petioner",18,40,rare,4,11,9,5.6875
-146,"Trigild",18,10,uncommon,4,10,10,5.625
-147,"Tutar Amon",19,30,uncommon,4,11,9,5.6875
-148,"Yogoloth",19,99,epic,4,13,8,6.0625
-149,"Veneno x 3",19,75,epic,4,0,0,5.94
-150,"Poderador x 3",19,75,epic,4,0,0,5.742
-151,"Barbaro",19,85,epic,4,12,8,5.75
-152,"Observador",20,20,uncommon,4,11,10,5.9375
-153,"Poder x 10",20,90,epic,0,0,0,21
-154,"Manath",20,40,rare,4,12,9,6
-155,"Fuente de vida x 3",20,75,epic,4,0,0,4.95
-156,"Poder Mental x 3",20,99,epic,4,0,0,6.435
-157,"Poder Mental x 4",20,99,epic,4,0,0,7.215
-158,"Argnathor Poderal",20,100,legendary,4,14,8,6.375
-159,"Rebolt",20,75,epic,4,13,8,6.0625
-160,"Urgul Mayor",20,100,legendary,4,14,8,6.375
-161,"Angel Caido",20,100,legendary,4,14,8,6.375
-162,"Poder x 10 Poderal",20,100,legendary,0,0,0,21
-163,"Poder x 10 Natural",20,100,legendary,0,0,0,21
-164,"Poder x 10 Ametal",20,100,legendary,0,0,0,21
-165,"Poder x 10 Domica",20,100,legendary,0,0,0,21
-166,"Arienel",21,20,uncommon,5,11,11,4.95
-167,"Escudal x 4",21,70,epic,5,0,0,4.884
-168,"Acrum",21,100,legendary,5,14,9,5.3
-169,"Alendrar",22,20,uncommon,5,12,11,5.2
-170,"Drakar",22,70,epic,5,14,9,5.3
-171,"Barrera Mistica x 2",22,80,epic,5,0,0,3.828
-172,"Poder Mental x 5",22,99,epic,5,0,0,6.396
-173,"Kurth Arth x 2",22,90,epic,5,15,9,5.55
-174,"Elfo Oscuro",22,80,epic,5,14,9,5.3
-175,"Dragon esqueleto",22,90,epic,5,15,9,5.55
-176,"Poder x 12 Mayor",22,100,legendary,0,0,0,24
-177,"Afal",23,1,common,5,12,12,5.4
-178,"Drenador x 3",23,80,epic,5,0,0,5.544
-179,"Dragor",24,20,uncommon,5,13,12,5.65
-180,"Grifo",24,79,epic,5,15,10,5.75
-181,"Chimera Menor",25,20,uncommon,5,13,12,5.65
-182,"Poder x 15",25,85,epic,0,0,0,28.5
-183,"Enher",25,100,legendary,5,16,10,6
-184,"Titan",25,81,epic,5,15,10,5.75
-185,"Paladin",25,85,epic,5,15,10,5.75
-186,"Fuente de vida x 4",25,80,epic,5,0,0,4.44
-187,"Rueda",25,90,epic,5,0,0,3.6
-188,"Poderador x 4",25,80,epic,5,0,0,5.1504
-189,"Ruinthz",25,90,epic,5,16,10,6
-190,"Argnathor Ametal",25,100,legendary,5,16,10,6
-191,"Poder x 15 Domica",25,100,legendary,0,0,0,28.5
-192,"Poder x 15 Ametal",25,100,legendary,0,0,0,28.5
-193,"Poder x 15 Natural",25,100,legendary,0,0,0,28.5
-194,"Poder x 15 Poderal",25,100,legendary,0,0,0,28.5
-195,"Espiritu del mar",26,90,epic,6,17,11,5.375
-196,"Maderal",26,85,epic,6,16,11,5.1667
-197,"Muralez x 2",26,99,epic,6,17,11,5.375
-198,"Acrum x 2",26,100,legendary,6,17,11,5.375
-199,"Draconia",26,100,legendary,6,17,11,5.375
-200,"Kraken",27,75,epic,6,17,11,5.375
-201,"Corrosivo",27,80,epic,6,17,11,5.375
-202,"Poder Mental x 6",27,99,epic,6,0,0,5.85
-203,"Poder Mental x 7",27,99,epic,6,0,0,6.37
-204,"Hermanos Elfo",27,100,legendary,6,18,11,5.5833
-205,"Mohrg",28,95,epic,6,18,12,5.75
-206,"Servidor",28,99,epic,6,18,12,5.75
-207,"Arcangel",29,70,epic,6,18,12,5.75
-208,"Demonio rojo",29,85,epic,6,18,12,5.75
-209,"Veneno x 4",29,85,epic,6,0,0,4.44
-210,"Flora",29,100,legendary,6,19,12,5.9583
-211,"Archer",30,90,epic,6,19,12,5.9583
-212,"Hechizero Negro",30,85,epic,6,18,12,5.75
-213,"Argnathor Natural",30,100,legendary,6,19,12,5.9583
-214,"Caza Dragones",30,55,rare,6,17,13,5.7083
-215,"Hombre Angel",30,100,legendary,6,19,12,5.9583
-216,"Poder x 15 Mayor",30,100,legendary,0,0,0,28.5
-217,"HipoGrifo",31,75,epic,7,19,13,5.25
-218,"Gith",31,80,epic,7,19,13,5.25
-219,"Solemn",31,100,legendary,7,20,13,5.4286
-220,"Chimera Mayor",32,70,epic,7,19,13,5.25
-221,"Elion",32,60,rare,7,19,14,5.3929
-222,"Poder Mental x 8",32,99,epic,7,0,0,5.9057
-223,"Kurth Arth x 3",32,95,epic,7,20,13,5.4286
-224,"Dragon azul",33,60,rare,7,20,15,5.7143
-225,"Dragon verde",33,50,rare,7,19,15,5.5357
-226,"Escudal x 5",33,80,epic,7,0,0,3.8657
-227,"Dragon Helado",34,80,epic,7,20,14,5.5714
-228,"Gargola",34,70,epic,7,20,14,5.5714
-229,"Acrum x 3",34,100,legendary,7,21,14,5.75
-230,"Ardala",34,100,legendary,7,21,14,5.75
-231,"Gargola de Oro",35,65,rare,7,21,14,5.75
-232,"Incael",35,79,epic,7,21,14,5.75
-233,"Fuente de vida x 5",35,85,epic,7,0,0,3.5143
-234,"Rueda x 2",35,95,epic,7,0,0,2.9829
-235,"Barrera Mistica x 3",35,80,epic,7,0,0,3.1114
-236,"Sanal",35,100,legendary,7,22,14,5.9286
-237,"Argnathor Domic",35,100,legendary,7,22,14,5.9286
-238,"Elfo Brujo",35,100,legendary,7,22,14,5.9286
-239,"Sibad",36,90,epic,8,22,15,5.3125
-240,"Remente",36,50,rare,8,20,16,5.125
-241,"Poderador x 5",36,95,epic,8,0,0,3.567
-242,"Poder Mental x 9",36,99,epic,8,0,0,5.5575
-243,"Ruinthz x 2",36,95,epic,8,22,15,5.3125
-244,"Agathirmur",37,85,epic,8,22,15,5.3125
-245,"Rataria",37,70,epic,8,22,15,5.3125
-246,"Fase",38,70,epic,8,22,16,5.4375
-247,"Garbol",38,75,epic,8,22,16,5.4375
-248,"Hijo de Keathan",39,100,legendary,8,24,16,5.75
-249,"Krahn",39,80,epic,8,23,16,5.5938
-250,"Veneno x 5",39,95,epic,8,0,0,3.69
-251,"Drac Blanco Mayor",40,65,rare,8,23,16,5.5938
-252,"Drac Azul Mayor",40,80,epic,8,23,16,5.5938
-253,"Bestia del Caos",40,100,legendary,8,24,16,5.75
-254,"Dragon Marron",40,50,rare,8,22,17,5.5625
-255,"Tormentus",40,90,epic,8,24,16,5.75
-256,"Athar Zum",40,95,epic,8,24,16,5.75
-257,"Dragon Dorado",41,89,epic,9,24,17,5.2222
-258,"Drac de Bronce",41,70,epic,9,24,17,5.2222
-259,"Ruinthz x 3",41,100,legendary,9,25,17,5.3611
-260,"Dragon Plateado",42,80,epic,9,24,17,5.2222
-261,"Stazhart",42,75,epic,9,24,17,5.2222
-262,"Asxel",42,60,rare,9,24,18,5.3333
-263,"Rueda x 3",42,100,legendary,9,0,0,2.64
-264,"Kurth Arth x 4",42,100,legendary,9,25,17,5.3611
-265,"Angrath",43,100,legendary,9,26,18,5.6111
-266,"GraDrac",43,50,rare,9,24,19,5.4444
-267,"Volatilh",44,80,epic,9,25,18,5.4722
-268,"Drac Verde Mayor",44,70,epic,9,25,18,5.4722
-269,"Gigante",45,100,legendary,9,27,18,5.75
-270,"Grath",45,70,epic,9,26,18,5.6111
-271,"Poder Mental x 10",45,99,epic,9,0,0,5.2867
-272,"Acrum x 4",45,100,legendary,9,27,18,5.75
-273,"Insignia Solamnica",45,100,legendary,9,27,18,5.75
-274,"Oroth Fezhal",46,75,epic,10,26,19,5.15
-275,"Imnazthril",46,100,legendary,10,27,19,5.275
-276,"Genios",46,100,legendary,10,27,19,5.275
-277,"Dragon Demonio",47,80,epic,10,27,19,5.275
-278,"Dragon Negro",47,70,epic,10,27,19,5.275
-279,"Pesadilla",48,100,legendary,10,28,20,5.5
-280,"Reptenzh",48,75,epic,10,27,20,5.375
-281,"Dragon Oscuro",49,99,epic,10,29,20,5.625
-282,"Poder Mental x 11",49,99,epic,10,0,0,5.07
-283,"Tentaculo",49,100,legendary,10,29,20,5.625
-284,"Keatahn",50,100,legendary,10,29,20,5.625
-285,"Poder x 20",50,100,legendary,0,0,0,36
+id,name,level,historical_rarity,rarity_tier,cost,attack,defense,role,gameplay_score,role_percentile
+1,"Poder",1,1,common,0,0,0,power,7.5,0.5
+2,"Elfo Bardo",1,1,common,1,1,3,creature,4.25,0.125
+3,"Duende",1,1,common,1,1,3,creature,4.25,0.125
+4,"Guerrero Menor",1,1,common,1,1,3,creature,4.25,0.125
+5,"Dophan",1,50,rare,1,2,2,creature,4.5,0.275
+6,"Gorad Menor",1,60,rare,1,3,2,creature,5.75,0.45
+7,"Mimit",1,20,uncommon,1,1,3,creature,4.25,0.125
+8,"Mel",1,1,common,1,1,3,creature,4.25,0.125
+9,"Guerrero Mediano",2,1,common,1,2,3,creature,5.5,0.259259
+10,"Aries Menor",2,1,common,1,2,3,creature,5.5,0.259259
+11,"Ninfa",2,50,rare,1,3,2,creature,5.75,0.333333
+12,"Lestat",2,60,rare,1,4,2,creature,7,0.648148
+13,"Guarda",2,60,rare,1,4,2,creature,7,0.648148
+14,"Ozk",2,80,epic,1,4,1,creature,6,0.388889
+15,"Aries Mediano",3,20,uncommon,1,2,4,creature,6.5,0.397059
+16,"Gorad Mediano",3,20,uncommon,1,2,4,creature,6.5,0.397059
+17,"Atia",3,20,uncommon,1,2,4,creature,6.5,0.397059
+18,"Enano Menor",3,20,uncommon,1,2,4,creature,6.5,0.397059
+19,"Chapanhan",3,70,epic,1,4,2,creature,7,0.514706
+20,"Eio Menor",3,1,common,1,2,4,creature,6.5,0.397059
+21,"Explorador",3,95,epic,1,5,2,creature,8.25,0.867647
+22,"Bashi",4,60,rare,1,5,3,creature,9.25,0.930556
+23,"Lancero",4,90,epic,1,6,2,creature,9.5,0.972222
+24,"Enano Mayor",4,20,uncommon,1,3,4,creature,7.75,0.638889
+25,"Gorad Mayor",4,40,rare,1,4,3,creature,8,0.763889
+26,"Momia",4,95,epic,1,6,2,creature,9.5,0.972222
+27,"Orco",4,45,rare,1,4,3,creature,8,0.763889
+28,"Golem",4,20,uncommon,1,3,4,creature,7.75,0.638889
+29,"Eio Mayor",5,70,epic,1,5,2,creature,8.25,0.884615
+30,"Zoa",5,40,rare,1,4,3,creature,8,0.782051
+31,"Aries Mayor",5,10,uncommon,1,3,4,creature,7.75,0.666667
+32,"Poder x 3",5,65,rare,0,0,0,power,10.5,0.25
+33,"Chamad",5,50,rare,1,4,3,creature,8,0.782051
+34,"Mercenario",5,10,uncommon,1,3,4,creature,7.75,0.666667
+35,"Arlequin Menor",5,50,rare,1,4,3,creature,8,0.782051
+36,"Celestial",5,80,epic,1,5,2,creature,8.25,0.884615
+37,"Arlequin Mayor",6,20,uncommon,2,4,5,creature,5,0.097561
+38,"Elfo Negro",6,60,rare,2,6,4,creature,5.75,0.304878
+39,"Ave de noche",6,10,uncommon,2,4,5,creature,5,0.097561
+40,"Paleo",6,10,uncommon,2,4,5,creature,5,0.097561
+41,"Radia",6,90,epic,2,7,3,creature,5.875,0.390244
+42,"Rukia",6,50,rare,2,5,4,creature,5.125,0.231707
+43,"Umbral",6,95,epic,2,7,3,creature,5.875,0.390244
+44,"Minotauro",6,20,uncommon,2,4,5,creature,5,0.097561
+45,"Atea",6,99,epic,2,7,3,creature,5.875,0.390244
+46,"Fuente de vida",6,60,rare,2,0,0,ability,7.5,0.1
+47,"Escudal",6,55,rare,2,0,0,ability,8.25,0.3
+48,"Poderador",6,60,rare,2,0,0,ability,8.7,0.5
+49,"Gran Guerrero",7,10,uncommon,2,4,5,creature,5,0.097561
+50,"Gran Elfo",7,10,uncommon,2,4,5,creature,5,0.097561
+51,"Gusold",7,10,uncommon,2,4,5,creature,5,0.097561
+52,"Oratio",7,40,rare,2,5,4,creature,5.125,0.231707
+53,"Rush",7,60,rare,2,6,4,creature,5.75,0.304878
+54,"Mago Blanco",7,60,rare,2,6,4,creature,5.75,0.304878
+55,"Blitz Menor",7,20,uncommon,2,4,5,creature,5,0.097561
+56,"Cobald",7,90,epic,2,7,3,creature,5.875,0.390244
+57,"Ordrihn",7,30,uncommon,2,5,4,creature,5.125,0.231707
+58,"Poder x 4",7,65,rare,0,0,0,power,12,0.75
+59,"Veneno",7,60,rare,2,0,0,ability,9,0.7
+60,"Atriad",8,10,uncommon,2,5,6,creature,6.125,0.487805
+61,"Enano de Oro",8,10,uncommon,2,5,6,creature,6.125,0.487805
+62,"Blitz Mediano",8,20,uncommon,2,5,6,creature,6.125,0.487805
+63,"Hidra",8,90,epic,2,8,4,creature,7,0.878049
+64,"Eretik",8,1,common,2,5,6,creature,6.125,0.487805
+65,"Trasgo Menor",8,90,epic,2,8,4,creature,7,0.878049
+66,"Mercane",8,75,epic,2,7,4,creature,6.375,0.634146
+67,"Ador",8,55,rare,2,6,5,creature,6.25,0.560976
+68,"Drenador",8,55,rare,2,0,0,ability,10.5,0.916667
+69,"Hada",8,90,epic,2,8,4,creature,7,0.878049
+70,"Tachi",9,60,rare,2,7,5,creature,6.875,0.75
+71,"Bebe Dragon",9,90,epic,2,8,4,creature,7,0.875
+72,"Lancero Menor",9,80,epic,2,7,4,creature,6.375,0.625
+73,"Blitz Mayor",9,50,rare,2,6,5,creature,6.25,0.55
+74,"Moriel",9,80,epic,2,7,4,creature,6.375,0.625
+75,"Oracty",9,85,epic,2,7,4,creature,6.375,0.625
+76,"Mujer Aguila",9,100,legendary,2,8,4,creature,7,0.875
+77,"Suza",10,10,uncommon,2,6,6,creature,6.75,0.666667
+78,"Dehil",10,80,epic,2,8,4,creature,7,0.861111
+79,"Poder x 5",10,70,epic,0,0,0,power,13.5,0.5
+80,"Gran Oso",10,80,epic,2,8,4,creature,7,0.861111
+81,"Vampiro",10,20,uncommon,2,6,6,creature,6.75,0.666667
+82,"Fureh",10,60,rare,2,8,5,creature,7.5,0.986111
+83,"Arpada",10,80,epic,2,8,4,creature,7,0.861111
+84,"Aguila Gigante",10,35,rare,2,7,5,creature,6.875,0.722222
+85,"Veneno x 2",10,70,epic,2,0,0,ability,10.44,0.625
+86,"Trasgo Mayor",11,80,epic,3,8,5,creature,5,0.106061
+87,"Gran Blitz",11,10,uncommon,3,6,7,creature,4.833333,0.015152
+88,"Sombra",11,60,rare,3,8,6,creature,5.333333,0.19697
+89,"Mole",11,65,rare,3,8,5,creature,5,0.106061
+90,"Demonio",11,75,epic,3,8,5,creature,5,0.106061
+91,"Sardo",11,30,uncommon,3,7,6,creature,4.916667,0.045455
+92,"Hongo",11,99,epic,3,9,5,creature,5.416667,0.257576
+93,"Malar",11,90,epic,3,9,5,creature,5.416667,0.257576
+94,"Lancero Mayor",12,10,uncommon,3,7,7,creature,5.25,0.171875
+95,"Gran Trasgo",12,60,rare,3,9,6,creature,5.75,0.453125
+96,"Presenter",12,95,epic,3,10,5,creature,5.833333,0.5
+97,"Hombre Lobo",12,70,epic,3,9,5,creature,5.416667,0.265625
+98,"Fuente de vida x 2",12,70,epic,3,0,0,ability,5.8,0.1
+99,"Escudal x 2",12,60,rare,3,0,0,ability,6.38,0.3
+100,"Elfo Arquero",12,95,epic,3,10,5,creature,5.833333,0.5
+101,"Lanzador",13,10,uncommon,3,7,8,creature,5.583333,0.359375
+102,"Arcero",13,10,uncommon,3,7,8,creature,5.583333,0.359375
+103,"Tumbadil",13,20,uncommon,3,7,8,creature,5.583333,0.359375
+104,"Hyel",13,50,rare,3,8,7,creature,5.666667,0.421875
+105,"Taros",13,99,epic,3,10,6,creature,6.166667,0.703125
+106,"Inevitables",13,99,epic,3,10,6,creature,6.166667,0.703125
+107,"Poder x 6",13,95,epic,0,0,0,power,15,0.083333
+108,"Poderador x 2",13,65,rare,3,0,0,ability,6.728,0.75
+109,"Poder Mental",13,99,epic,3,0,0,ability,6.5,0.583333
+110,"Dragon Rojo",14,90,epic,3,11,6,creature,6.583333,0.892857
+111,"Ithids Menores",14,60,rare,3,10,7,creature,6.5,0.767857
+112,"Azote",14,40,rare,3,9,7,creature,6.083333,0.535714
+113,"Oscuro",14,70,epic,3,10,6,creature,6.166667,0.660714
+114,"Morthen",14,90,epic,3,11,6,creature,6.583333,0.892857
+115,"Korth",14,100,legendary,3,11,6,creature,6.583333,0.892857
+116,"Sirena",15,10,uncommon,3,8,8,creature,6,0.5
+117,"Poder x 7",15,80,epic,0,0,0,power,16.5,0.5
+118,"Ithids Mayores",15,50,rare,3,9,7,creature,6.083333,0.551724
+119,"Urgul",15,99,epic,3,11,6,creature,6.583333,0.896552
+120,"Basilisco",15,80,epic,3,10,6,creature,6.166667,0.672414
+121,"Thrul",15,90,epic,3,11,6,creature,6.583333,0.896552
+122,"Escudal x 3",15,70,epic,3,0,0,ability,7.26,0.916667
+123,"Barrera Mistica",15,80,epic,3,0,0,ability,5.5,0.083333
+124,"Atea Mayor",15,99,epic,3,11,6,creature,6.583333,0.896552
+125,"Albala",15,70,epic,3,10,6,creature,6.166667,0.672414
+126,"Poder x 7 Poderal",15,100,epic,0,0,0,power,16.5,0.5
+127,"Poder x 7 Natural",15,100,epic,0,0,0,power,16.5,0.5
+128,"Poder x 7 Ametal",15,100,epic,0,0,0,power,16.5,0.5
+129,"Poder x 7 Domica",15,100,epic,0,0,0,power,16.5,0.5
+130,"Espinal",16,50,rare,4,10,8,creature,5.125,0.074074
+131,"Saga",16,99,epic,4,12,7,creature,5.5,0.296296
+132,"Colossus",16,99,epic,4,12,7,creature,5.5,0.296296
+133,"Poder Mental x 2",16,99,epic,4,0,0,ability,5.655,0.375
+134,"Kurth Arth",16,80,epic,4,11,7,creature,5.1875,0.148148
+135,"Esteagol",17,30,uncommon,4,10,8,creature,5.125,0.083333
+136,"Osgo",17,20,uncommon,4,9,9,creature,5.0625,0.020833
+137,"Viguil",17,60,rare,4,11,8,creature,5.4375,0.229167
+138,"Astral",17,99,epic,4,12,7,creature,5.5,0.333333
+139,"Drenador x 2",17,70,epic,4,0,0,ability,6.09,0.75
+140,"Muralez",17,95,epic,4,12,7,creature,5.5,0.333333
+141,"Elfo Avanzado",17,75,epic,4,11,7,creature,5.1875,0.166667
+142,"Poder x 8 Mayor",17,100,legendary,0,0,0,power,18,0.916667
+143,"Alchemia",18,60,rare,4,12,9,creature,6,0.73913
+144,"Kehanar",18,80,epic,4,12,8,creature,5.75,0.608696
+145,"Petioner",18,40,rare,4,11,9,creature,5.6875,0.521739
+146,"Trigild",18,10,uncommon,4,10,10,creature,5.625,0.456522
+147,"Tutar Amon",19,30,uncommon,4,11,9,creature,5.6875,0.47619
+148,"Yogoloth",19,99,epic,4,13,8,creature,6.0625,0.809524
+149,"Veneno x 3",19,75,epic,4,0,0,ability,5.94,0.5
+150,"Poderador x 3",19,75,epic,4,0,0,ability,5.742,0.357143
+151,"Barbaro",19,85,epic,4,12,8,creature,5.75,0.571429
+152,"Observador",20,20,uncommon,4,11,10,creature,5.9375,0.625
+153,"Poder x 10",20,90,epic,0,0,0,power,21,0.416667
+154,"Manath",20,40,rare,4,12,9,creature,6,0.7
+155,"Fuente de vida x 3",20,75,epic,4,0,0,ability,4.95,0.3125
+156,"Poder Mental x 3",20,99,epic,4,0,0,ability,6.435,0.8125
+157,"Poder Mental x 4",20,99,legendary,4,0,0,ability,7.215,0.9375
+158,"Argnathor Poderal",20,100,legendary,4,14,8,creature,6.375,0.925
+159,"Rebolt",20,75,epic,4,13,8,creature,6.0625,0.8
+160,"Urgul Mayor",20,100,legendary,4,14,8,creature,6.375,0.925
+161,"Angel Caido",20,100,legendary,4,14,8,creature,6.375,0.925
+162,"Poder x 10 Poderal",20,100,epic,0,0,0,power,21,0.416667
+163,"Poder x 10 Natural",20,100,epic,0,0,0,power,21,0.416667
+164,"Poder x 10 Ametal",20,100,epic,0,0,0,power,21,0.416667
+165,"Poder x 10 Domica",20,100,epic,0,0,0,power,21,0.416667
+166,"Arienel",21,20,uncommon,5,11,11,creature,4.95,0.029412
+167,"Escudal x 4",21,70,epic,5,0,0,ability,4.884,0.166667
+168,"Acrum",21,100,epic,5,14,9,creature,5.3,0.205882
+169,"Alendrar",22,20,uncommon,5,12,11,creature,5.2,0.09375
+170,"Drakar",22,70,epic,5,14,9,creature,5.3,0.21875
+171,"Barrera Mistica x 2",22,80,epic,5,0,0,ability,3.828,0.071429
+172,"Poder Mental x 5",22,99,epic,5,0,0,ability,6.396,0.642857
+173,"Kurth Arth x 2",22,90,epic,5,15,9,creature,5.55,0.4375
+174,"Elfo Oscuro",22,80,epic,5,14,9,creature,5.3,0.21875
+175,"Dragon esqueleto",22,90,epic,5,15,9,creature,5.55,0.4375
+176,"Poder x 12 Mayor",22,100,legendary,0,0,0,power,24,0.916667
+177,"Afal",23,1,common,5,12,12,creature,5.4,0.34375
+178,"Drenador x 3",23,80,epic,5,0,0,ability,5.544,0.785714
+179,"Dragor",24,20,uncommon,5,13,12,creature,5.65,0.631579
+180,"Grifo",24,79,epic,5,15,10,creature,5.75,0.763158
+181,"Chimera Menor",25,20,uncommon,5,13,12,creature,5.65,0.588235
+182,"Poder x 15",25,85,epic,0,0,0,power,28.5,0.5
+183,"Enher",25,100,legendary,5,16,10,creature,6,0.911765
+184,"Titan",25,81,epic,5,15,10,creature,5.75,0.735294
+185,"Paladin",25,85,epic,5,15,10,creature,5.75,0.735294
+186,"Fuente de vida x 4",25,80,epic,5,0,0,ability,4.44,0.25
+187,"Rueda",25,90,epic,5,0,0,ability,3.6,0.083333
+188,"Poderador x 4",25,80,epic,5,0,0,ability,5.1504,0.416667
+189,"Ruinthz",25,90,epic,5,16,10,creature,6,0.911765
+190,"Argnathor Ametal",25,100,legendary,5,16,10,creature,6,0.911765
+191,"Poder x 15 Domica",25,100,legendary,0,0,0,power,28.5,0.5
+192,"Poder x 15 Ametal",25,100,legendary,0,0,0,power,28.5,0.5
+193,"Poder x 15 Natural",25,100,legendary,0,0,0,power,28.5,0.5
+194,"Poder x 15 Poderal",25,100,legendary,0,0,0,power,28.5,0.5
+195,"Espiritu del mar",26,90,epic,6,17,11,creature,5.375,0.222222
+196,"Maderal",26,85,epic,6,16,11,creature,5.166667,0.027778
+197,"Muralez x 2",26,99,epic,6,17,11,creature,5.375,0.222222
+198,"Acrum x 2",26,100,epic,6,17,11,creature,5.375,0.222222
+199,"Draconia",26,100,epic,6,17,11,creature,5.375,0.222222
+200,"Kraken",27,75,epic,6,17,11,creature,5.375,0.210526
+201,"Corrosivo",27,80,epic,6,17,11,creature,5.375,0.210526
+202,"Poder Mental x 6",27,99,epic,6,0,0,ability,5.85,0.75
+203,"Poder Mental x 7",27,99,legendary,6,0,0,ability,6.37,0.916667
+204,"Hermanos Elfo",27,100,epic,6,18,11,creature,5.583333,0.394737
+205,"Mohrg",28,95,epic,6,18,12,creature,5.75,0.638889
+206,"Servidor",28,99,epic,6,18,12,creature,5.75,0.638889
+207,"Arcangel",29,70,epic,6,18,12,creature,5.75,0.59375
+208,"Demonio rojo",29,85,epic,6,18,12,creature,5.75,0.59375
+209,"Veneno x 4",29,85,epic,6,0,0,ability,4.44,0.166667
+210,"Flora",29,100,legendary,6,19,12,creature,5.958333,0.875
+211,"Archer",30,90,epic,6,19,12,creature,5.958333,0.875
+212,"Hechizero Negro",30,85,epic,6,18,12,creature,5.75,0.59375
+213,"Argnathor Natural",30,100,legendary,6,19,12,creature,5.958333,0.875
+214,"Caza Dragones",30,55,rare,6,17,13,creature,5.708333,0.40625
+215,"Hombre Angel",30,100,legendary,6,19,12,creature,5.958333,0.875
+216,"Poder x 15 Mayor",30,100,legendary,0,0,0,power,28.5,0.5
+217,"HipoGrifo",31,75,epic,7,19,13,creature,5.25,0.09375
+218,"Gith",31,80,epic,7,19,13,creature,5.25,0.09375
+219,"Solemn",31,100,epic,7,20,13,creature,5.428571,0.3125
+220,"Chimera Mayor",32,70,epic,7,19,13,creature,5.25,0.088235
+221,"Elion",32,60,rare,7,19,14,creature,5.392857,0.205882
+222,"Poder Mental x 8",32,99,epic,7,0,0,ability,5.905714,0.75
+223,"Kurth Arth x 3",32,95,epic,7,20,13,creature,5.428571,0.294118
+224,"Dragon azul",33,60,rare,7,20,15,creature,5.714286,0.558824
+225,"Dragon verde",33,50,rare,7,19,15,creature,5.535714,0.382353
+226,"Escudal x 5",33,80,epic,7,0,0,ability,3.865714,0.7
+227,"Dragon Helado",34,80,epic,7,20,14,creature,5.571429,0.470588
+228,"Gargola",34,70,epic,7,20,14,creature,5.571429,0.470588
+229,"Acrum x 3",34,100,legendary,7,21,14,creature,5.75,0.705882
+230,"Ardala",34,100,legendary,7,21,14,creature,5.75,0.705882
+231,"Gargola de Oro",35,65,rare,7,21,14,creature,5.75,0.6875
+232,"Incael",35,79,epic,7,21,14,creature,5.75,0.6875
+233,"Fuente de vida x 5",35,85,epic,7,0,0,ability,3.514286,0.416667
+234,"Rueda x 2",35,95,epic,7,0,0,ability,2.982857,0.083333
+235,"Barrera Mistica x 3",35,80,epic,7,0,0,ability,3.111429,0.25
+236,"Sanal",35,100,legendary,7,22,14,creature,5.928571,0.90625
+237,"Argnathor Domic",35,100,legendary,7,22,14,creature,5.928571,0.90625
+238,"Elfo Brujo",35,100,legendary,7,22,14,creature,5.928571,0.90625
+239,"Sibad",36,90,epic,8,22,15,creature,5.3125,0.1875
+240,"Remente",36,50,rare,8,20,16,creature,5.125,0.03125
+241,"Poderador x 5",36,95,epic,8,0,0,ability,3.567,0.7
+242,"Poder Mental x 9",36,99,legendary,8,0,0,ability,5.5575,0.9
+243,"Ruinthz x 2",36,95,epic,8,22,15,creature,5.3125,0.1875
+244,"Agathirmur",37,85,epic,8,22,15,creature,5.3125,0.214286
+245,"Rataria",37,70,epic,8,22,15,creature,5.3125,0.214286
+246,"Fase",38,70,epic,8,22,16,creature,5.4375,0.4
+247,"Garbol",38,75,epic,8,22,16,creature,5.4375,0.4
+248,"Hijo de Keathan",39,100,legendary,8,24,16,creature,5.75,0.866667
+249,"Krahn",39,80,epic,8,23,16,creature,5.59375,0.633333
+250,"Veneno x 5",39,95,epic,8,0,0,ability,3.69,0.5
+251,"Drac Blanco Mayor",40,65,rare,8,23,16,creature,5.59375,0.676471
+252,"Drac Azul Mayor",40,80,epic,8,23,16,creature,5.59375,0.676471
+253,"Bestia del Caos",40,100,legendary,8,24,16,creature,5.75,0.882353
+254,"Dragon Marron",40,50,rare,8,22,17,creature,5.5625,0.558824
+255,"Tormentus",40,90,epic,8,24,16,creature,5.75,0.882353
+256,"Athar Zum",40,95,epic,8,24,16,creature,5.75,0.882353
+257,"Dragon Dorado",41,89,epic,9,24,17,creature,5.222222,0.117647
+258,"Drac de Bronce",41,70,epic,9,24,17,creature,5.222222,0.117647
+259,"Ruinthz x 3",41,100,epic,9,25,17,creature,5.361111,0.352941
+260,"Dragon Plateado",42,80,epic,9,24,17,creature,5.222222,0.117647
+261,"Stazhart",42,75,epic,9,24,17,creature,5.222222,0.117647
+262,"Asxel",42,60,rare,9,24,18,creature,5.333333,0.264706
+263,"Rueda x 3",42,100,epic,9,0,0,ability,2.64,0.5
+264,"Kurth Arth x 4",42,100,epic,9,25,17,creature,5.361111,0.352941
+265,"Angrath",43,100,legendary,9,26,18,creature,5.611111,0.733333
+266,"GraDrac",43,50,rare,9,24,19,creature,5.444444,0.5
+267,"Volatilh",44,80,epic,9,25,18,creature,5.472222,0.6
+268,"Drac Verde Mayor",44,70,epic,9,25,18,creature,5.472222,0.6
+269,"Gigante",45,100,legendary,9,27,18,creature,5.75,0.884615
+270,"Grath",45,70,epic,9,26,18,creature,5.611111,0.692308
+271,"Poder Mental x 10",45,99,epic,9,0,0,ability,5.286667,0.5
+272,"Acrum x 4",45,100,legendary,9,27,18,creature,5.75,0.884615
+273,"Insignia Solamnica",45,100,legendary,9,27,18,creature,5.75,0.884615
+274,"Oroth Fezhal",46,75,epic,10,26,19,creature,5.15,0.038462
+275,"Imnazthril",46,100,epic,10,27,19,creature,5.275,0.230769
+276,"Genios",46,100,epic,10,27,19,creature,5.275,0.230769
+277,"Dragon Demonio",47,80,epic,10,27,19,creature,5.275,0.230769
+278,"Dragon Negro",47,70,epic,10,27,19,creature,5.275,0.230769
+279,"Pesadilla",48,100,legendary,10,28,20,creature,5.5,0.65
+280,"Reptenzh",48,75,epic,10,27,20,creature,5.375,0.55
+281,"Dragon Oscuro",49,99,epic,10,29,20,creature,5.625,0.785714
+282,"Poder Mental x 11",49,99,epic,10,0,0,ability,5.07,0.5
+283,"Tentaculo",49,100,legendary,10,29,20,creature,5.625,0.785714
+284,"Keatahn",50,100,legendary,10,29,20,creature,5.625,0.7
+285,"Poder x 20",50,100,legendary,0,0,0,power,36,0.5
