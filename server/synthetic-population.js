@@ -11,6 +11,13 @@ const ACTION_TICK_MAX_MS = 11000;
 const PACK_PRICE = 20;
 
 const BASE_HANDLES = [
+  // Existing pre-launch bot accounts are first so their state is reused instead of duplicated.
+  "Lyra_Vex", "NoxFera", "Druida_Viejo", "MikeTheGreat", "sombra_lunar", "cris_arcana",
+  "YuriDuelist", "javi_cartas", "Kurogane_", "Raxor", "Gorka_TCG", "DaniRPZ",
+  "Morrigan_ES", "Sora_Kun", "Zekk77", "Tito_Grim", "txus_88", "alba_nyx",
+  "ElBrujoPaco", "adri_mtg", "Kraven92", "Mendo_RP", "Valkiria23", "Iker_Dragon",
+  "nerea_zg", "pablete_14", "LaGataNegra", "elmago_rojo", "Shadowmaru", "Hellsing81",
+  // Additional identities are provisioned only when the configured population exceeds 30.
   "Kael", "Morkai", "NereaX", "Drax", "Iker7", "Riven", "Aldren", "Nyx", "ZeroK", "Darian",
   "LoboGris", "Sombra", "Kiro", "Varek", "Mara", "Talon", "Lynx", "Orion", "Kaiser", "Ares",
   "Nox", "Eiden", "Ragnar", "Vega", "Mika", "Tyr", "Kain", "Sirius", "Noctis", "Axel",
