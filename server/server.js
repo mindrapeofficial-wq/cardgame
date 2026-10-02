@@ -1131,6 +1131,6 @@ io.on("connection", socket => {
   });
 });
 
-httpServer.listen(PORT, () => {
-  console.log("Rolplay restoration server v0.2.0 listening on port", PORT, "with", CATALOG.length, "cards");
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log("Rolplay restoration server v0.2.0 listening on 0.0.0.0:"+PORT+" with "+CATALOG.length+" cards");
 });
