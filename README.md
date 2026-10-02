@@ -39,7 +39,7 @@ Rolplay Reborn now has a complete playable loop:
 - random starting player and an extra opening card for the second player
 - creature summoning and recovered ability subset
 - sequential one-at-a-time attacks with defender-chosen blocks; tapping an attacker or defender exhausts that card immediately, each combat resolves before another attack can be declared, damage is simultaneous, card stats do not wear down between combats and overflow damage hits life
-- life, deck-exhaustion, concession/disconnect and 40-minute score win conditions; a player loses on deck exhaustion only when they must draw from an empty deck (drawing the last card is fine)
+- life, deck-exhaustion, concession/disconnect and 40-minute score win conditions; an empty deck never loses the game by itself: every draw from an empty deck costs 1 life (`EMPTY_DECK_DAMAGE` in rules.js). Base life is 20 plus the original level bonus; offline simulations showed that 30 life with deck-out defeat ended 98% of level-1 games by deck exhaustion, with the starting player winning 99%, while 20 life with this rule brings that to 56%
 - per-decision time limits online: 2 minutes for the active player and 60 seconds to choose a blocker; when time runs out the turn passes or the attack resolves unblocked
 - conceding and disconnect handling
 - player-to-player card + gold exchanges with two-party locking

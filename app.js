@@ -748,7 +748,7 @@ function renderManual(){
       <div class="manual-hero-copy">
         <div class="kicker">Referencia rápida</div>
         <h2>Lo esencial antes de jugar</h2>
-        <p>Necesitas un mazo válido de <b>20 a 50 cartas</b>, con un mínimo de <b>7 cartas de Poder</b> y un máximo de 40. Cada jugador comienza con <b>30 PV</b> más la bonificación de su nivel (hasta +13) y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional, por lo que comienza con 8.</p>
+        <p>Necesitas un mazo válido de <b>20 a 50 cartas</b>, con un mínimo de <b>7 cartas de Poder</b> y un máximo de 40. Cada jugador comienza con <b>20 PV</b> más la bonificación de su nivel (hasta +13) y una mano inicial de <b>7 cartas</b>. El jugador inicial se determina aleatoriamente y quien no empieza recibe una carta adicional, por lo que comienza con 8.</p>
       </div>
       <div class="manual-fast-grid">
         <div class="stat-card"><small>Mazo</small><strong>20+</strong><span class="muted">máximo 50 cartas</span></div>
@@ -779,13 +779,13 @@ function renderManual(){
         <div class="manual-body">
           <ul>
             <li>Cada jugador entra con un mazo válido de <b>20 a 50 cartas</b>, con entre <b>7 y 40 cartas de Poder</b>.</li>
-            <li>Cada jugador comienza con <b>30 puntos vitales</b>.</li>
+            <li>Cada jugador comienza con <b>20 puntos vitales</b> más la bonificación de su nivel.</li>
             <li>La mano inicial es de <b>7 cartas</b>.</li>
             <li>El jugador que empieza se selecciona <b>aleatoriamente</b>.</li>
             <li>El jugador que no empieza recibe <b>una carta adicional</b> antes de su primer turno.</li>
             <li>El mazo se baraja antes de repartir.</li>
           </ul>
-          <div class="manual-note"><b>Importante:</b> si debes robar y tu mazo está vacío, pierdes la partida. Robar tu última carta no te hace perder.</div>
+          <div class="manual-note"><b>Importante:</b> quedarte sin mazo no te hace perder: cada vez que debas robar y tu mazo esté vacío, pierdes <b>1 PV</b>.</div>
         </div>
       </details>
 
@@ -1989,7 +1989,7 @@ function drawLocal(side,n=1){
   const d=state.duel;
   for(let i=0;i<n;i++){
     const deck=d[side+"Deck"];
-    if(!deck.length){d[side+"DeckOut"]=true;break}
+    if(!deck.length){d[side+"Hp"]-=RULES.EMPTY_DECK_DAMAGE;d.log.push((side==="player"?"Tu mazo":"El mazo rival")+" está vacío: -"+RULES.EMPTY_DECK_DAMAGE+" PV.");continue}
     d[side+"Hand"].push(deck.pop());
   }
 }

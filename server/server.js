@@ -19,7 +19,7 @@ const SETTLEMENT_HEADERS = Object.freeze({ "content-type": "application/json", "
 const rules = require("../rules.js");
 const {
   DECK_MIN, DECK_MAX, MIN_POWER_CARDS, MAX_POWER_CARDS, MAX_POWER_POINTS,
-  MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS, powerValue, startingHp
+  MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS, EMPTY_DECK_DAMAGE, powerValue, startingHp
 } = rules;
 
 const CATALOG = rules.parseCatalog(fs.readFileSync(path.join(__dirname, "..", "cards.csv"), "utf8"));
@@ -251,10 +251,11 @@ function gameLog(game, text) {
 function draw(game, side, n = 1) {
   for (let i = 0; i < n; i++) {
     if (!game.deck[side].length) {
-      game.deckOut[side] = true;
-      break;
+      // An empty deck costs life on every failed draw instead of losing the game outright.
+      game.hp[side] -= EMPTY_DECK_DAMAGE;
+      gameLog(game, "Mazo vacío: -" + EMPTY_DECK_DAMAGE + " PV.");
+      continue;
     }
-    // Drawing the last card is fine; a player only loses when a draw finds the deck empty.
     game.hand[side].push(cardInstance(game.deck[side].pop()));
   }
 }

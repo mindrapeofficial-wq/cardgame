@@ -17,7 +17,11 @@
 
   // Original level table (manual 3.2, "Tabla de niveles"). "Plus/PV" is the extra life a
   // player starts every duel with at that level; it is the total bonus, not cumulative.
-  const BASE_HP = 30;
+  // Base life is our own choice (the original only documents the level bonus); 20 plus the
+  // empty-deck rule below keeps games decided by combat. See README "Life and empty deck".
+  const BASE_HP = 20;
+  // Drawing from an empty deck does not lose the game: each failed draw costs this much life.
+  const EMPTY_DECK_DAMAGE = 1;
   const LEVEL_HP_BONUS = Object.freeze([[46, 13], [40, 12], [36, 11], [25, 10], [20, 9], [16, 8], [10, 4], [2, 2]]);
   // "Plus/Poder": reaching these levels grants 2 copies of the Power card (granted server-side
   // by rolplay_apply_xp_gold_result; listed here so the client can announce it).
@@ -103,7 +107,7 @@
   return Object.freeze({
     DECK_MIN, DECK_MAX, MIN_POWER_CARDS, MAX_POWER_CARDS, MAX_POWER_POINTS,
     MATCH_LIMIT_MS, COMBAT_LEAVE_GRACE_MS,
-    BASE_HP, LEVEL_POWER_REWARDS, levelHpBonus, startingHp,
+    BASE_HP, EMPTY_DECK_DAMAGE, LEVEL_POWER_REWARDS, levelHpBonus, startingHp,
     isPowerName, isAbilityName, powerValue, summonCost, parseCatalog
   });
 });
