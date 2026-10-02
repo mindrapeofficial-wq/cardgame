@@ -320,8 +320,26 @@ async function boot(){
   showAuth();
 }
 
+function isNativeAndroidCombatClient(){
+  try{return !!(window.ArcanumAndroid&&typeof window.ArcanumAndroid.setCombatMode==="function")}catch{return false}
+}
+function isMobileCombatClient(){
+  if(isNativeAndroidCombatClient())return true;
+  const ua=String(navigator.userAgent||"");
+  if(/Android|iPhone|iPad|iPod|Mobile/i.test(ua))return true;
+  const coarse=!!(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches);
+  const touch=(Number(navigator.maxTouchPoints)||0)>0;
+  return (coarse||touch)&&Math.min(window.innerWidth,window.innerHeight)<=900;
+}
+function setNativeCombatMode(active){
+  if(!isNativeAndroidCombatClient())return false;
+  try{
+    window.ArcanumAndroid.setCombatMode(!!active);
+    return true;
+  }catch{return false}
+}
 function syncDuelOrientation(active){
-  const mobileViewport=(window.matchMedia&&window.matchMedia("(pointer: coarse)").matches)||navigator.maxTouchPoints>0||Math.min(window.innerWidth,window.innerHeight)<=900;
+  const mobileViewport=isMobileCombatClient();
   if(active&&mobileViewport){
     if(duelOrientationLockActive)return;
     duelOrientationLockActive=true;
@@ -453,6 +471,15 @@ async function requestDuelFullscreen(silent=false){
   const d=state.duel;
   if(state.view!=="duel"||!d||d.gameOver)return false;
   const target=$("appShell")||document.documentElement;
+  if(isNativeAndroidCombatClient()){
+    setNativeCombatMode(true);
+    duelFullscreenEnteredOnce=true;
+    markDuelActivity("return");
+    document.body.classList.add("duel-native-fullscreen");
+    syncDuelOrientation(true);
+    renderView();
+    return true;
+  }
   if(fullscreenElement()){
     duelFullscreenEnteredOnce=true;
     markDuelActivity("return");
@@ -568,16 +595,29 @@ function updateChrome(){
   $("connectionText").textContent=state.connected?"Online":state.offlineSession?"Offline":"Conectando";
   $("onlineBadge").textContent=state.users.length||0;
   const inCombat=state.view==="duel"&&!!state.duel;
+  const mobileCombat=isMobileCombatClient();
+  const nativeCombat=isNativeAndroidCombatClient();
   const shell=$("appShell");if(shell)shell.classList.toggle("duel-mode",inCombat);
   document.documentElement.classList.toggle("duel-viewport-lock",inCombat);
+  document.documentElement.classList.toggle("duel-mobile-client",inCombat&&mobileCombat);
   document.body.classList.toggle("duel-viewport-lock",inCombat);
-  if(!inCombat)document.body.classList.remove("duel-log-visible");
+  document.body.classList.toggle("duel-mobile-client",inCombat&&mobileCombat);
+  if(inCombat&&nativeCombat){
+    setNativeCombatMode(true);
+    document.body.classList.add("duel-native-fullscreen");
+  }
+  if(!inCombat){
+    document.body.classList.remove("duel-log-visible","duel-native-fullscreen","duel-mobile-client");
+    document.documentElement.classList.remove("duel-mobile-client");
+    if(nativeCombat)setNativeCombatMode(false);
+  }
   syncDuelOrientation(inCombat);
   if(inCombat)syncDuelFullscreenState(true);
   else if(!state.duel||state.duel.gameOver)syncDuelFullscreenState(false);
   if(inCombat&&!duelFullscreenAutoRequested){
     duelFullscreenAutoRequested=true;
-    requestAnimationFrame(()=>{void requestDuelFullscreen(true)});
+    if(mobileCombat)void requestDuelFullscreen(true);
+    else requestAnimationFrame(()=>{void requestDuelFullscreen(true)});
   }
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
@@ -1696,10 +1736,11 @@ function renderDuel(){
   const awayWarning=awayLeft>0?`<div class="duel-disconnect-warning"><b>${awayReason==="inactive"?"Inactividad detectada":"Vuelve a la partida"}</b><span>${awayText} · <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong></span></div>`:"";
   const idleLeft=!awayDeadline?Math.max(0,playerIdleDeadline()-Date.now()):0;
   const idleFinalWarning=idleLeft>0&&idleLeft<=10*1000?`<div class="duel-disconnect-warning"><b>Inactividad</b><span>Realiza una acción en <strong data-duel-idle-countdown>${Math.max(1,Math.ceil(idleLeft/1000))}</strong>s</span></div>`:"";
-  const fullscreenButton=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver
+  const desktopCombatControls=!isMobileCombatClient();
+  const fullscreenButton=desktopCombatControls&&fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver
     ? '<button class="btn icon ghost duel-fullscreen-button" data-action="enterDuelFullscreen" title="Volver a pantalla completa" aria-label="Volver a pantalla completa">⛶</button>'
     : "";
-  const lobbyButton=!d.gameOver
+  const lobbyButton=desktopCombatControls&&!d.gameOver
     ? '<button class="btn icon ghost duel-lobby-button" data-action="returnToLobby" title="Volver al lobby" aria-label="Volver al lobby">⌂</button>'
     : "";
   return `<div class="duel-page">
@@ -2500,6 +2541,17 @@ document.addEventListener("keydown",e=>{
 });
 
 function handleDuelFullscreenChange(){
+  if(isNativeAndroidCombatClient()){
+    const inCombat=state.view==="duel"&&!!state.duel&&!state.duel.gameOver;
+    document.body.classList.toggle("duel-native-fullscreen",inCombat);
+    if(inCombat){
+      setNativeCombatMode(true);
+      duelFullscreenEnteredOnce=true;
+      markDuelActivity("return");
+      syncDuelOrientation(true);
+    }
+    return;
+  }
   const active=!!fullscreenElement();
   document.body.classList.toggle("duel-native-fullscreen",active);
   if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;

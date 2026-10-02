@@ -4488,3 +4488,34 @@ body.duel-native-fullscreen .shell.duel-mode .player-deck-rail .duel-deck-back{
     margin-top:4px!important;
   }
 }
+
+
+/* === ARCANUM MOBILE COMBAT NATIVE FULLSCREEN 2026-10-02 === */
+/* Fullscreen/lobby controls belong to desktop web only. Mobile combat is
+   automatically promoted to a single fullscreen landscape scene. */
+html.duel-mobile-client .shell.duel-mode .duel-top-actions,
+body.duel-mobile-client .shell.duel-mode .duel-top-actions,
+html.arcanum-tcg-android-app .shell.duel-mode .duel-top-actions{
+  display:none!important;
+}
+
+html.arcanum-tcg-android-app.duel-viewport-lock,
+html.arcanum-tcg-android-app.duel-viewport-lock body,
+html.arcanum-tcg-android-app.duel-viewport-lock #appShell.duel-mode,
+html.arcanum-tcg-android-app.duel-viewport-lock #appShell.duel-mode .main,
+html.arcanum-tcg-android-app.duel-viewport-lock #appShell.duel-mode #viewRoot{
+  width:100vw!important;
+  height:100dvh!important;
+  min-width:0!important;
+  min-height:0!important;
+  max-width:100vw!important;
+  max-height:100dvh!important;
+  margin:0!important;
+  padding:0!important;
+  overflow:hidden!important;
+  overscroll-behavior:none!important;
+}
+
+@media (hover:none) and (pointer:coarse){
+  .shell.duel-mode .duel-top-actions{display:none!important}
+}
