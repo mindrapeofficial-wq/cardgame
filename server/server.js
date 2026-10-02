@@ -409,10 +409,6 @@ function effectiveDef(inst) {
   const card = BY_ID.get(inst.cardId);
   return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
 }
-function effectiveDef(inst) {
-  const card = BY_ID.get(inst.cardId);
-  return Math.max(0, (card?.def || 0) + (inst.defBonus || 0) - (inst.damage || 0));
-}
 function resolveTargetedAttack(game, side, targets = {}) {
   const foe = sideOther(side);
   const attackers = game.board[side].filter(inst => inst.selected && canAttack(game, side, inst));
