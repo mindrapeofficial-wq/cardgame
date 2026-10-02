@@ -1401,14 +1401,14 @@ function renderDuel(){
     ${duelMatchActions(d)}
     <div class="board">
       <section class="board-zone enemy-zone">
-        <div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</span></div>
+        <div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span></div>
         <div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}</div>
         ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
         <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
         <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de 30 puntos de vida"><i style="width:${clamp(d.enemyHp/30*100,0,100)}%"></i></div></div></div>
       </section>
       <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
-      <section class="board-zone player-zone"><div class="zone-title"><span>Tu campo</span><span>Poder ${d.power}/${d.maxPower}</span></div>${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div><div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div></section>
+      <section class="board-zone player-zone">${powerLane(d.playerPowers||[],"Tu Poder","playerPower")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div><div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de 30 puntos de vida"><i style="width:${clamp(d.playerHp/30*100,0,100)}%"></i></div></div></div></section>
       <div class="duel-bottom">
         <section class="board-zone hand-zone"><div class="zone-title"><span>Tu mano</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div><div class="duel-controls">${duelControls(d)}</div></section>
       </div>
