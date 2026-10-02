@@ -450,7 +450,7 @@ Deno.serve(async (req: Request) => {
       if (existingError) throw existingError;
 
       if (existing) {
-        if (!existing.is_synthetic) return fail("username_reserved", 409);
+        if (!existing.is_bot) return fail("username_reserved", 409);
         const token = await createSession(existing.id);
         return json({ ok: true, token, profile: publicProfile(existing), existing: true });
       }
@@ -478,7 +478,7 @@ Deno.serve(async (req: Request) => {
           collection: {},
           deck: [],
           packs: 0,
-          is_synthetic: true,
+          is_bot: true,
         })
         .select("*")
         .single();
