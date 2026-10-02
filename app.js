@@ -962,7 +962,7 @@ function renderDuel(){
   return `<div class="duel-page">
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
-      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?"Turno del Guardián":"Entrenamiento")}</b></div>
+      <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.defending?"Defiende el ataque":d.attackDeclared?"Esperando defensa":d.myTurn?"Tu turno":"Turno rival"):(d.trainingDefending?"Defiende el ataque":d.aiActing?(d.aiMessage||"Turno del Guardián"):"Entrenamiento")}</b></div>
       <div class="fighter enemy"><div><b>${esc(d.opponent||"Guardián")}</b><div class="muted">PV ${d.enemyHp} · Poder ${d.enemyPower||0}/${d.enemyMaxPower||0}</div><div class="hpbar"><span style="width:${clamp(d.enemyHp/30*100,0,100)}%"></span></div></div><div class="avatar">${initial(d.opponent||"G")}</div></div>
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -1012,9 +1012,9 @@ function duelCardClickable(c,zone){
 }
 function duelControls(d){
   if(d.gameOver){const label=d.result==="draw"?"Empate":d.result==="loss"||d.won===false?"Derrota":"Victoria";return`<div class="turn-wait">${label} · <button class="btn small" data-action="leaveDuel">Volver al salón</button></div>`};
-  if(d.online&&d.defending)return renderDefenseControls(d);
+  if((d.online&&d.defending)||(!d.online&&d.trainingDefending))return renderDefenseControls(d);
   if(d.online&&d.attackDeclared)return'<div class="turn-wait">El rival está asignando defensores…</div>';
-  if(!d.online&&d.aiActing)return'<div class="turn-wait">Turno del Guardián… Tus atacantes permanecen girados y no pueden defender.</div>';
+  if(!d.online&&d.aiActing)return`<div class="turn-wait">${esc(d.aiMessage||"Turno del Guardián")}… Tus cartas giradas no pueden defender.</div>`;
   if(d.online&&!d.myTurn)return'<div class="turn-wait">Esperando la acción del rival…</div>';
   return`<button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="nextPhase">${d.phase===5?"Declarar ataque":"Siguiente fase"}</button>`;
 }
@@ -1025,7 +1025,7 @@ function renderDefenseControls(d){
   if(!attackers.length)return'<div class="turn-wait">El ataque rival se está resolviendo…</div>';
   return`<div style="width:100%"><div class="turn-wait" style="margin-bottom:8px">Asigna un defensor a cada atacante o déjalo pasar.</div>
     <div class="grid" style="gap:6px">${attackers.map(a=>`<label class="quick-row"><span><b>${esc(a.name)}</b><small class="muted" style="display:block">ATQ ${a.atk}</small></span><select class="select" data-block-attacker="${a.uid}"><option value="">Sin bloquear</option>${defenders.map(dfc=>`<option value="${dfc.uid}" ${d.blockAssignments?.[a.uid]===dfc.uid?"selected":""}>${esc(dfc.name)} · DEF ${dfc.def}</option>`).join("")}</select></label>`).join("")}</div>
-    <div class="actions" style="margin-top:8px"><button class="btn danger" data-action="concede">Retirarse</button><span style="flex:1"></span><button class="btn primary" data-action="resolveDefense">Resolver defensa</button></div>
+    <div class="actions" style="margin-top:8px"><button class="btn danger" data-action="${d.online?"concede":"restartTraining"}">${d.online?"Retirarse":"Reiniciar"}</button><span style="flex:1"></span><button class="btn primary" data-action="resolveDefense">Resolver defensa</button></div>
   </div>`;
 }
 
@@ -1037,15 +1037,23 @@ function training(){
   const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl);
   const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl);
   const abilities=state.catalog.filter(c=>c.abilityCard&&c.level<=lvl);
-  const enemy=[],powerTarget=Math.ceil(size*.30);
-  while(enemy.length<size){
-    let pool=enemy.length<powerTarget?powers:(creatures.length?creatures:abilities);
-    if(!pool.length)pool=powers;
-    enemy.push(pool[Math.floor(Math.random()*pool.length)].id);
-  }
+  const enemy=[];
+  const pickStrong=(pool)=>{
+    if(!pool.length)return null;
+    const ranked=[...pool].sort((a,b)=>aiDraftScore(b)-aiDraftScore(a));
+    const top=ranked.slice(0,Math.max(1,Math.ceil(ranked.length*.45)));
+    return top[Math.floor(Math.random()*top.length)];
+  };
+  const powerTarget=Math.min(size,Math.max(5,Math.round(size*.30)));
+  const abilityTarget=abilities.length?Math.min(size-powerTarget,Math.max(2,Math.round(size*.15))):0;
+  const creatureTarget=size-powerTarget-abilityTarget;
+  for(let i=0;i<powerTarget;i++){const c=pickStrong(powers);if(c)enemy.push(c.id)}
+  for(let i=0;i<abilityTarget;i++){const c=pickStrong(abilities);if(c)enemy.push(c.id)}
+  for(let i=0;i<creatureTarget;i++){const c=pickStrong(creatures.length?creatures:(abilities.length?abilities:powers));if(c)enemy.push(c.id)}
+  while(enemy.length<size){const c=pickStrong([...powers,...abilities,...creatures]);if(!c)break;enemy.push(c.id)}
   state.duel={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:30,enemyHp:30,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
-    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",trainingDefending:false,blockAssignments:{},gameOver:false,won:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,log:["Entrenamiento iniciado con 7 cartas por jugador."]};
   drawLocal("player",7);drawLocal("enemy",7);state.view="duel";updateChrome();playSound("turn");renderView();
 }
 function makeInst(id){const c=card(id);return c?{...c,uid:uid(),exhausted:false,selected:false}:null}
@@ -1080,38 +1088,16 @@ function tapLocalPower(uid){
 }
 function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
 function nextLocalPhase(){
-  const d=state.duel;if(d.gameOver||d.aiActing)return;
+  const d=state.duel;if(d.gameOver||d.aiActing||d.trainingDefending)return;
   if(d.phase===5){
     resolveLocalAttack();
     if(checkLocalEnd())return renderView();
 
     d.aiActing=true;
+    d.aiMessage="El Guardián prepara su turno";
     d.log.push("Tu ataque ha terminado. Ahora juega el Guardián.");
     renderView();
-
-    const duelRef=d;
-    window.setTimeout(()=>{
-      if(state.duel!==duelRef||d.gameOver)return;
-      enemyTurn();
-      if(checkLocalEnd()){d.aiActing=false;renderView();return}
-      d.log.push("El turno del Guardián ha terminado.");
-      renderView();
-
-      window.setTimeout(()=>{
-        if(state.duel!==duelRef||d.gameOver)return;
-        d.turn++;
-        d.phase=0;
-        d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
-        d.playerPowers.forEach(c=>{c.exhausted=false});
-        d.playerPowerPlayed=false;
-        d.maxPower=powerTotal(d.playerPowers);
-        d.power=0;
-        d.aiActing=false;
-        d.log.push("Comienza tu turno "+d.turn+". Tus cartas se enderezan.");
-        playSound("turn");
-        renderView();
-      },1200);
-    },900);
+    void runEnemyTurn(d);
     return;
   }
   d.phase++;
@@ -1119,70 +1105,223 @@ function nextLocalPhase(){
   if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=0}
   renderView();
 }
+
+function aiUnitValue(c){
+  if(!c)return 0;
+  return Math.max(.5,(Number(c.atk)||0)*1.8+(Number(c.def)||0)*1.35+(Number(c.level)||1)*.25);
+}
+function aiDraftScore(c){
+  if(!c)return 0;
+  if(c.powerCard)return 6+powerValue(c)*4+(Number(c.level)||1)*.15;
+  if(c.abilityCard)return 5+(Number(c.level)||1)*.5+(Number(c.rarity)||0)*.01;
+  const cost=Math.max(1,Number(c.cost)||1);
+  return aiUnitValue(c)/cost+(Number(c.atk)||0)*.45+(Number(c.def)||0)*.25;
+}
+function aiSummonScore(c,d){
+  const maxEnemyAtk=Math.max(0,...(d.playerBoard||[]).filter(x=>!x.exhausted).map(x=>Number(x.atk)||0));
+  const maxEnemyDef=Math.max(0,...(d.playerBoard||[]).filter(x=>!x.exhausted).map(x=>Number(x.def)||0));
+  let score=aiUnitValue(c)-(Number(c.cost)||0)*.3;
+  if((Number(c.atk)||0)>=maxEnemyDef&&maxEnemyDef>0)score+=2.4;
+  if((Number(c.def)||0)>maxEnemyAtk&&maxEnemyAtk>0)score+=2.1;
+  if(d.playerHp<=10)score+=(Number(c.atk)||0)*.65;
+  return score;
+}
+function aiAbilityScore(c,d){
+  const n=norm(c?.name||"");
+  const missing=Math.max(0,30-d.enemyHp);
+  if(n.startsWith("veneno"))return d.playerHp<=3?100:(d.playerHp<=10?13:8);
+  if(n.startsWith("drenador"))return d.playerHp<=2?100:8+Math.min(5,missing*.35);
+  if(n.startsWith("fuente de vida"))return missing<=0?-4:(d.enemyHp<=10?14:5+Math.min(5,missing*.35));
+  if(n.startsWith("poder mental"))return d.enemyHand.length<=4?8:5;
+  if(n.startsWith("poderador"))return d.enemyPower<d.enemyMaxPower?6:-2;
+  return 3;
+}
+function chooseAiBlock(attacker,defenders,hp){
+  if(!attacker||!defenders.length)return null;
+  const survivors=defenders.filter(c=>(Number(c.def)||0)>(Number(attacker.atk)||0)).sort((a,b)=>aiUnitValue(a)-aiUnitValue(b));
+  if(survivors.length)return survivors[0];
+  const expendable=[...defenders].sort((a,b)=>aiUnitValue(a)-aiUnitValue(b));
+  const cheapest=expendable[0];
+  if(!cheapest)return null;
+  if((Number(attacker.atk)||0)>=hp)return cheapest;
+  if((Number(attacker.atk)||0)>=3&&aiUnitValue(cheapest)<=(Number(attacker.atk)||0)*1.9)return cheapest;
+  return null;
+}
 function resolveLocalAttack(){
-  const d=state.duel,atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted),blocks=d.enemyBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
-  atk.forEach((a,i)=>{
+  const d=state.duel;
+  const atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted);
+  const available=d.enemyBoard.filter(c=>!c.exhausted);
+  atk.forEach(a=>{
     a.exhausted=true;
-    const b=blocks[i];
-    if(b&&d.enemyBoard.includes(b)){
+    const b=chooseAiBlock(a,available,d.enemyHp);
+    if(b){
+      const bi=available.findIndex(x=>x.uid===b.uid);if(bi>=0)available.splice(bi,1);
       b.exhausted=true;
-      d.log.push(a.name+" ("+a.atk+" ATQ) ataca la defensa "+b.def+" de "+b.name+".");
+      d.log.push("El Guardián bloquea a "+a.name+" ("+a.atk+" ATQ) con "+b.name+" ("+b.def+" DEF).");
       if(a.atk>=b.def){d.enemyBoard=d.enemyBoard.filter(x=>x.uid!==b.uid);d.log.push(b.name+" es destruida.")}
       else{d.playerBoard=d.playerBoard.filter(x=>x.uid!==a.uid);d.log.push(a.name+" no supera la DEF y es destruida.")}
-    } else {
+    }else{
       d.enemyHp-=a.atk;d.damageDealt+=a.atk;d.log.push(a.name+" causa "+a.atk+" PV.");playSound("hit");
     }
     const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor)survivor.selected=false;
   });
 }
-function enemyTurn(){
+function aiPause(ms){return new Promise(resolve=>window.setTimeout(resolve,ms))}
+function aiStillActive(d){return state.duel===d&&!d.gameOver}
+function aiBestPower(d){
+  return [...d.enemyHand].filter(c=>c.powerCard).sort((a,b)=>powerValue(b)-powerValue(a)||aiDraftScore(b)-aiDraftScore(a))[0]||null;
+}
+function aiBestAbility(d,minScore=0){
+  return [...d.enemyHand].filter(c=>c.abilityCard&&c.cost<=d.enemyPower)
+    .map(c=>({c,score:aiAbilityScore(c,d)})).filter(x=>x.score>=minScore)
+    .sort((a,b)=>b.score-a.score||a.c.cost-b.c.cost)[0]?.c||null;
+}
+function aiBestSummon(d){
+  return [...d.enemyHand].filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower)
+    .sort((a,b)=>aiSummonScore(b,d)-aiSummonScore(a,d)||a.cost-b.cost)[0]||null;
+}
+function aiChooseAttackers(d){
+  const ready=d.enemyBoard.filter(c=>!c.exhausted&&(Number(c.atk)||0)>0);
+  const defenders=d.playerBoard.filter(c=>!c.exhausted);
+  if(!ready.length)return [];
+  if(!defenders.length)return ready;
+  const totalAtk=ready.reduce((n,c)=>n+(Number(c.atk)||0),0);
+  const maxDef=Math.max(0,...defenders.map(c=>Number(c.def)||0));
+  const maxPlayerAtk=Math.max(0,...defenders.map(c=>Number(c.atk)||0));
+  const pressure=d.playerHp<=10||totalAtk>=d.playerHp;
+  const overrun=ready.length>defenders.length;
+  let chosen=ready.filter(c=>{
+    const atk=Number(c.atk)||0,def=Number(c.def)||0;
+    const canTrade=defenders.some(x=>atk>=(Number(x.def)||0));
+    const canBeStonewalled=defenders.some(x=>(Number(x.def)||0)>atk);
+    const defensiveAnchor=def>maxPlayerAtk&&atk<=1&&d.enemyHp<=12;
+    if(defensiveAnchor&&!pressure)return false;
+    if(!canBeStonewalled)return true;
+    if(canTrade)return true;
+    if(overrun)return true;
+    if(pressure&&atk>=2)return true;
+    return atk>maxDef;
+  });
+  if(!chosen.length&&overrun)chosen=ready;
+  return chosen;
+}
+async function runEnemyTurn(d){
+  try{
+    if(!aiStillActive(d))return;
+    d.enemyBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+    d.enemyPowers.forEach(c=>c.exhausted=false);
+    d.enemyPowerPlayed=false;
+    d.enemyPower=0;
+    d.enemyMaxPower=powerTotal(d.enemyPowers);
+    d.aiMessage="Fase de robo";
+    drawLocal("enemy",1);
+    d.log.push("El Guardián roba una carta.");
+    playSound("draw");renderView();
+    if(checkLocalEnd())return;
+    await aiPause(550);if(!aiStillActive(d))return;
+
+    d.aiMessage="Fase de Poder";
+    const p=aiBestPower(d);
+    if(p&&!d.enemyPowerPlayed){
+      d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);
+      p.exhausted=false;
+      d.enemyPowers.push(p);
+      d.enemyPowerPlayed=true;
+      d.enemyMaxPower=powerTotal(d.enemyPowers);
+      d.log.push("El Guardián pone "+p.name+" en su zona de Poder.");
+      playSound("power");renderView();
+      await aiPause(500);if(!aiStillActive(d))return;
+    }
+    const readyPowers=d.enemyPowers.filter(c=>!c.exhausted);
+    if(readyPowers.length){
+      readyPowers.forEach(c=>{c.exhausted=true;d.enemyPower+=powerValue(c)});
+      d.enemyPower=Math.min(d.enemyPower,d.enemyMaxPower);
+      d.log.push("El Guardián gira "+readyPowers.length+" carta(s) de Poder y genera "+d.enemyPower+" Poder.");
+      playSound("power");renderView();
+      await aiPause(500);if(!aiStillActive(d))return;
+    }
+
+    d.aiMessage="Fase táctica";
+    for(let i=0;i<2;i++){
+      const ability=aiBestAbility(d,7);if(!ability)break;
+      d.enemyPower-=ability.cost;
+      d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);
+      d.log.push("El Guardián usa "+ability.name+".");
+      resolveLocalAbility(ability,"enemy");
+      renderView();
+      if(checkLocalEnd())return;
+      await aiPause(500);if(!aiStillActive(d))return;
+    }
+
+    d.aiMessage="Fase de invocación";
+    let safe=20;
+    while(safe--){
+      const unit=aiBestSummon(d);if(!unit)break;
+      d.enemyPower-=unit.cost;
+      d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
+      unit.exhausted=false;unit.selected=false;
+      d.enemyBoard.push(unit);
+      d.log.push("El Guardián invoca "+unit.name+" ("+unit.atk+"/"+unit.def+").");
+      playSound("summon");renderView();
+      await aiPause(380);if(!aiStillActive(d))return;
+    }
+
+    d.aiMessage="Fase de habilidades";
+    for(let i=0;i<3;i++){
+      const ability=aiBestAbility(d,3);if(!ability)break;
+      d.enemyPower-=ability.cost;
+      d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);
+      d.log.push("El Guardián usa "+ability.name+".");
+      resolveLocalAbility(ability,"enemy");
+      renderView();
+      if(checkLocalEnd())return;
+      await aiPause(450);if(!aiStillActive(d))return;
+      const unit=aiBestSummon(d);
+      if(unit){
+        d.enemyPower-=unit.cost;
+        d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
+        unit.exhausted=false;unit.selected=false;
+        d.enemyBoard.push(unit);
+        d.log.push("El Guardián aprovecha el Poder restante e invoca "+unit.name+".");
+        playSound("summon");renderView();
+        await aiPause(350);if(!aiStillActive(d))return;
+      }
+    }
+
+    d.aiMessage="Fase de ataque";
+    const attackers=aiChooseAttackers(d);
+    d.enemyBoard.forEach(c=>c.selected=attackers.some(a=>a.uid===c.uid));
+    if(attackers.length){
+      d.trainingDefending=true;
+      d.blockAssignments={};
+      d.log.push("El Guardián declara ataque con "+attackers.length+" criatura(s). Elige tus defensores.");
+      renderView();
+      return;
+    }
+    d.log.push("El Guardián decide no atacar este turno.");
+    renderView();
+    await aiPause(550);
+    if(aiStillActive(d))void finishEnemyTurn(d);
+  }catch(err){
+    console.error("Training AI error",err);
+    if(state.duel===d&&!d.gameOver){
+      d.log.push("El Guardián ha terminado su turno.");
+      void finishEnemyTurn(d);
+    }
+  }
+}
+function resolveTrainingDefense(){
   const d=state.duel;
-  d.enemyBoard.forEach(c=>c.exhausted=false);
-  d.enemyPowers.forEach(c=>c.exhausted=false);
-  d.enemyPowerPlayed=false;
-  drawLocal("enemy",1);
-  if(d.gameOver)return;
-
-  const p=d.enemyHand.find(c=>c.powerCard);
-  if(p){
-    d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);
-    p.exhausted=false;
-    d.enemyPowers.push(p);
-    d.log.push("El Guardián pone "+p.name+" en su zona de Poder.");
-  }
-
-  d.enemyPowers.forEach(c=>c.exhausted=true);
-  d.enemyMaxPower=powerTotal(d.enemyPowers);
-  d.enemyPower=d.enemyMaxPower;
-
-  const ability=d.enemyHand.find(c=>c.abilityCard&&c.cost<=d.enemyPower);
-  if(ability){
-    d.enemyPower-=ability.cost;
-    d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);
-    d.log.push("El Guardián usa "+ability.name+".");
-    resolveLocalAbility(ability,"enemy");
-  }
-
-  let safe=20;
-  while(safe--){
-    const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);
-    if(!opts.length)break;
-    opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));
-    const unit=opts[0];
-    d.enemyPower-=unit.cost;
-    d.enemyHand=d.enemyHand.filter(x=>x.uid!==unit.uid);
-    d.enemyBoard.push(unit);
-    d.log.push("El Guardián invoca "+unit.name+".");
-  }
-
-  const attackers=d.enemyBoard.filter(c=>!c.exhausted);
-  const blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
-  attackers.forEach((a,i)=>{
+  if(!d||d.online||!d.trainingDefending||d.gameOver)return;
+  const attackers=d.enemyBoard.filter(c=>c.selected&&!c.exhausted);
+  const used=new Set();
+  for(const a of attackers){
     a.exhausted=true;
-    const b=blocks[i];
-    if(b&&d.playerBoard.includes(b)){
-      b.exhausted=true;
-      d.log.push(a.name+" ("+a.atk+" ATQ) ataca la defensa "+b.def+" de "+b.name+".");
+    const defenderUid=d.blockAssignments?.[a.uid];
+    const b=defenderUid&&!used.has(defenderUid)?d.playerBoard.find(c=>c.uid===defenderUid&&!c.exhausted):null;
+    if(b){
+      used.add(b.uid);b.exhausted=true;
+      d.log.push(b.name+" ("+b.def+" DEF) bloquea a "+a.name+" ("+a.atk+" ATQ).");
       if(a.atk>=b.def){
         d.playerBoard=d.playerBoard.filter(x=>x.uid!==b.uid);
         d.log.push(b.name+" es destruida.");
@@ -1193,9 +1332,37 @@ function enemyTurn(){
     }else{
       d.playerHp-=a.atk;
       d.log.push(a.name+" del Guardián causa "+a.atk+" PV.");
+      playSound("hit");
     }
-  });
-  if(attackers.length)d.log.push("El Guardián ha declarado ataque con "+attackers.length+" criatura(s).");
+  }
+  d.enemyBoard.forEach(c=>c.selected=false);
+  d.trainingDefending=false;
+  d.blockAssignments={};
+  renderView();
+  if(checkLocalEnd())return renderView();
+  void finishEnemyTurn(d);
+}
+async function finishEnemyTurn(d){
+  if(state.duel!==d||d.gameOver)return;
+  d.aiActing=true;
+  d.aiMessage="El Guardián termina su turno";
+  d.log.push("El turno del Guardián ha terminado.");
+  renderView();
+  await aiPause(650);
+  if(state.duel!==d||d.gameOver)return;
+  d.turn++;
+  d.phase=0;
+  d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});
+  d.playerPowers.forEach(c=>c.exhausted=false);
+  d.playerPowerPlayed=false;
+  d.maxPower=powerTotal(d.playerPowers);
+  d.power=0;
+  d.enemyPower=0;
+  d.aiActing=false;
+  d.aiMessage="";
+  d.log.push("Comienza tu turno "+d.turn+". Tus cartas se enderezan.");
+  playSound("turn");
+  renderView();
 }
 async function awardTraining(d){
   const payload={rewardKey:d.rewardKey,win:!!d.won,damage:Math.min(30,Math.max(0,d.damageDealt||0)),mode:"training"};
@@ -1266,7 +1433,7 @@ document.addEventListener("click",e=>{
   else if(a==="duelPower")duelPower(el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
-  else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"})}
+  else if(a==="resolveDefense"){const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"resolveDefense"});else if(d&&!d.online&&d.trainingDefending)resolveTrainingDefense()}
   else if(a==="restartTraining")training();
   else if(a==="leaveDuel")leaveDuel();
   else if(a==="refreshRanking")void loadRanking();
@@ -1288,7 +1455,16 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="packLevelSelect"){void loadPackOdds(Number(e.target.value)||1)}
   else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
   else if(e.target.matches("[data-block-attacker]")){
-    const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid:e.target.dataset.blockAttacker,defenderUid:e.target.value||""});
+    const d=state.duel,attackerUid=e.target.dataset.blockAttacker,defenderUid=e.target.value||"";
+    if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid,defenderUid});
+    else if(d&&!d.online&&d.trainingDefending){
+      d.blockAssignments=d.blockAssignments||{};
+      if(defenderUid){
+        for(const [aUid,dUid] of Object.entries(d.blockAssignments))if(aUid!==attackerUid&&dUid===defenderUid)delete d.blockAssignments[aUid];
+        d.blockAssignments[attackerUid]=defenderUid;
+      }else delete d.blockAssignments[attackerUid];
+      renderView();
+    }
   }
 });
 document.addEventListener("submit",e=>{
