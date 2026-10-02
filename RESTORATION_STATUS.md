@@ -75,3 +75,17 @@ Implemented:
 3. Restore card selling and the historical market/economy values.
 4. Restore private messages, channels and user statistics.
 5. Restore clans, tournaments, betting and advanced historical abilities.
+
+
+## Canonical account and progression rules
+
+- Accounts use a unique username and password.
+- Passwords are salted and PBKDF2-SHA256 hashed; plaintext passwords are never stored.
+- Sessions are persistent and server validated.
+- New players begin at Level 1 with zero collectible cards.
+- New players receive 100 gold.
+- Packs cost 20 gold and contain five cards.
+- Pack generation is server authoritative and only selects cards with level <= the player's current level.
+- Level 1 basic Power is infinite, is not stored in the collection, cannot be sold or traded, and may be used repeatedly in deck construction.
+- Player progression is Level 1–50 with gradual XP requirements.
+- XP, level, gold, collection, deck and match statistics persist on the account.
