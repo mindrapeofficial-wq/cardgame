@@ -148,31 +148,74 @@ img{max-width:100%}
   linear-gradient(90deg,rgba(13,15,21,.96),rgba(13,15,21,.35)),
   url("2013/Header.jpg") center/cover no-repeat}
 .profile-banner h1{margin:0;font:900 34px Georgia,serif}
-.duel-page{padding:14px 18px 20px;max-width:1700px}
-.duel-top{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-bottom:10px}
+.duel-page{
+  padding:14px clamp(18px,3vw,54px) 24px;
+  max-width:1700px;
+  min-height:calc(100vh - 70px);
+  margin:0 auto;
+  position:relative;
+  isolation:isolate;
+  background:
+    linear-gradient(180deg,rgba(2,3,4,.12),rgba(2,3,4,.34)),
+    url("assets/arcanum-game-table.webp") center/cover no-repeat;
+  box-shadow:inset 0 0 120px rgba(0,0,0,.52)
+}
+.duel-top{
+  display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;
+  margin:0 auto 10px;padding:10px 12px;max-width:1380px;
+  border:1px solid rgba(211,157,70,.16);border-radius:12px;
+  background:rgba(5,6,8,.70);backdrop-filter:blur(8px);
+  box-shadow:0 10px 30px rgba(0,0,0,.24)
+}
 .fighter{display:flex;align-items:center;gap:10px}
 .fighter.enemy{justify-content:flex-end;text-align:right}
 .hpbar{height:8px;width:min(280px,28vw);background:#311417;border-radius:99px;overflow:hidden}
 .hpbar span{display:block;height:100%;background:linear-gradient(90deg,#c84850,#ff7479);transition:.25s}
-.phase-track{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;margin:8px 0}
-.phase-step{padding:7px 4px;text-align:center;border:1px solid #2c3340;background:#10131a;border-radius:9px;color:#697486;font-size:10px;font-weight:850}
-.phase-step.active{border-color:#a27a36;background:#2a2116;color:#f0d69c;box-shadow:0 0 20px rgba(230,185,92,.08)}
-.board{display:grid;grid-template-rows:auto auto auto;gap:8px}
-.board-zone{border:1px solid #29313d;background:linear-gradient(180deg,rgba(19,23,31,.91),rgba(12,15,20,.92));border-radius:15px;padding:9px}
-.zone-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;color:#aeb6c3;font-size:11px}
-.battle-row{display:flex;gap:7px;min-height:150px;overflow-x:auto;align-items:center}
-.battle-card{width:112px;min-width:112px;border:1px solid #394252;border-radius:11px;background:#151922;overflow:hidden;position:relative;transition:.15s}
-.battle-card.clickable{cursor:pointer;border-color:#806f4e}
-.battle-card.selected{outline:2px solid var(--gold);outline-offset:1px}
+.phase-track{
+  display:grid;grid-template-columns:repeat(6,1fr);gap:5px;
+  max-width:1120px;margin:8px auto 13px
+}
+.phase-step{
+  padding:7px 4px;text-align:center;border:1px solid rgba(139,111,62,.18);
+  background:rgba(6,7,9,.74);backdrop-filter:blur(5px);
+  border-radius:9px;color:#77808e;font-size:10px;font-weight:850
+}
+.phase-step.active{border-color:#a27a36;background:rgba(42,33,22,.88);color:#f0d69c;box-shadow:0 0 20px rgba(230,185,92,.08)}
+.board{
+  display:grid;grid-template-rows:auto auto auto;gap:10px;
+  max-width:1380px;margin:0 auto;
+  padding:0 clamp(0px,3vw,44px) 6px
+}
+.board-zone{
+  border:1px solid rgba(194,145,62,.17);
+  background:linear-gradient(180deg,rgba(12,14,17,.42),rgba(5,7,9,.34));
+  backdrop-filter:blur(2px);
+  border-radius:14px;padding:9px 11px;
+  box-shadow:inset 0 0 34px rgba(0,0,0,.18),0 10px 26px rgba(0,0,0,.12)
+}
+.zone-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;color:#c4b89e;font-size:11px;text-shadow:0 1px 3px #000}
+.battle-row{display:flex;gap:7px;min-height:150px;overflow-x:auto;align-items:center;padding:2px 1px 5px}
+.battle-card{
+  width:112px;min-width:112px;border:1px solid rgba(181,142,75,.40);
+  border-radius:11px;background:rgba(12,15,20,.92);overflow:hidden;position:relative;
+  transition:.15s;box-shadow:0 8px 20px rgba(0,0,0,.34)
+}
+.battle-card.clickable{cursor:pointer;border-color:#a9864f}
+.battle-card.selected{outline:2px solid var(--gold);outline-offset:1px;box-shadow:0 0 24px rgba(230,185,92,.18)}
 .battle-card.exhausted{opacity:.45;filter:grayscale(.7);transform:rotate(3deg)}
 .battle-art{height:108px;background:#19160f center/contain no-repeat}
 .battle-name{padding:5px 6px;font-size:10px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .battle-stats{display:flex;justify-content:space-between;padding:4px 6px;border-top:1px solid #2b3240;font-size:10px}
-.duel-bottom{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:8px}
+.duel-bottom{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px}
+.duel-bottom>.panel{
+  border-color:rgba(194,145,62,.17);
+  background:rgba(7,9,12,.70);backdrop-filter:blur(6px)
+}
 .duel-log{height:210px;overflow:auto;display:flex;flex-direction:column;gap:5px;font-size:11px}
-.duel-log div{padding:6px 8px;border-radius:8px;background:#0f1218}
+.duel-log div{padding:6px 8px;border-radius:8px;background:rgba(7,9,12,.72)}
 .duel-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
-.turn-wait{padding:10px;border:1px solid #354459;background:#121b27;border-radius:10px;color:#b9d7ef;text-align:center}
+.turn-wait{padding:10px;border:1px solid rgba(79,103,132,.48);background:rgba(15,25,37,.78);border-radius:10px;color:#b9d7ef;text-align:center}
+.duel-page .empty{background:rgba(7,8,10,.30);border-color:rgba(194,145,62,.16);backdrop-filter:blur(2px)}
 .login-screen{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,620px)}
 .login-art{position:relative;background:
   linear-gradient(90deg,rgba(7,8,12,.25),rgba(7,8,12,.86)),
