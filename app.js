@@ -332,6 +332,8 @@ function updateChrome(){
   $("onlineBadge").textContent=state.users.length||0;
   const inCombat=state.view==="duel"&&!!state.duel;
   const shell=$("appShell");if(shell)shell.classList.toggle("duel-mode",inCombat);
+  document.documentElement.classList.toggle("duel-viewport-lock",inCombat);
+  document.body.classList.toggle("duel-viewport-lock",inCombat);
   if(!inCombat)document.body.classList.remove("duel-log-visible");
   syncDuelOrientation(inCombat);
   const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
