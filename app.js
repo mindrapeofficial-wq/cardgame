@@ -336,7 +336,7 @@ function renderPlay(){
             <div class="field"><label>Tamaño de baraja</label><select class="select" id="matchSize"><option>20</option><option selected>30</option><option>40</option><option>50</option></select></div>
             <div class="field"><label>Quién empieza</label><select class="select" id="matchStart"><option value="normal">Creador</option><option value="random">Aleatorio</option></select></div>
           </div>
-          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${state.connected?"":"disabled"}>Crear reto online</button><span class="muted">${state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
+          <div class="actions" style="margin-top:14px"><button class="btn primary" data-action="createMatch" ${(state.connected&&deckValid(20))?"":"disabled"}>Crear reto online</button><span class="muted">${!deckValid(20)?"Construye primero un mazo válido de al menos 20 cartas.":state.connected?"Visible para todos los jugadores conectados.":"Conecta con el servidor para crear retos."}</span></div>
         </div>
       </section>
       <section class="panel">
@@ -810,6 +810,8 @@ function concede(){const d=state.duel;if(d?.online&&state.connected)state.socket
 function leaveDuel(){state.duel=null;go("home")}
 
 document.addEventListener("click",e=>{
+  const authTab=e.target.closest("[data-auth-mode]");
+  if(authTab){setAuthMode(authTab.dataset.authMode);return}
   const el=e.target.closest("[data-action]");if(!el)return;
   const a=el.dataset.action;
   if(a!=="cardDetail")playSound("click");
@@ -825,14 +827,13 @@ document.addEventListener("click",e=>{
   else if(a==="sellCard"){e.stopPropagation();sellCard(Number(el.dataset.id));closeModal()}
   else if(a==="removeDeck")removeDeck(Number(el.dataset.index));
   else if(a==="autoDeck")autoDeck();
-  else if(a==="clearDeck"){state.profile.deck=[];saveProfile();renderView()}
+  else if(a==="clearDeck")clearDeck()
   else if(a==="buyPack")buyPack();
   else if(a==="tradeAdd")tradeAdd(Number(el.dataset.id));
   else if(a==="tradeRemove")tradeRemove(Number(el.dataset.index));
   else if(a==="tradePropose")proposeTrade();
   else if(a==="tradeAccept")acceptTrade();
   else if(a==="tradeCancel")cancelTrade();
-  else if(a==="resetProfile"){if(confirm("¿Reiniciar colección, mazo, oro y estadísticas de este jugador?"))resetProfile()}
   else if(a==="duelCard")duelCard(el.dataset.zone,el.dataset.uid);
   else if(a==="nextPhase")nextPhase();
   else if(a==="concede")concede();
@@ -852,13 +853,13 @@ document.addEventListener("change",e=>{
   if(e.target.id==="collectionMode"){state.collectionMode=e.target.value;renderView()}
   else if(e.target.id==="collectionType"){state.collectionType=e.target.value;renderView()}
   else if(e.target.id==="deckTarget"){state.deckTarget=Number(e.target.value)||30}
-  else if(e.target.id==="soundToggle"){state.sound=e.target.checked;saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
+  else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
   else if(e.target.matches("[data-block-attacker]")){
     const d=state.duel;if(d?.online&&d.defending&&state.connected)state.socket.emit("duel:action",{matchId:d.matchId,type:"assignBlock",attackerUid:e.target.dataset.blockAttacker,defenderUid:e.target.value||""});
   }
 });
 document.addEventListener("submit",e=>{
-  if(e.target.id==="loginForm"){e.preventDefault();login($("loginName").value)}
+  if(e.target.id==="loginForm"){e.preventDefault();authenticateForm()}
   if(e.target.id==="chatForm"){e.preventDefault();const input=$("chatInput"),text=input?.value.trim();if(!text)return;if(state.connected)state.socket.emit("chat:send",{text});else{state.chat.push({from:state.profile.name,text});renderView()}}
 });
 $("logoutBtn")?.addEventListener("click",logout);
