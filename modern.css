@@ -148,9 +148,6 @@ img{max-width:100%}
   linear-gradient(90deg,rgba(13,15,21,.96),rgba(13,15,21,.35)),
   url("2013/Header.jpg") center/cover no-repeat}
 .profile-banner h1{margin:0;font:900 34px Georgia,serif}
-.archive-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.archive-shot{border:1px solid var(--line);border-radius:14px;background:#10131a;padding:8px}
-.archive-shot img{display:block;width:100%;border-radius:9px}
 .duel-page{padding:14px 18px 20px;max-width:1700px}
 .duel-top{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-bottom:10px}
 .fighter{display:flex;align-items:center;gap:10px}
@@ -215,7 +212,7 @@ img{max-width:100%}
   .deck-layout{grid-template-columns:1fr}.deck-list{max-height:380px}
   .match-row{grid-template-columns:1fr auto auto}.match-row>:nth-child(2),.match-row>:nth-child(4){display:none}
   .trade-layout{grid-template-columns:1fr}.trade-layout>:last-child{grid-column:auto}
-  .archive-grid{grid-template-columns:1fr}
+  
   .duel-page{padding:8px}.duel-top{grid-template-columns:1fr 1fr}.duel-top>:nth-child(2){order:3;grid-column:1/-1}
   .hpbar{width:32vw}.phase-track{grid-template-columns:repeat(3,1fr)}
   .duel-bottom{grid-template-columns:1fr}.battle-row{min-height:138px}.battle-card{width:100px;min-width:100px}.battle-art{height:95px}
