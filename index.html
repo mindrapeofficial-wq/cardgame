@@ -562,14 +562,14 @@ var $=function(id){return document.getElementById(id)};
 var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 var SAVE_KEY="rolplay-restoration-v2";
 var profile=null, duel=null, CATALOG=[], IMAGE_MAP={}, localMatches=[], tradeState={mine:[],theirs:[],theirGold:0,ready:false};
-var SERVER_URL="https://cardgame-server-erng.onrender.com", socket=null, onlineUsers=[], onlineMatches=[], socketBooting=false;
+var SERVER_URL="https://cardgame-server-erng.onrender.com", socket=null, onlineUsers=[], onlineMatches=[], socketBooting=false, onlineResultsApplied={};
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))}
 function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
 function normalize(s){return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
 function rarityTier(v){v=Number(v)||1;if(v>90)return["Legendaria","legendary"];if(v>60)return["Épica","epic"];if(v>25)return["Rara","rare"];return["Común","common"]}
-function isPowerName(n){return /^Poder(\b|\s+x)/i.test(n)}
+function isPowerName(n){return /^Poder(?:\s+x\s+\d+|\s*$)/i.test(n)}
 function isAbilityName(n){return /^(Veneno|Fuente de vida|Drenador|Escudal|Barrera Mistica|Poder Mental|Poderador|Rueda)/i.test(n)}
 function parseCards(){
   var lines=$("cards-data").textContent.trim().split(/\r?\n/).filter(Boolean);
@@ -639,6 +639,46 @@ function renderAccount(){
   if($("classicGames"))$("classicGames").textContent=profile.wins+" / "+(profile.wins+profile.losses);
 }
 
+
+function wireCard(inst){
+  var base=cardById(Number(inst.cardId));
+  if(!base)return null;
+  var c={};Object.keys(base).forEach(function(k){c[k]=base[k]});
+  c.uid=inst.uid;c.exhausted=!!inst.exhausted;c.selected=!!inst.selected;c.defBonus=Number(inst.defBonus)||0;
+  if(c.defBonus)c.def+=c.defBonus;
+  return c;
+}
+function renderServerLog(lines){
+  $("log").innerHTML="";
+  (lines||[]).forEach(function(line){var d=document.createElement("div");d.textContent=line;$("log").appendChild(d)});
+  $("log").scrollTop=$("log").scrollHeight;
+}
+function applyOnlineSnapshot(snap){
+  if(!snap)return;
+  var oldOnline=duel&&duel.online&&duel.onlineMatchId===snap.matchId?duel:null;
+  duel={
+    online:true,onlineMatchId:snap.matchId,myTurn:!!snap.myTurn,opponentName:snap.opponent&&snap.opponent.name||"Rival",
+    turn:Number(snap.turn)||1,phase:Number(snap.phase)||0,playerHp:Number(snap.playerHp)||0,enemyHp:Number(snap.enemyHp)||0,
+    maxPower:Number(snap.maxPower)||0,power:Number(snap.power)||0,enemyMaxPower:Number(snap.enemyMaxPower)||0,enemyPower:Number(snap.enemyPower)||0,
+    playerDeck:Array(Math.max(0,Number(snap.playerDeckCount)||0)).fill(null),
+    enemyDeck:Array(Math.max(0,Number(snap.enemyDeckCount)||0)).fill(null),
+    playerHand:(snap.playerHand||[]).map(wireCard).filter(Boolean),
+    enemyHand:Array(Math.max(0,Number(snap.enemyHandCount)||0)).fill(null),
+    playerBoard:(snap.playerBoard||[]).map(wireCard).filter(Boolean),
+    enemyBoard:(snap.enemyBoard||[]).map(wireCard).filter(Boolean),
+    blocks:[],gameOver:!!snap.gameOver,won:snap.won,deckSize:(Number(snap.playerDeckCount)||0)+(snap.playerHand||[]).length,
+    resultApplied:oldOnline&&oldOnline.resultApplied
+  };
+  renderServerLog(snap.log||[]);
+  if(duel.gameOver&&!onlineResultsApplied[snap.matchId]){
+    onlineResultsApplied[snap.matchId]=true;
+    duel.resultApplied=true;
+    if(snap.won){profile.wins++;profile.coins+=10}else profile.losses++;
+    saveProfile();
+  }
+  showView("duelo");renderDuel();
+}
+
 function connectOnline(){
   if(socket&&socket.connected){announceOnline();return}
   if(socketBooting)return;
@@ -658,9 +698,10 @@ function connectOnline(){
     socket.on("match:created",function(m){if($("matchInfo"))$("matchInfo").textContent="Partida online creada: "+m.deckSize+" cartas"});
     socket.on("match:error",function(m){if($("matchInfo"))$("matchInfo").textContent=m&&m.message||"Error de partida"});
     socket.on("match:ready",function(m){
-      if($("matchInfo"))$("matchInfo").textContent="Reto aceptado contra "+(m.opponent&&m.opponent.name||"jugador")+" · preparando sincronización";
-      appendSystem("Reto aceptado contra "+(m.opponent&&m.opponent.name||"otro jugador")+". La sala online ha quedado reservada.");
+      if($("matchInfo"))$("matchInfo").textContent="Reto aceptado contra "+(m.opponent&&m.opponent.name||"jugador")+" · duelo sincronizado";
+      appendSystem("Reto aceptado contra "+(m.opponent&&m.opponent.name||"otro jugador")+". Entrando al tablero online.");
     });
+    socket.on("duel:snapshot",applyOnlineSnapshot);
   }
   if(window.io){start();return}
   var sc=document.createElement("script");
@@ -785,13 +826,13 @@ function renderMatches(){
     var m=localMatches.find(function(x){return x.id===b.dataset.join});if(m)startDuel(profile.deck.length>=20?"deck":"starter",m.size);
   }});
   $("matchRows").querySelectorAll("[data-onlinejoin]").forEach(function(b){b.onclick=function(){
-    if(socket&&socket.connected)socket.emit("match:join",{id:b.dataset.onlinejoin});
+    if(socket&&socket.connected)socket.emit("match:join",{id:b.dataset.onlinejoin,deck:profile.deck.slice()});
   }});
 }
 function createLocalMatch(){
   var size=Number($("matchDeckSize").value)||30,start=$("matchStart").value;
   if(socket&&socket.connected){
-    socket.emit("match:create",{deckSize:size,start:start});
+    socket.emit("match:create",{deckSize:size,start:start,deck:profile.deck.slice()});
     $("matchInfo").textContent="Creando partida online…";
     return;
   }
@@ -863,8 +904,9 @@ function startDuel(mode,size){
 }
 function battleCard(c,zone){
   var d=document.createElement("div");d.className="battlecard";if(c.exhausted)d.classList.add("exhausted");if(c.selected)d.classList.add("selected");
-  var playable=zone==="hand"&&!duel.gameOver&&((duel.phase===2&&c.powerCard)||(duel.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=duel.power)||(duel.phase===4&&c.abilityCard&&c.cost<=duel.power));
-  var selectable=zone==="playerBoard"&&duel.phase===5&&!c.exhausted&&!duel.gameOver;
+  var canAct=!duel.online||duel.myTurn;
+  var playable=zone==="hand"&&!duel.gameOver&&canAct&&((duel.phase===2&&c.powerCard)||(duel.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=duel.power)||(duel.phase===4&&c.abilityCard&&c.cost<=duel.power));
+  var selectable=zone==="playerBoard"&&duel.phase===5&&!c.exhausted&&!duel.gameOver&&canAct;
   if(playable)d.classList.add("playable");if(selectable)d.classList.add("selectable");
   d.innerHTML='<div class="miniart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"></div><div class="n">'+esc(c.name)+'</div><div class="s"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div><span class="cost">'+c.cost+"</span>";
   if(playable)d.onclick=function(){playHand(c.uid)};if(selectable)d.onclick=function(){toggleAttack(c.uid)};d.ondblclick=function(e){e.stopPropagation();showZoom(c)};return d;
@@ -880,9 +922,14 @@ function renderDuel(){
   renderBattleRow("enemyBoard",duel.enemyBoard,"enemy");renderBattleRow("playerBoard",duel.playerBoard,"playerBoard");renderBattleRow("hand",duel.playerHand,"hand");
   var help=["Endereza las cartas utilizadas en el turno anterior.","Roba una carta del mazo.","Juega cartas de Poder.","Invoca criaturas pagando Poder.","Usa efectos recuperados: vida, veneno, drenaje, escudo, Poder Mental y Poderador.","Selecciona atacantes y pulsa Resolver ataque."][duel.phase];
   $("help").textContent=help;$("duelStatus").textContent="Turno "+duel.turn+" · "+PHASES[duel.phase];
-  $("next").disabled=duel.gameOver;$("next").textContent=duel.phase===5?"Resolver ataque":"Siguiente fase";
+  $("next").disabled=duel.gameOver||(duel.online&&!duel.myTurn);$("next").textContent=duel.phase===5?"Resolver ataque":"Siguiente fase";
+  if(duel.online){
+    $("duelStatus").textContent=(duel.myTurn?"Tu turno":"Turno de "+duel.opponentName)+" · "+PHASES[duel.phase]+" · ONLINE";
+    $("restart").textContent=duel.gameOver?"Salir al salón":"Retirarse";
+  }else $("restart").textContent="Reiniciar";
 }
 function playHand(id){
+  if(duel&&duel.online){if(socket&&socket.connected&&duel.myTurn)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"play",uid:id});return}
   var i=duel.playerHand.findIndex(function(c){return c.uid===id});if(i<0)return;var c=duel.playerHand[i];
   if(c.powerCard&&duel.phase===2){duel.power=Math.min(duel.maxPower,duel.power+Math.max(1,Math.round(c.level/5)));duel.playerHand.splice(i,1);log("Canalizas "+c.name+".","good")}
   else if(c.abilityCard&&duel.phase===4&&c.cost<=duel.power){duel.power-=c.cost;duel.playerHand.splice(i,1);resolveAbility(c,true)}
@@ -899,7 +946,7 @@ function resolveAbility(c,player){
   else if(n.indexOf("escudal")===0||n.indexOf("barrera mistica")===0){var b=duel[me+"Board"][0];if(b)b.def+=3;log((player?"Usas ":"El rival usa ")+c.name+": refuerza defensa.",player?"good":"bad")}
   else {draw(me,1);log((player?"Usas ":"El rival usa ")+c.name+".",player?"good":"bad")}
 }
-function toggleAttack(id){var c=duel.playerBoard.find(function(x){return x.uid===id});if(!c)return;c.selected=!c.selected;renderDuel()}
+function toggleAttack(id){if(duel&&duel.online){if(socket&&socket.connected&&duel.myTurn)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"toggleAttack",uid:id});return}var c=duel.playerBoard.find(function(x){return x.uid===id});if(!c)return;c.selected=!c.selected;renderDuel()}
 function prepareBlocks(){
   duel.blocks=[];var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted}),def=duel.enemyBoard.filter(function(c){return !c.exhausted}).slice().sort(function(a,b){return b.def-a.def});
   atk.forEach(function(a,i){if(def[i])duel.blocks.push({a:a.uid,b:def[i].uid})});
@@ -927,6 +974,7 @@ function checkEnd(){
 }
 function nextPhase(){
   if(!duel||duel.gameOver)return;
+  if(duel.online){if(socket&&socket.connected&&duel.myTurn)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"nextPhase"});return}
   if(duel.phase===5){resolvePlayerAttack();if(checkEnd()){renderDuel();return}aiPlay();if(checkEnd()){renderDuel();return}duel.turn++;duel.phase=0;duel.playerBoard.forEach(function(c){c.exhausted=false;c.selected=false});duel.power=duel.maxPower;log("Comienza tu turno "+duel.turn+".");renderDuel();return}
   duel.phase++;
   if(duel.phase===1){draw("player",1);log("Robas una carta.")}
@@ -945,7 +993,14 @@ $("createMatch").onclick=createLocalMatch;$("requestTrade").onclick=requestTrade
 $("zoomClose").onclick=closeZoom;$("zoomOverlay").onclick=function(e){if(e.target===$("zoomOverlay"))closeZoom()};
 $("buyPack").onclick=buyPack;$("collectionSearch").oninput=renderCollection;$("collectionFilter").onchange=renderCollection;
 $("autoDeck").onclick=autoDeck;$("clearDeck").onclick=function(){profile.deck=[];saveProfile();renderDeck();renderCollection()};$("playDeck").onclick=function(){startDuel("deck")};
-$("restart").onclick=function(){startDuel(profile.deck.length>=20?"deck":"starter",duel&&duel.deckSize||30)};$("next").onclick=nextPhase;
+$("restart").onclick=function(){
+  if(duel&&duel.online){
+    if(!duel.gameOver&&socket&&socket.connected)socket.emit("duel:action",{matchId:duel.onlineMatchId,type:"concede"});
+    else showView("salon");
+    return;
+  }
+  startDuel(profile.deck.length>=20?"deck":"starter",duel&&duel.deckSize||30)
+};$("next").onclick=nextPhase;
 $("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;if(socket&&socket.connected)socket.emit("chat:send",{text:v});else appendChat(profile.name,v);$("chatInput").value=""};
 $("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter")$("chatSend").click()});
 $("noDisponible").onchange=function(){if(socket&&socket.connected)socket.emit("presence:set",{away:this.checked})};
