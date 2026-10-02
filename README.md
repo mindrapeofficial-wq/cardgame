@@ -44,6 +44,7 @@ Rolplay Reborn now has a complete playable loop:
 - local guild-merchant exchange fallback
 - gradual Level 1–50 XP progression and visible XP bar
 - profile statistics, settings and historical archive
+- ELO competitivo persistente y clasificación global Top 50
 
 ## Architecture
 
@@ -162,3 +163,18 @@ A PvP loss can reduce the XP bar of the current level, but never causes de-level
 Draws are persisted as a separate statistic. A simultaneous defeat condition for both players resolves as a draw.
 
 Training rewards are intentionally much smaller and never remove XP.
+
+
+## ELO competitivo y Ranking
+
+Las partidas PvP online actualizan una puntuación ELO persistente además de las recompensas de oro y XP.
+
+- ELO inicial: 1000
+- Factor K: 32
+- Victoria: puntuación real 1
+- Empate: puntuación real 0,5
+- Derrota: puntuación real 0
+- El ajuste depende de la diferencia de ELO previa entre ambos jugadores.
+- El cálculo y el asentamiento son atómicos en servidor, por lo que un reintento de red no duplica puntos.
+- Solo el PvP online modifica el ELO; el entrenamiento contra IA no altera el ranking.
+- La sección Ranking muestra el Top 50 con posición, jugador, nivel, ELO, balance V-E-D y partidas puntuadas.
