@@ -4093,6 +4093,64 @@ html.duel-viewport-lock #appShell.duel-mode,
   border-color:#d4af37!important;
   background:#17130b!important;
 }
+.duel-top-actions{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  flex:0 0 auto!important;
+}
+.duel-lobby-button{
+  flex:0 0 auto!important;
+  width:32px!important;
+  min-width:32px!important;
+  height:32px!important;
+  min-height:32px!important;
+  padding:0!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:19px!important;
+  line-height:1!important;
+  border-color:rgba(212,175,55,.42)!important;
+  color:#e3c56c!important;
+  background:rgba(7,7,7,.72)!important;
+}
+.duel-lobby-button:hover{
+  border-color:#d4af37!important;
+  background:#17130b!important;
+}
+.lobby-duel-return{
+  margin:0 0 14px;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  border:1px solid rgba(212,175,55,.52);
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(41,31,10,.96),rgba(10,10,10,.98));
+  box-shadow:0 12px 32px rgba(0,0,0,.34),inset 0 0 0 1px rgba(212,175,55,.05);
+}
+.lobby-duel-return>div{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.lobby-duel-return b{
+  color:#f3e4b0;
+  font-size:15px;
+}
+.lobby-duel-return strong{
+  color:#fff4c7;
+  font-variant-numeric:tabular-nums;
+}
+.lobby-duel-return small{color:#b8aa88}
+.lobby-duel-return .btn{flex:0 0 auto}
+@media(max-width:620px){
+  .lobby-duel-return{align-items:stretch;flex-direction:column}
+  .lobby-duel-return .btn{width:100%}
+}
 
 /* Native fullscreen gets its own fixed deck geometry so both decks stay parallel. */
 body.duel-native-fullscreen .shell.duel-mode .player-hand-layout{
@@ -4178,7 +4236,8 @@ body.duel-native-fullscreen .shell.duel-mode .duel-decks-corner .deck-player-met
     max-width:62px!important;
     font-size:7px!important;
   }
-  .duel-fullscreen-button{
+  .duel-fullscreen-button,
+  .duel-lobby-button{
     width:26px!important;
     min-width:26px!important;
     height:26px!important;
