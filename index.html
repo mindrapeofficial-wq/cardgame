@@ -63,6 +63,31 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
 .battlecard .miniart{height:92px;background-size:contain!important;background-repeat:no-repeat!important;background-position:center!important;background-color:#1b130e!important}
 @media(max-width:850px){.classic-main{grid-template-columns:1fr}.classic-channel{border-top:2px ridge #aaa}.classic-lower{grid-template-columns:1fr 1fr}.classic-welcome,.classic-logo{grid-column:span 1}.classic-client{font-size:11px}}
 
+
+/* Restored matches, exchanges and card zoom */
+.legacy-subwindow{background:#080808;border:2px ridge #d0d0d0;color:#eee;font:12px Tahoma,Verdana,sans-serif}
+.legacy-subtitle{background:linear-gradient(90deg,#163681,#688ac9);color:#fff;font-weight:700;padding:5px 8px;border-bottom:2px ridge #cfcfcf}
+.legacy-toolbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:7px;background:#252525;border-bottom:1px solid #777}
+.legacy-toolbar input,.legacy-toolbar select{background:#fff;color:#111;border:2px inset #ccc;border-radius:0;padding:4px}
+.legacy-table{width:100%;border-collapse:collapse;background:#f7f7f7;color:#111}
+.legacy-table th{background:#d8d8d8;border:1px solid #888;padding:5px;text-align:left}
+.legacy-table td{border:1px solid #aaa;padding:5px}
+.legacy-table button,.legacy-btn{border:2px outset #ddd!important;border-radius:0!important;background:#d8d8d8!important;color:#111!important;box-shadow:none!important;padding:3px 8px!important}
+.exchange-grid{display:grid;grid-template-columns:1fr 230px 1fr;gap:8px;padding:8px;background:#111}
+.exchange-box{background:#eee;color:#111;border:2px inset #bbb;min-height:330px;padding:6px;overflow:auto}
+.exchange-box h3{margin:0 0 6px;font:700 13px Tahoma,Verdana,sans-serif;background:#173678;color:#fff;padding:4px}
+.trade-card{display:grid;grid-template-columns:42px 1fr auto;gap:6px;align-items:center;border-bottom:1px solid #aaa;padding:4px}
+.trade-card img{width:38px;height:55px;object-fit:contain;background:#cdb270}
+.trade-card small{display:block;color:#555}
+.trade-center{display:grid;align-content:start;gap:8px}
+.trade-panel{background:#e4e4e4;color:#111;border:2px outset #bbb;padding:7px}
+.trade-panel input{width:100%;background:#fff;color:#111;border:2px inset #ccc;border-radius:0}
+.trade-status{min-height:55px;background:#fff;border:2px inset #aaa;padding:6px;color:#222}
+.zoom-overlay{position:fixed;inset:0;background:#000c;z-index:50;display:grid;place-items:center;padding:20px}
+.zoom-overlay.hidden{display:none!important}.zoom-window{background:#111;border:3px ridge #ddd;padding:8px;max-width:min(92vw,470px);text-align:center}
+.zoom-window img{max-width:100%;max-height:78vh;image-rendering:auto}.zoom-window div{margin-top:6px}
+@media(max-width:850px){.exchange-grid{grid-template-columns:1fr}.exchange-box{min-height:230px}.legacy-table{font-size:10px}}
+
 </style>
 </head>
 <body>
@@ -92,6 +117,8 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
     </div>
     <nav class="nav" id="nav">
       <button data-view="salon" class="active">Salón</button>
+      <button data-view="partidas">Partidas</button>
+      <button data-view="intercambios">Intercambios</button>
       <button data-view="tienda">Tienda</button>
       <button data-view="coleccion">Colección</button>
       <button data-view="mazos">Mazos</button>
@@ -134,9 +161,9 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
             <div class="classic-stat"><span><span class="diamond">◆</span>Partidas:</span><b id="classicGames">0 / 0</b></div>
           </div>
           <div class="classic-menu">
-            <button data-start="deck">Partidas</button>
+            <button data-go="partidas">Partidas</button>
             <button data-go="coleccion">Cartas</button>
-            <button id="tradeBtn">Intercambios</button>
+            <button data-go="intercambios">Intercambios</button>
             <button>Canales</button>
             <button id="statsBtn">Estadísticas</button>
             <button data-go="archivo">Manual</button>
@@ -146,6 +173,39 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
           <div class="classic-logo"><img src="legacy-assets/imagenes/deck2.jpg" alt="Rolplay"></div>
         </div>
         <div class="classic-footer">Bienvenido a la nueva versión del juego de Rolplay.net</div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-partidas">
+      <div class="legacy-subwindow">
+        <div class="legacy-subtitle">Partidas disponibles</div>
+        <div class="legacy-toolbar">
+          <label>Cartas <select id="matchDeckSize"><option>20</option><option selected>30</option><option>40</option><option>50</option></select></label>
+          <label>Inicio <select id="matchStart"><option value="normal">Normal</option><option value="random">Aleatorio</option></select></label>
+          <button id="createMatch" class="legacy-btn">Crear partida</button>
+          <span style="flex:1"></span><span id="matchInfo">Modo local</span>
+        </div>
+        <table class="legacy-table">
+          <thead><tr><th>Jugador</th><th>Nivel</th><th>Cartas</th><th>Estado</th><th></th></tr></thead>
+          <tbody id="matchRows"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-intercambios">
+      <div class="legacy-subwindow">
+        <div class="legacy-subtitle">Intercambio de cartas</div>
+        <div class="exchange-grid">
+          <div class="exchange-box"><h3>Tu reserva</h3><div id="tradeInventory"></div></div>
+          <div class="trade-center">
+            <div class="trade-panel"><b>Tu oferta</b><div id="myTradeOffer" class="small"></div><label>Oro <input id="tradeGold" type="number" min="0" value="0"></label></div>
+            <button id="requestTrade" class="legacy-btn">Proponer intercambio →</button>
+            <button id="acceptTrade" class="legacy-btn" disabled>Aceptar</button>
+            <button id="cancelTrade" class="legacy-btn">Cancelar</button>
+            <div id="tradeStatus" class="trade-status">Selecciona cartas de tu reserva. El sistema conserva el intercambio de cartas y oro del cliente clásico.</div>
+          </div>
+          <div class="exchange-box"><h3>Oferta del otro jugador</h3><div id="theirTradeOffer"><div class="small">Sin oferta.</div></div></div>
+        </div>
       </div>
     </section>
 
@@ -172,7 +232,7 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
     <section class="view hidden" id="view-mazos">
       <div class="grid2">
         <div class="panel"><div class="titlebar">Constructor de mazo</div><div class="panelbody">
-          <div class="decksummary"><span class="meter">Cartas: <b id="deckSize">0</b>/30</span><span class="meter">Coste medio: <b id="deckAvg">0</b></span></div>
+          <div class="decksummary"><span class="meter">Cartas: <b id="deckSize">0</b> · mínimo 20</span><span class="meter">Coste medio: <b id="deckAvg">0</b></span></div>
           <div id="deckList" class="decklist"></div>
           <div class="actions"><button id="autoDeck">Crear mazo automático</button><button id="clearDeck" class="danger">Vaciar</button><button id="playDeck" class="primary">Jugar con este mazo</button></div>
           <p class="small">El constructor es funcional; los límites exactos del cliente antiguo se seguirán ajustando con el manual recuperado.</p>
@@ -205,6 +265,7 @@ input,select{background:#130d08;border:1px solid #705534;color:#f6e8c7;padding:8
     </section>
   </main>
 </div>
+<div id="zoomOverlay" class="zoom-overlay hidden"><div class="zoom-window"><img id="zoomImg" alt="Carta ampliada"><div><b id="zoomName"></b></div><button id="zoomClose" class="legacy-btn">Cerrar</button></div></div>
 
 <script type="text/plain" id="cards-data">name;rarity;quantity;level
 Poder;1;12;1
@@ -499,7 +560,7 @@ Poder x 20;100;2;50
 var $=function(id){return document.getElementById(id)};
 var PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 var SAVE_KEY="rolplay-restoration-v2";
-var profile=null, duel=null, CATALOG=[], IMAGE_MAP={};
+var profile=null, duel=null, CATALOG=[], IMAGE_MAP={}, localMatches=[], tradeState={mine:[],theirs:[],theirGold:0,ready:false};
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(m){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]})}
 function uid(){return (crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2))}
@@ -553,6 +614,12 @@ function loadProfile(name){
 function saveProfile(){localStorage.setItem(SAVE_KEY,JSON.stringify(profile));renderAccount()}
 function owned(id){return Number(profile.collection[id]||0)}
 function cloneCard(c){var x={};Object.keys(c).forEach(function(k){x[k]=c[k]});x.uid=uid();x.exhausted=false;x.selected=false;return x}
+function cardValue(c){return Math.max(1,Math.round(c.level/2)+Math.round(c.rarity/20))}
+function showZoom(c){
+  $("zoomImg").src=cardImage(c);$("zoomName").textContent=c.name+" · Nivel "+c.level;
+  $("zoomOverlay").classList.remove("hidden");
+}
+function closeZoom(){$("zoomOverlay").classList.add("hidden")}
 
 function enter(name){
   profile=loadProfile(name||"Invitado");
@@ -573,11 +640,15 @@ function showView(name){
   document.querySelectorAll(".view").forEach(function(v){v.classList.add("hidden")});
   var target=$("view-"+name);if(target)target.classList.remove("hidden");
   document.querySelectorAll("#nav button").forEach(function(b){b.classList.toggle("active",b.dataset.view===name)});
-  if(name==="coleccion")renderCollection();if(name==="mazos")renderDeck();if(name==="duelo"&& !duel)startDuel("deck");
+  if(name==="coleccion")renderCollection();
+  if(name==="mazos")renderDeck();
+  if(name==="partidas")renderMatches();
+  if(name==="intercambios")renderTrade();
+  if(name==="duelo"&& !duel)startDuel("deck");
 }
 function cardHtml(c,qty,action,label){
   var rt=rarityTier(c.rarity),q=qty?'<span class="qty">x'+qty+"</span>":"";
-  return '<article class="card r-'+rt[1]+'">'+q+'<div class="cardart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"><span class="cost">'+c.cost+'</span></div><div class="cardname">'+esc(c.name)+'</div><div class="cardmeta">Nv '+c.level+' · '+rt[0]+'</div><div class="cardstats"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div>'+(action?'<button data-action="'+action+'" data-card="'+c.id+'">'+label+'</button>':"")+"</article>";
+  return '<article class="card r-'+rt[1]+'" data-zoom-card="'+c.id+'">'+q+'<div class="cardart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"><span class="cost">'+c.cost+'</span></div><div class="cardname">'+esc(c.name)+'</div><div class="cardmeta">Nv '+c.level+' · '+rt[0]+'</div><div class="cardstats"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div>'+(action?'<button data-action="'+action+'" data-card="'+c.id+'">'+label+'</button>':"")+"</article>";
 }
 function weightedCard(){
   var r=Math.random()*100;
@@ -606,7 +677,7 @@ function renderCollection(){
 }
 function countInDeck(id){return profile.deck.filter(function(x){return Number(x)===Number(id)}).length}
 function addDeck(id){
-  if(profile.deck.length>=30)return;
+  if(profile.deck.length>=60)return;
   if(owned(id)<=countInDeck(id))return;
   profile.deck.push(Number(id));saveProfile();renderDeck();renderCollection();
 }
@@ -630,29 +701,94 @@ function renderDeck(){
   bindCardActions($("deckPool"));
 }
 function bindCardActions(root){
-  root.querySelectorAll("[data-action=adddeck]").forEach(function(b){b.onclick=function(){addDeck(Number(b.dataset.card))}});
+  root.querySelectorAll("[data-action=adddeck]").forEach(function(b){b.onclick=function(e){e.stopPropagation();addDeck(Number(b.dataset.card))}});
+  root.querySelectorAll("[data-zoom-card]").forEach(function(el){el.ondblclick=function(){showZoom(cardById(Number(el.dataset.zoomCard)))}});
 }
 
-function makeTrainingDeck(useProfile){
-  var arr=[];
-  if(useProfile&&profile.deck.length>=10)arr=profile.deck.map(function(id){return cloneCard(cardById(id))});
+
+function seedMatches(){
+  if(localMatches.length)return;
+  localMatches=[
+    {id:"trainer20",player:"Guardián",level:1,size:20,status:"Esperando",bot:true},
+    {id:"trainer30",player:"Aprendiz",level:5,size:30,status:"Esperando",bot:true},
+    {id:"trainer40",player:"Veterano",level:12,size:40,status:"Esperando",bot:true}
+  ];
+}
+function renderMatches(){
+  seedMatches();
+  $("matchRows").innerHTML=localMatches.map(function(m){
+    return "<tr><td>"+esc(m.player)+"</td><td>"+m.level+"</td><td>"+m.size+"</td><td>"+m.status+"</td><td><button class='legacy-btn' data-join='"+m.id+"'>Unirse</button></td></tr>";
+  }).join("");
+  $("matchRows").querySelectorAll("[data-join]").forEach(function(b){b.onclick=function(){
+    var m=localMatches.find(function(x){return x.id===b.dataset.join});if(m)startDuel(profile.deck.length>=20?"deck":"starter",m.size);
+  }});
+}
+function createLocalMatch(){
+  var size=Number($("matchDeckSize").value)||30;
+  localMatches.unshift({id:uid(),player:profile.name,level:Math.max(1,Math.floor(profile.wins/5)+1),size:size,status:"Tu partida",bot:false});
+  renderMatches();
+  $("matchInfo").textContent="Partida creada. Esperando jugador…";
+}
+function renderTrade(){
+  var ids=Object.keys(profile.collection).map(Number).filter(function(id){return owned(id)>0}).slice(0,120);
+  $("tradeInventory").innerHTML=ids.length?ids.map(function(id){
+    var c=cardById(id),free=owned(id)-tradeState.mine.filter(function(x){return x===id}).length;
+    return "<div class='trade-card'><img src='"+cardImage(c)+"'><div><b>"+esc(c.name)+"</b><small>Nv "+c.level+" · valor "+cardValue(c)+" · libres "+free+"</small></div><button class='legacy-btn' data-tradeadd='"+id+"' "+(free<=0?"disabled":"")+">+</button></div>";
+  }).join(""):"<div class='small'>No tienes cartas para intercambiar.</div>";
+  $("myTradeOffer").innerHTML=tradeState.mine.length?tradeState.mine.map(function(id,i){var c=cardById(id);return "<div>"+esc(c.name)+" <button class='legacy-btn' data-traderem='"+i+"'>×</button></div>"}).join(""):"Sin cartas.";
+  $("tradeInventory").querySelectorAll("[data-tradeadd]").forEach(function(b){b.onclick=function(){tradeState.mine.push(Number(b.dataset.tradeadd));tradeState.ready=false;renderTrade()}});
+  $("myTradeOffer").querySelectorAll("[data-traderem]").forEach(function(b){b.onclick=function(){tradeState.mine.splice(Number(b.dataset.traderem),1);tradeState.ready=false;renderTrade()}});
+}
+function requestTrade(){
+  var gold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));
+  if(!tradeState.mine.length&&!gold){$("tradeStatus").textContent="Debes ofrecer al menos una carta o algo de oro.";return}
+  var myValue=tradeState.mine.reduce(function(n,id){return n+cardValue(cardById(id))},0)+gold;
+  var pool=CATALOG.filter(function(c){return c.level<=Math.max(10,Math.floor(myValue/2)+2)});
+  var target=Math.max(1,Math.round(myValue*.9)),sum=0,offer=[],tries=0;
+  while(sum<target&&offer.length<4&&tries++<30){var c=pool[Math.floor(Math.random()*pool.length)];if(c){offer.push(c.id);sum+=cardValue(c)}}
+  tradeState.theirs=offer;tradeState.theirGold=sum<myValue?Math.max(0,myValue-sum):0;tradeState.ready=true;
+  $("theirTradeOffer").innerHTML=offer.map(function(id){var c=cardById(id);return "<div class='trade-card'><img src='"+cardImage(c)+"'><div><b>"+esc(c.name)+"</b><small>Nv "+c.level+" · valor "+cardValue(c)+"</small></div></div>"}).join("")+"<div style='padding:6px'><b>Oro: "+tradeState.theirGold+"</b></div>";
+  $("tradeStatus").textContent="El otro jugador ha respondido. Revisa ambas ofertas antes de aceptar.";
+  $("acceptTrade").disabled=false;
+}
+function acceptTrade(){
+  if(!tradeState.ready)return;
+  var gold=Math.max(0,Math.min(profile.coins,Number($("tradeGold").value)||0));
+  var counts={};tradeState.mine.forEach(function(id){counts[id]=(counts[id]||0)+1});
+  for(var k in counts){if(owned(k)<counts[k]){$("tradeStatus").textContent="La oferta ya no es válida.";return}}
+  tradeState.mine.forEach(function(id){profile.collection[id]=Math.max(0,owned(id)-1)});
+  tradeState.theirs.forEach(function(id){profile.collection[id]=(profile.collection[id]||0)+1});
+  profile.coins=profile.coins-gold+tradeState.theirGold;
+  saveProfile();tradeState={mine:[],theirs:[],theirGold:0,ready:false};$("tradeGold").value=0;$("theirTradeOffer").innerHTML="<div class='small'>Sin oferta.</div>";
+  $("tradeStatus").textContent="Intercambio completado.";renderTrade();renderCollection();renderDeck();$("acceptTrade").disabled=true;
+}
+function cancelTrade(){tradeState={mine:[],theirs:[],theirGold:0,ready:false};$("tradeGold").value=0;$("theirTradeOffer").innerHTML="<div class='small'>Sin oferta.</div>";$("tradeStatus").textContent="Intercambio cancelado.";$("acceptTrade").disabled=true;renderTrade()}
+
+function makeTrainingDeck(useProfile,size){
+  var arr=[], target=Math.max(20,Number(size)||30);
+  if(useProfile&&profile.deck.length>=20)arr=profile.deck.slice(0,target).map(function(id){return cloneCard(cardById(id))});
   else {
     var low=CATALOG.filter(function(c){return c.level<=10&&!c.abilityCard});
-    for(var i=0;i<30;i++)arr.push(cloneCard(low[Math.floor(Math.random()*low.length)]));
+    for(var i=0;i<target;i++)arr.push(cloneCard(low[Math.floor(Math.random()*low.length)]));
   }
   return shuffle(arr);
 }
 function draw(who,n){
-  n=n||1;for(var i=0;i<n;i++){var d=duel[who+"Deck"];if(d.length)duel[who+"Hand"].push(d.pop())}
+  n=n||1;for(var i=0;i<n;i++){
+    var d=duel[who+"Deck"];
+    if(d.length)duel[who+"Hand"].push(d.pop());
+    else duel[who+"DeckOut"]=true;
+  }
 }
 function log(msg,cls){
   var d=document.createElement("div");if(cls)d.className=cls;d.textContent=msg;$("log").appendChild(d);$("log").scrollTop=$("log").scrollHeight;
 }
-function startDuel(mode){
-  var use=mode!=="starter";
+function startDuel(mode,size){
+  var use=mode!=="starter", target=Math.max(20,Number(size)||Math.max(20,profile.deck.length||30));
   duel={turn:1,phase:0,playerHp:30,enemyHp:30,maxPower:1,power:1,enemyMaxPower:1,enemyPower:1,
-    playerDeck:makeTrainingDeck(use),enemyDeck:makeTrainingDeck(false),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],blocks:[],gameOver:false};
-  $("log").innerHTML="";draw("player",5);draw("enemy",5);log("Duelo iniciado. Endereza tus cartas y avanza por las fases.","good");renderDuel();showView("duelo");
+    playerDeck:makeTrainingDeck(use,target),enemyDeck:makeTrainingDeck(false,target),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],blocks:[],
+    playerDeckOut:false,enemyDeckOut:false,gameOver:false,deckSize:target};
+  $("log").innerHTML="";draw("player",7);draw("enemy",7);log("Duelo iniciado con 7 cartas en mano. Baraja: "+target+".","good");renderDuel();showView("duelo");
 }
 function battleCard(c,zone){
   var d=document.createElement("div");d.className="battlecard";if(c.exhausted)d.classList.add("exhausted");if(c.selected)d.classList.add("selected");
@@ -660,7 +796,7 @@ function battleCard(c,zone){
   var selectable=zone==="playerBoard"&&duel.phase===5&&!c.exhausted&&!duel.gameOver;
   if(playable)d.classList.add("playable");if(selectable)d.classList.add("selectable");
   d.innerHTML='<div class="miniart" style="background-image:url(&quot;'+cardImage(c)+'&quot;),url(&quot;2013/icon.png&quot;)"></div><div class="n">'+esc(c.name)+'</div><div class="s"><span>ATQ '+c.atk+'</span><span>DEF '+c.def+'</span></div><span class="cost">'+c.cost+"</span>";
-  if(playable)d.onclick=function(){playHand(c.uid)};if(selectable)d.onclick=function(){toggleAttack(c.uid)};return d;
+  if(playable)d.onclick=function(){playHand(c.uid)};if(selectable)d.onclick=function(){toggleAttack(c.uid)};d.ondblclick=function(e){e.stopPropagation();showZoom(c)};return d;
 }
 function renderBattleRow(id,cards,zone){
   var el=$(id);el.innerHTML="";if(!cards.length){el.innerHTML='<div class="empty">Sin cartas</div>';return}cards.forEach(function(c){el.appendChild(battleCard(c,zone))});
@@ -694,14 +830,14 @@ function resolveAbility(c,player){
 }
 function toggleAttack(id){var c=duel.playerBoard.find(function(x){return x.uid===id});if(!c)return;c.selected=!c.selected;renderDuel()}
 function prepareBlocks(){
-  duel.blocks=[];var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted}),def=duel.enemyBoard.slice().sort(function(a,b){return b.def-a.def});
+  duel.blocks=[];var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted}),def=duel.enemyBoard.filter(function(c){return !c.exhausted}).slice().sort(function(a,b){return b.def-a.def});
   atk.forEach(function(a,i){if(def[i])duel.blocks.push({a:a.uid,b:def[i].uid})});
 }
 function resolvePlayerAttack(){
   prepareBlocks();var atk=duel.playerBoard.filter(function(c){return c.selected&&!c.exhausted});
   atk.forEach(function(a){
     var link=duel.blocks.find(function(x){return x.a===a.uid});
-    if(link){var b=duel.enemyBoard.find(function(x){return x.uid===link.b});if(b){log(a.name+" combate contra "+b.name+".");if(a.atk>b.def){duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==b.uid});log(b.name+" cae.","good")}if(b.atk>a.def){duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==a.uid});log(a.name+" cae.","bad")}}}
+    if(link){var b=duel.enemyBoard.find(function(x){return x.uid===link.b});if(b){log(a.name+" combate contra "+b.name+".");if(a.atk>=b.def){duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==b.uid});log(b.name+" cae.","good")}if(b.atk>=a.def){duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==a.uid});log(a.name+" cae.","bad")}}}
     else{duel.enemyHp-=a.atk;log(a.name+" causa "+a.atk+" PV al rival.","good")}
     var s=duel.playerBoard.find(function(x){return x.uid===a.uid});if(s){s.exhausted=true;s.selected=false}
   });
@@ -711,12 +847,12 @@ function aiPlay(){
   var powers=duel.enemyHand.filter(function(c){return c.powerCard});if(powers[0]){duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==powers[0].uid});duel.enemyPower=Math.min(duel.enemyMaxPower,duel.enemyPower+2)}
   var ability=duel.enemyHand.find(function(c){return c.abilityCard&&c.cost<=duel.enemyPower});if(ability){duel.enemyPower-=ability.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==ability.uid});resolveAbility(ability,false)}
   var safe=12;while(safe--){var opts=duel.enemyHand.filter(function(c){return !c.powerCard&&!c.abilityCard&&c.cost<=duel.enemyPower});if(!opts.length)break;opts.sort(function(a,b){return(b.atk+b.def)-(a.atk+a.def)});var c=opts[0];duel.enemyPower-=c.cost;duel.enemyHand=duel.enemyHand.filter(function(x){return x.uid!==c.uid});duel.enemyBoard.push(c)}
-  var attackers=duel.enemyBoard.filter(function(c){return !c.exhausted}),blocks=duel.playerBoard.slice().sort(function(a,b){return b.def-a.def});
-  attackers.forEach(function(a,i){var b=blocks[i];if(b){if(a.atk>b.def)duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==b.uid});if(b.atk>a.def)duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==a.uid})}else duel.playerHp-=a.atk;var s=duel.enemyBoard.find(function(x){return x.uid===a.uid});if(s)s.exhausted=true});
+  var attackers=duel.enemyBoard.filter(function(c){return !c.exhausted}),blocks=duel.playerBoard.filter(function(c){return !c.exhausted}).slice().sort(function(a,b){return b.def-a.def});
+  attackers.forEach(function(a,i){var b=blocks[i];if(b){if(a.atk>=b.def)duel.playerBoard=duel.playerBoard.filter(function(x){return x.uid!==b.uid});if(b.atk>=a.def)duel.enemyBoard=duel.enemyBoard.filter(function(x){return x.uid!==a.uid})}else duel.playerHp-=a.atk;var s=duel.enemyBoard.find(function(x){return x.uid===a.uid});if(s)s.exhausted=true});
   if(attackers.length)log("El rival ataca con "+attackers.length+" criatura(s).","bad");
 }
 function checkEnd(){
-  if(duel.enemyHp<=0||duel.playerHp<=0){duel.gameOver=true;var win=duel.enemyHp<=0;log(win?"VICTORIA. Has ganado el duelo.":"DERROTA. Tus PV han llegado a cero.",win?"good":"bad");if(win){profile.wins++;profile.coins+=10}else profile.losses++;saveProfile();return true}return false
+  if(duel.enemyHp<=0||duel.playerHp<=0||duel.enemyDeckOut||duel.playerDeckOut){duel.gameOver=true;var win=duel.enemyHp<=0||duel.enemyDeckOut;log(win?(duel.enemyDeckOut?"VICTORIA. El rival se ha quedado sin cartas.":"VICTORIA. Has ganado el duelo."):(duel.playerDeckOut?"DERROTA. Te has quedado sin cartas.":"DERROTA. Tus PV han llegado a cero."),win?"good":"bad");if(win){profile.wins++;profile.coins+=10}else profile.losses++;saveProfile();return true}return false
 }
 function nextPhase(){
   if(!duel||duel.gameOver)return;
@@ -733,11 +869,12 @@ document.querySelectorAll("#nav button").forEach(function(b){b.onclick=function(
 document.querySelectorAll("[data-start]").forEach(function(b){b.onclick=function(){startDuel(b.dataset.start)}});
 document.querySelectorAll("[data-go]").forEach(function(b){b.onclick=function(){showView(b.dataset.go)}});
 if($("classicExit"))$("classicExit").onclick=function(){$("logout").click()};
-if($("tradeBtn"))$("tradeBtn").onclick=function(){alert("El intercambio entre usuarios se restaurará con el servidor multijugador.")};
 if($("statsBtn"))$("statsBtn").onclick=function(){alert("Partidas ganadas: "+profile.wins+"\\nDerrotas: "+profile.losses+"\\nMonedas: "+profile.coins)};
+$("createMatch").onclick=createLocalMatch;$("requestTrade").onclick=requestTrade;$("acceptTrade").onclick=acceptTrade;$("cancelTrade").onclick=cancelTrade;
+$("zoomClose").onclick=closeZoom;$("zoomOverlay").onclick=function(e){if(e.target===$("zoomOverlay"))closeZoom()};
 $("buyPack").onclick=buyPack;$("collectionSearch").oninput=renderCollection;$("collectionFilter").onchange=renderCollection;
 $("autoDeck").onclick=autoDeck;$("clearDeck").onclick=function(){profile.deck=[];saveProfile();renderDeck();renderCollection()};$("playDeck").onclick=function(){startDuel("deck")};
-$("restart").onclick=function(){startDuel(profile.deck.length>=10?"deck":"starter")};$("next").onclick=nextPhase;
+$("restart").onclick=function(){startDuel(profile.deck.length>=20?"deck":"starter",duel&&duel.deckSize||30)};$("next").onclick=nextPhase;
 $("chatSend").onclick=function(){var v=$("chatInput").value.trim();if(!v)return;var d=document.createElement("div");d.innerHTML="<b>"+esc(profile.name)+":</b> "+esc(v);$("chatLog").appendChild(d);$("chatInput").value="";$("chatLog").scrollTop=$("chatLog").scrollHeight};
 $("chatInput").addEventListener("keydown",function(e){if(e.key==="Enter")$("chatSend").click()});
 parseCards();
