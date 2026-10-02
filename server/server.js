@@ -763,9 +763,17 @@ function finishDisconnectGrace(matchId, side, deadline) {
   match.duel.gameOver = true;
   match.duel.winner = sideOther(side);
   match.status = "finished";
+  match.finishedAt = Date.now();
   gameLog(match.duel, "El jugador desconectado no regresó en 2 minutos y pierde la partida.");
   emitDuel(match);
   emitMatches();
+  setTimeout(() => {
+    const live = matches.get(matchId);
+    if (live === match && live.status === "finished" && live.finishedAt === match.finishedAt) {
+      matches.delete(matchId);
+      emitMatches();
+    }
+  }, 10 * 60 * 1000);
 }
 
 function removeSocketMatches(socketId, useGrace = false) {
@@ -806,15 +814,29 @@ function removeSocketMatches(socketId, useGrace = false) {
 
 function resumeCombatForUser(socket, user) {
   for (const match of matches.values()) {
-    if (match.status !== "playing" || !match.duel || match.duel.gameOver) continue;
+    if (!match.duel) continue;
     const side = sideForAccount(match, user.accountId);
     if (!side) continue;
 
+    if (match.duel.gameOver) {
+      if (match.status !== "finished" || !match.finishedAt || Date.now() - match.finishedAt > 10 * 60 * 1000) continue;
+      const oldSocketId = socketForSide(match, side);
+      setSocketForSide(match, side, socket.id);
+      socket.join(match.id);
+      if (oldSocketId && oldSocketId !== socket.id) {
+        users.delete(oldSocketId);
+        const oldSocket = io.sockets.sockets.get(oldSocketId);
+        if (oldSocket) oldSocket.disconnect(true);
+      }
+      return match;
+    }
+
+    if (match.status !== "playing") continue;
     match.disconnectDeadlineAt = match.disconnectDeadlineAt || { a: 0, b: 0 };
     const deadline = Number(match.disconnectDeadlineAt[side]) || 0;
     if (deadline && deadline <= Date.now()) {
       finishDisconnectGrace(match.id, side, deadline);
-      return null;
+      return match.duel.gameOver ? match : null;
     }
 
     const oldSocketId = socketForSide(match, side);
