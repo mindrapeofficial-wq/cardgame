@@ -72,3 +72,10 @@ body.ve-enabled .ve-badge{
 .ve-status{min-height:14px;margin-top:7px;font-size:10px;color:#9ba2ad}
 .ve-status.good{color:#8ecb9a}
 .ve-status.bad{color:#e39aa1}
+
+.ve-nudge{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:7px}
+body.ve-enabled.ve-move-mode *:not(#ve-root):not(#ve-root *):not(.ve-fab){cursor:default!important}
+body.ve-enabled.ve-move-mode .ve-target,
+body.ve-enabled.ve-move-mode .ve-target *{cursor:move!important}
+body.ve-enabled.ve-move-mode .ve-target{touch-action:none}
+body.ve-enabled .ve-target.ve-dragging{outline-style:solid!important;filter:brightness(1.04)}
