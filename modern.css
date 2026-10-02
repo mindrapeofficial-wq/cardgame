@@ -2352,3 +2352,47 @@ a{color:#d8b94f}
   .deck-player-meta b{max-width:76px;font-size:9px}
   .deck-hp-bar{height:6px}
 }
+
+
+/* === KEYBOARD-ONLY COMBAT LOG 2026-10-02 ===
+   Oculto por defecto. R abre/cierra sin ocupar espacio del tablero. */
+.duel-log-keyboard{
+  display:none;
+  position:fixed;
+  right:18px;
+  top:58px;
+  z-index:85;
+  width:min(390px,calc(100vw - 36px));
+  max-height:min(420px,58vh);
+  overflow:hidden;
+  border:1px solid rgba(212,175,55,.34);
+  border-radius:12px;
+  background:rgba(5,5,5,.97);
+  box-shadow:0 24px 70px rgba(0,0,0,.72);
+  backdrop-filter:blur(12px);
+}
+body.duel-log-visible .duel-log-keyboard{display:block}
+.duel-log-keyboard .duel-log-window-head{
+  min-height:38px;
+  padding:9px 11px;
+}
+.duel-log-keyboard .duel-log{
+  height:auto;
+  max-height:calc(min(420px,58vh) - 39px);
+  overflow:auto;
+  padding:9px 10px 11px;
+}
+.duel-log-keyboard .duel-log div{
+  background:rgba(9,9,9,.92);
+}
+@media(max-width:850px){
+  .duel-log-keyboard{
+    right:8px;
+    top:8px;
+    width:min(350px,calc(100vw - 16px));
+    max-height:calc(100dvh - 16px);
+  }
+  .duel-log-keyboard .duel-log{
+    max-height:calc(100dvh - 62px);
+  }
+}
