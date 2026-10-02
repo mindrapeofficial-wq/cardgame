@@ -102,6 +102,7 @@ function applyProfile(profile){
     totalXp:Math.max(0,Number(profile.totalXp)||0),
     coins:Math.max(0,Number(profile.coins)||0),
     wins:Math.max(0,Number(profile.wins)||0),
+    draws:Math.max(0,Number(profile.draws)||0),
     losses:Math.max(0,Number(profile.losses)||0),
     collection:profile.collection&&typeof profile.collection==="object"?profile.collection:{},
     deck:Array.isArray(profile.deck)?profile.deck.map(Number):[],
@@ -257,7 +258,7 @@ function updateChrome(){
 function playerLevel(){return clamp(Number(state.profile?.level)||1,1,50)}
 function xpPercent(){if(!state.profile||playerLevel()>=50)return 100;return clamp(Math.round((state.profile.xp/Math.max(1,state.profile.xpRequired))*100),0,100)}
 function winrate(){
-  const total=(state.profile?.wins||0)+(state.profile?.losses||0);
+  const total=(state.profile?.wins||0)+(state.profile?.draws||0)+(state.profile?.losses||0);
   return total?Math.round(state.profile.wins/total*100):0;
 }
 function deckValid(size=20){
