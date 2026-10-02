@@ -1,8 +1,12 @@
-name: Recover Legacy Text Config
+name: Recover Legacy Assets
 
 on:
   push:
     branches: [main]
+    paths:
+      - Rolplay.zip
+      - .github/workflows/recover-legacy-text.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,22 +17,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extract legacy text configuration
+
+      - name: Extract legacy configuration and images
         run: |
           set -euo pipefail
-          rm -rf .tmp-rolplay legacy-config
-          mkdir -p .tmp-rolplay legacy-config
+          rm -rf .tmp-rolplay legacy-config legacy-assets
+          mkdir -p .tmp-rolplay legacy-config legacy-assets/imagenes
           unzip -q Rolplay.zip -d .tmp-rolplay
+
           cp .tmp-rolplay/Rolplay/version_data_host_chr.txt legacy-config/
           cp .tmp-rolplay/Rolplay/version_data_hostnochar.txt legacy-config/
           cp .tmp-rolplay/Rolplay/winsock_host.dat legacy-config/
           cp .tmp-rolplay/Rolplay/Principal.log legacy-config/
           cp .tmp-rolplay/Rolplay/Intercambio.log legacy-config/
           cp .tmp-rolplay/Rolplay/version_leeme.txt legacy-config/
-      - name: Commit recovered configuration
+
+          cp -a .tmp-rolplay/Rolplay/imagenes/. legacy-assets/imagenes/
+
+          echo "Recovered image count:"
+          find legacy-assets/imagenes -type f | wc -l
+
+      - name: Commit recovered assets
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add legacy-config
-          git commit -m "Recover Rolplay legacy text configuration" || exit 0
+          git add legacy-config legacy-assets/imagenes
+          git commit -m "Recover original Rolplay image assets" || exit 0
           git push
