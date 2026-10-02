@@ -76,7 +76,7 @@ const state={
   marketListings:[],marketLoading:false,marketKind:"gold"
 };
 
-function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
+function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false,revision:null}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function norm(s){return String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
 function summonCost(name,level,powerCard){
@@ -1416,9 +1416,9 @@ function proposeTrade(){
   renderView();
 }
 function acceptTrade(){
-  if(!state.trade.ready||!state.trade.onlineId||!state.connected)return;
+  if(!state.trade.ready||!state.trade.onlineId||!state.connected||!Number.isFinite(state.trade.revision))return;
   state.trade.ownGold=clamp(Number($("tradeGold")?.value)||state.trade.ownGold||0,0,state.profile.coins);
-  state.socket.emit("trade:accept",{tradeId:state.trade.onlineId});
+  state.socket.emit("trade:accept",{tradeId:state.trade.onlineId,revision:state.trade.revision});
   state.trade.status="Has aceptado. Esperando la confirmación del otro jugador…";renderView();
 }
 function handleSettledTrade(profile){
@@ -1549,10 +1549,19 @@ function connectOnline(){
       updateChrome();if(["home","profile","play"].includes(state.view))renderView();
     });
     socket.on("trade:invited",m=>{
+      const from=m.from?.name||"Otro jugador";
+      if((state.trade.onlineId&&state.trade.onlineId!==m.tradeId)||(state.duel&&!state.duel.gameOver)){
+        socket.emit("trade:cancel",{tradeId:m.tradeId});
+        toast(from+" quiso intercambiar, pero ya estás ocupado.","bad");
+        return;
+      }
       state.trade=freshTrade();state.trade.onlineId=m.tradeId;state.trade.partnerId=m.from?.socketId||"";state.trade.partnerName=m.from?.name||"Jugador";state.trade.status=state.trade.partnerName+" quiere intercambiar contigo.";go("trade");
     });
     socket.on("trade:waiting",m=>{state.trade.onlineId=m.tradeId;state.trade.partnerId=m.to;state.trade.status="Solicitud aceptada por el servidor. Enviando oferta…";socket.emit("trade:offer",{tradeId:m.tradeId,cards:state.trade.mine.slice(),gold:state.trade.ownGold||0});if(state.view==="trade")renderView()});
-    socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
+    socket.on("trade:offer",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.theirs=(m.cards||[]).map(Number).filter(id=>card(id));state.trade.theirGold=Math.max(0,Number(m.gold)||0);state.trade.revision=Number(m.revision);state.trade.ready=true;state.trade.status="Contraoferta recibida.";if(state.view==="trade")renderView()});
+    socket.on("trade:offerAck",m=>{if(m.tradeId===state.trade.onlineId)state.trade.revision=Number(m.revision)});
+    socket.on("trade:stale",m=>{if(m.tradeId!==state.trade.onlineId)return;state.trade.status=m.message||"La oferta ha cambiado. Revísala antes de aceptar.";toast(state.trade.status,"bad");if(state.view==="trade")renderView()});
+    socket.on("trade:busy",m=>{if(state.trade.onlineId)return;state.trade.status=m?.message||"Ese jugador no puede intercambiar ahora.";toast(state.trade.status,"bad");if(state.view==="trade")renderView()});
     socket.on("trade:accepted",m=>{if(m.tradeId===state.trade.onlineId){state.trade.status="El otro jugador ha aceptado. Falta la segunda confirmación.";if(state.view==="trade")renderView()}});
     socket.on("trade:settled",m=>{if(m.tradeId===state.trade.onlineId&&m.profile)handleSettledTrade(m.profile)});
     socket.on("trade:error",m=>{if(m.tradeId===state.trade.onlineId){state.trade.ready=false;state.trade.status="Error: "+(m.message||"No se pudo completar el intercambio.");toast(state.trade.status,"bad");if(state.view==="trade")renderView()}});
