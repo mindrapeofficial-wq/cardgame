@@ -283,28 +283,52 @@ function declareAttack(game, side) {
   const foe = sideOther(side);
   const attackers = game.board[side].filter(c => c.selected && !c.exhausted);
   if (!attackers.length) return false;
+  attackers.forEach(c => { c.exhausted = true; });
   game.pendingAttack = {
     attackerSide: side,
     defenderSide: foe,
     attackers: attackers.map(c => c.uid),
     blocks: {}
   };
-  gameLog(game, "Ataque declarado con " + attackers.length + " criatura(s). Esperando defensores.");
+  gameLog(game, "Ataque declarado con " + attackers.length + " criatura(s). Las atacantes quedan giradas.");
   return true;
 }
 
 function assignBlock(game, side, attackerUid, defenderUid) {
   const pending = game.pendingAttack;
   if (!pending || pending.defenderSide !== side || !pending.attackers.includes(attackerUid)) return;
-  for (const [a, d] of Object.entries(pending.blocks)) {
-    if (d === defenderUid && a !== attackerUid) delete pending.blocks[a];
+
+  const previousUid = pending.blocks[attackerUid];
+  if (previousUid && previousUid !== defenderUid) {
+    const previous = game.board[side].find(c => c.uid === previousUid);
+    if (previous) previous.exhausted = false;
+    delete pending.blocks[attackerUid];
   }
+
   if (!defenderUid) {
+    if (previousUid) {
+      const previous = game.board[side].find(c => c.uid === previousUid);
+      if (previous) previous.exhausted = false;
+    }
     delete pending.blocks[attackerUid];
     return;
   }
-  const defender = game.board[side].find(c => c.uid === defenderUid && !c.exhausted);
+
+  let movedFrom = null;
+  for (const [a, d] of Object.entries(pending.blocks)) {
+    if (d === defenderUid && a !== attackerUid) {
+      movedFrom = a;
+      delete pending.blocks[a];
+      break;
+    }
+  }
+
+  const defender = game.board[side].find(c => c.uid === defenderUid);
   if (!defender) return;
+  const alreadyAssigned = Object.values(pending.blocks).includes(defenderUid) || movedFrom !== null || previousUid === defenderUid;
+  if (defender.exhausted && !alreadyAssigned) return;
+
+  defender.exhausted = true;
   pending.blocks[attackerUid] = defenderUid;
 }
 
@@ -316,18 +340,23 @@ function resolveDeclaredAttack(game) {
 
   for (const attackerUid of pending.attackers) {
     const attacker = game.board[side].find(c => c.uid === attackerUid);
-    if (!attacker || attacker.exhausted) continue;
+    if (!attacker) continue;
     const ac = BY_ID.get(attacker.cardId);
     const blockerUid = pending.blocks[attackerUid];
-    const blocker = blockerUid ? game.board[foe].find(c => c.uid === blockerUid && !c.exhausted) : null;
+    const blocker = blockerUid ? game.board[foe].find(c => c.uid === blockerUid) : null;
 
     if (blocker) {
       const bc = BY_ID.get(blocker.cardId);
-      const attackerDies = (bc?.atk || 0) >= effectiveDef(attacker);
-      const blockerDies = (ac?.atk || 0) >= effectiveDef(blocker);
-      gameLog(game, ac.name + " combate contra " + bc.name + ".");
-      if (blockerDies) game.board[foe] = game.board[foe].filter(c => c.uid !== blocker.uid);
-      if (attackerDies) game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
+      const attack = ac?.atk || 0;
+      const defense = effectiveDef(blocker);
+      gameLog(game, ac.name + " (" + attack + " ATQ) ataca la defensa " + defense + " de " + bc.name + ".");
+      if (attack >= defense) {
+        game.board[foe] = game.board[foe].filter(c => c.uid !== blocker.uid);
+        gameLog(game, bc.name + " es destruida.");
+      } else {
+        game.board[side] = game.board[side].filter(c => c.uid !== attacker.uid);
+        gameLog(game, ac.name + " no supera la DEF y es destruida.");
+      }
     } else {
       const dealt = ac?.atk || 0;
       game.hp[foe] -= dealt;
@@ -335,10 +364,7 @@ function resolveDeclaredAttack(game) {
       gameLog(game, ac.name + " causa " + dealt + " PV.");
     }
     const survivor = game.board[side].find(c => c.uid === attacker.uid);
-    if (survivor) {
-      survivor.exhausted = true;
-      survivor.selected = false;
-    }
+    if (survivor) survivor.selected = false;
   }
   game.pendingAttack = null;
 }
@@ -466,10 +492,9 @@ function playCard(match, side, uid) {
   if (game.phase === 2 && card.powerCard && !game.powerPlayed[side]) {
     game.hand[side].splice(index, 1);
     game.powerPlayed[side] = true;
-    inst.exhausted = true;
+    inst.exhausted = false;
     game.powers[side].push(inst);
-    game.availablePower[side] = totalPower(game, side);
-    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " conjura " + card.name + " girada y obtiene +" + powerValue(card) + " Poder.");
+    gameLog(game, (users.get(side === "a" ? match.hostSocketId : match.guestSocketId)?.name || "Jugador") + " pone " + card.name + " en su zona de Poder.");
     return;
   }
   if (game.phase === 3 && !card.powerCard && !card.abilityCard && card.cost <= game.availablePower[side]) {
@@ -528,6 +553,14 @@ function handleDuelAction(match, socketId, payload) {
 
   if (type === "play") {
     playCard(match, side, cleanText(payload && payload.uid, 100));
+  } else if (type === "tapPower" && game.phase === 2) {
+    const power = game.powers[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
+    if (power && !power.exhausted) {
+      power.exhausted = true;
+      const value = powerValue(BY_ID.get(power.cardId));
+      game.availablePower[side] += value;
+      gameLog(game, "Se gira una carta de Poder y genera +" + value + " Poder.");
+    }
   } else if (type === "toggleAttack" && game.phase === 5) {
     const unit = game.board[side].find(c => c.uid === cleanText(payload && payload.uid, 100));
     if (unit && !unit.exhausted) unit.selected = !unit.selected;
@@ -555,8 +588,7 @@ function handleDuelAction(match, socketId, payload) {
         checkEnd(game);
       }
       if (game.phase === 2) {
-        game.powers[side].forEach(c => { c.exhausted = true; });
-        game.availablePower[side] = totalPower(game, side);
+        game.availablePower[side] = 0;
       }
     }
   }
