@@ -11,19 +11,18 @@ Un sobre de Nivel N:
 - favorece fuertemente cartas cercanas a N;
 - excluye el Poder básico de Nivel 1 porque es infinito.
 
-## Presupuesto de rareza por hueco
+## Peso de rareza y límite legendario
 
-A partir de que la rareza esté desbloqueada en el conjunto elegible:
+Para los sobres de Nivel 2 en adelante, la rareza modifica el peso base de cada carta:
 
-- Común: 55%
-- Poco común: 25%
-- Rara: 14%
-- Épica: 5,8%
-- Legendaria: 0,2%
+- Común: ×1,00
+- Poco común: ×0,75
+- Rara: ×0,48
+- Épica: ×0,22
 
-La masa legendaria total es solo 0,2% por extracción y se reparte entre todas las legendarias elegibles. En un sobre de 5 cartas, cuando ya hay legendarias desbloqueadas, la probabilidad de obtener al menos una ronda aproximadamente el 1%.
+Las legendarias se separan del resto del sorteo y reciben una **masa total máxima del 0,2% por extracción**. Ese 0,2% se reparte entre todas las legendarias elegibles según cercanía de nivel y eficiencia.
 
-Si una rareza todavía no existe en los niveles desbloqueados por ese sobre, su porcentaje se redistribuye hacia la rareza disponible más cercana sin crear cartas imposibles.
+Así evitamos dos problemas: que un sobre alto se llene de comunes antiquísimas solo para cumplir una cuota fija, y que un nivel con muchas cartas históricamente poderosas dispare accidentalmente la frecuencia legendaria.
 
 ## Peso por nivel
 
