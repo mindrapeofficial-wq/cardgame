@@ -20,6 +20,15 @@ const RARITIES=[
   {name:"Legendaria",key:"legendary",min:Infinity}
 ];
 const LEGENDARY_IDS=new Set([76,115,142,157,158,160,161,176,183,190,191,192,193,194,203,210,213,215,216,229,230,236,237,238,242,248,253,265,269,272,273,279,283,284,285]);
+const LEVEL1_POWER_COSTS=Object.freeze({
+  "Duende":1,
+  "Elfo Bardo":2,
+  "Guerrero Menor":2,
+  "Mel":2,
+  "Dophan":3,
+  "Gorad Menor":3,
+  "Mimit":3
+});
 const $=id=>document.getElementById(id);
 const state={
   catalog:[],byId:new Map(),imageMap:{},profile:null,view:"home",
@@ -33,6 +42,11 @@ const state={
 function freshTrade(){return{mine:[],theirs:[],theirGold:0,ownGold:0,onlineId:null,partnerId:"",partnerName:"",ready:false,accepted:false}}
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
 function norm(s){return String(s??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
+function summonCost(name,level,powerCard){
+  if(powerCard)return 0;
+  const fixed=Number(level)===1?LEVEL1_POWER_COSTS[name]:undefined;
+  return Number.isFinite(fixed)?fixed:Math.max(1,Math.min(10,Math.ceil((Number(level)||1)/5)));
+}
 function uid(){return crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function clamp(n,a,b){return Math.min(b,Math.max(a,n))}
@@ -71,7 +85,7 @@ function parseCards(text){
     const p=line.split(";"),name=p[0],rar=Number(p[1])||1,quantity=Number(p[2])||1,level=Number(p[3])||1;
     const powerCard=isPowerName(name),abilityCard=isAbilityName(name);
     return{id:i+1,name,rarity:rar,quantity,level,powerCard,abilityCard,
-      cost:powerCard?0:Math.max(1,Math.min(10,Math.ceil(level/5))),
+      cost:summonCost(name,level,powerCard),
       atk:(powerCard||abilityCard)?0:Math.max(1,Math.ceil(level*.52)+Math.floor(rar/30)),
       def:(powerCard||abilityCard)?0:Math.max(1,Math.ceil(level*.40)+Math.floor((101-rar)/40))
     };
@@ -889,8 +903,8 @@ function renderDuel(){
     </div>
     <div class="phase-track">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
     <div class="board">
-      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div><div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
-      <section class="board-zone"><div class="zone-title"><span>Tu campo · Poder en juego ${(d.playerPowers||[]).map(c=>esc(c.name)).join(", ")||"ninguno"}</span><span>${phase}</span></div><div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
+      <section class="board-zone"><div class="zone-title"><span>Rival · ${d.enemyHandCount??d.enemyHand?.length??0} cartas en mano</span><span>Mazo ${d.enemyDeckCount??d.enemyDeck?.length??0}</span></div><div class="hidden-cards-strip">${hiddenCardBacks(d.enemyHandCount??d.enemyHand?.length??0)}${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}</div>${powerLane(d.enemyPowers||[],"Poder rival")}<div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div></section>
+      <section class="board-zone"><div class="zone-title"><span>Tu campo</span><span>${phase}</span></div>${powerLane(d.playerPowers||[],"Tu Poder")}<div class="battle-row">${battleCards(d.playerBoard||[],"player")}</div></section>
       <div class="duel-bottom">
         <section class="board-zone"><div class="zone-title"><span>Tu mano</span><span>Mazo ${d.playerDeckCount??d.playerDeck?.length??0}</span></div><div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div>${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}</div><div class="duel-controls">${duelControls(d)}</div></section>
         <section class="panel"><div class="panel-head"><h3>Registro</h3><span class="pill">${phase}</span></div><div class="panel-body"><div class="duel-log">${(d.log||[]).slice(-30).map(x=>`<div>${esc(x)}</div>`).join("")||'<div>El duelo ha comenzado.</div>'}</div></div></section>
@@ -906,6 +920,10 @@ function hiddenCardBacks(count){
 function deckBack(count,label){
   const total=Math.max(0,Number(count)||0);
   return `<div class="duel-deck-back ${total?"":"empty"}" title="${esc(label||"Mazo")} · ${total} cartas" aria-label="${esc(label||"Mazo")} con ${total} cartas"><span>${total}</span></div>`;
+}
+function powerLane(list,label){
+  const cards=list||[],total=powerTotal(cards);
+  return `<div class="power-lane"><span class="power-lane-label">${esc(label)} · ${total}</span><div class="power-lane-cards">${cards.length?cards.map(c=>`<div class="power-mini ${c.exhausted?"exhausted":""}" style="background-image:url('${cardImage(c)}')" title="${esc(c.name)} · +${powerValue(c)} Poder"><span>+${powerValue(c)}</span></div>`).join(""):'<span class="power-empty">Sin Poder en juego</span>'}</div></div>`;
 }
 function battleCards(list,zone){
   if(!list?.length)return'<div class="empty" style="min-width:100%">Sin cartas</div>';
@@ -964,7 +982,7 @@ function drawLocal(side,n=1){
 }
 function localPlay(uid){
   const d=state.duel,i=d.playerHand.findIndex(c=>c.uid===uid);if(i<0)return;const c=d.playerHand[i];
-  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.playerPowerPlayed=true;d.log.push("Conjuras "+c.name+".");playSound("power")}
+  if(d.phase===2&&c.powerCard&&!d.playerPowerPlayed){d.playerHand.splice(i,1);c.exhausted=true;d.playerPowers.push(c);d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.playerPowerPlayed=true;d.log.push("Conjuras "+c.name+" girada y obtienes +"+powerValue(c)+" Poder.");playSound("power")}
   else if(d.phase===3&&!c.powerCard&&!c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);d.playerBoard.push(c);d.log.push("Invocas "+c.name+".");playSound("summon")}
   else if(d.phase===4&&c.abilityCard&&c.cost<=d.power){d.power-=c.cost;d.playerHand.splice(i,1);resolveLocalAbility(c,"player")}
   renderView();
@@ -982,8 +1000,8 @@ function resolveLocalAbility(c,side){
 function toggleLocalAttack(uid){const c=state.duel.playerBoard.find(x=>x.uid===uid);if(c&&!c.exhausted){c.selected=!c.selected;renderView()}}
 function nextLocalPhase(){
   const d=state.duel;if(d.gameOver)return;
-  if(d.phase===5){resolveLocalAttack();if(checkLocalEnd())return renderView();enemyTurn();if(checkLocalEnd())return renderView();d.turn++;d.phase=0;d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});d.playerPowerPlayed=false;d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower;d.log.push("Comienza tu turno "+d.turn+".");playSound("turn");renderView();return}
-  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}renderView();
+  if(d.phase===5){resolveLocalAttack();if(checkLocalEnd())return renderView();enemyTurn();if(checkLocalEnd())return renderView();d.turn++;d.phase=0;d.playerBoard.forEach(c=>{c.exhausted=false;c.selected=false});d.playerPowers.forEach(c=>{c.exhausted=false});d.playerPowerPlayed=false;d.maxPower=powerTotal(d.playerPowers);d.power=0;d.log.push("Comienza tu turno "+d.turn+".");playSound("turn");renderView();return}
+  d.phase++;if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}if(d.phase===2){d.playerPowers.forEach(c=>{c.exhausted=true});d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}renderView();
 }
 function resolveLocalAttack(){
   const d=state.duel,atk=d.playerBoard.filter(c=>c.selected&&!c.exhausted),blocks=d.enemyBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
@@ -992,9 +1010,9 @@ function resolveLocalAttack(){
     const survivor=d.playerBoard.find(x=>x.uid===a.uid);if(survivor){survivor.exhausted=true;survivor.selected=false}});
 }
 function enemyTurn(){
-  const d=state.duel;d.enemyBoard.forEach(c=>c.exhausted=false);d.enemyPowerPlayed=false;drawLocal("enemy",1);if(d.gameOver)return;
-  const p=d.enemyHand.find(c=>c.powerCard);if(p){d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);d.enemyPowers.push(p)}
-  d.enemyMaxPower=powerTotal(d.enemyPowers);d.enemyPower=d.enemyMaxPower;
+  const d=state.duel;d.enemyBoard.forEach(c=>c.exhausted=false);d.enemyPowers.forEach(c=>c.exhausted=false);d.enemyPowerPlayed=false;drawLocal("enemy",1);if(d.gameOver)return;
+  const p=d.enemyHand.find(c=>c.powerCard);if(p){d.enemyHand=d.enemyHand.filter(x=>x.uid!==p.uid);p.exhausted=true;d.enemyPowers.push(p)}
+  d.enemyPowers.forEach(c=>c.exhausted=true);d.enemyMaxPower=powerTotal(d.enemyPowers);d.enemyPower=d.enemyMaxPower;
   const ability=d.enemyHand.find(c=>c.abilityCard&&c.cost<=d.enemyPower);if(ability){d.enemyPower-=ability.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==ability.uid);resolveLocalAbility(ability,"enemy")}
   let safe=20;while(safe--){const opts=d.enemyHand.filter(c=>!c.powerCard&&!c.abilityCard&&c.cost<=d.enemyPower);if(!opts.length)break;opts.sort((a,b)=>(b.atk+b.def)-(a.atk+a.def));const c=opts[0];d.enemyPower-=c.cost;d.enemyHand=d.enemyHand.filter(x=>x.uid!==c.uid);d.enemyBoard.push(c)}
   const attackers=d.enemyBoard.filter(c=>!c.exhausted),blocks=d.playerBoard.filter(c=>!c.exhausted).sort((a,b)=>b.def-a.def);
