@@ -1106,3 +1106,219 @@ body{
 @media(max-width:760px){
   .ranking-summary{grid-template-columns:1fr!important}
 }
+
+
+/* === ARCANUM DUEL BATTLEFIELD SCALE PATCH 2026-10-02 === */
+.duel-page{
+  max-width:none;
+  width:100%;
+  padding:10px clamp(10px,2vw,28px) 20px;
+  background:
+    radial-gradient(circle at 50% 34%,rgba(119,86,36,.08),transparent 45%),
+    linear-gradient(180deg,#050608,#07090c);
+  box-shadow:none;
+}
+.duel-top,.phase-track,.board{max-width:1540px}
+.duel-top{background:rgba(5,6,8,.82)}
+.phase-track{margin:7px auto 10px}
+.board{
+  position:relative;
+  grid-template-rows:auto auto auto;
+  gap:8px;
+  min-height:calc(100vh - 168px);
+  margin:0 auto;
+  padding:14px 16px 12px;
+  overflow:hidden;
+  border:1px solid rgba(201,163,91,.22);
+  border-radius:16px;
+  background:
+    linear-gradient(180deg,rgba(2,3,4,.17),rgba(2,3,4,.30)),
+    url("assets/arcanum-game-table.webp") center/100% 100% no-repeat;
+  box-shadow:inset 0 0 80px rgba(0,0,0,.38),0 18px 55px rgba(0,0,0,.30);
+}
+.board:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.16),transparent 14%,transparent 86%,rgba(0,0,0,.16));
+}
+.board>*{position:relative;z-index:1}
+.board-zone{
+  border:0;
+  background:rgba(4,6,8,.12);
+  backdrop-filter:none;
+  border-radius:10px;
+  padding:7px 10px;
+  box-shadow:none;
+}
+.board>.board-zone:not(.hand-zone){min-height:220px}
+.hand-zone{
+  background:linear-gradient(180deg,rgba(5,7,9,.12),rgba(5,7,9,.32));
+  border-top:1px solid rgba(201,163,91,.10);
+}
+.zone-title{
+  margin-bottom:4px;
+  color:#cbbd9e;
+  font-size:11px;
+}
+.hidden-cards-strip{
+  min-height:108px;
+  gap:18px;
+  margin-bottom:2px;
+}
+.hidden-card-back{
+  width:70px;
+  min-width:70px;
+  aspect-ratio:10/14.2;
+  margin-left:-32px;
+  border-radius:7px;
+}
+.hidden-card-back:first-child{margin-left:0}
+.duel-deck-back{
+  flex:0 0 86px;
+  width:86px;
+  aspect-ratio:10/14.2;
+  border-radius:9px;
+  box-shadow:4px 4px 0 rgba(125,91,34,.30),8px 8px 0 rgba(46,36,22,.48),0 12px 26px rgba(0,0,0,.48);
+}
+.duel-deck-back span{
+  right:-8px;
+  bottom:-8px;
+  min-width:28px;
+  height:28px;
+  font-size:11px;
+}
+.player-hand-strip{
+  grid-template-columns:minmax(0,1fr) 98px;
+  gap:16px;
+}
+.battle-row{
+  gap:12px;
+  min-height:218px;
+  align-items:center;
+  padding:4px 3px 7px;
+}
+.battle-empty{
+  min-width:100%;
+  min-height:180px;
+}
+.battle-card{
+  width:148px;
+  min-width:148px;
+  aspect-ratio:10/14.2;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  overflow:visible;
+  box-shadow:0 12px 26px rgba(0,0,0,.44);
+  transform-origin:center;
+}
+.battle-card.clickable{
+  border:0;
+  cursor:pointer;
+  box-shadow:0 12px 26px rgba(0,0,0,.44),0 0 0 1px rgba(201,163,91,.30);
+}
+.battle-card.clickable:hover{
+  transform:translateY(-5px) scale(1.025);
+  z-index:4;
+}
+.battle-card.selected{
+  outline:2px solid var(--gold);
+  outline-offset:3px;
+  box-shadow:0 0 28px rgba(230,185,92,.22),0 12px 26px rgba(0,0,0,.44);
+}
+.battle-card.exhausted{
+  opacity:.60;
+  filter:grayscale(.34);
+  transform:rotate(90deg) scale(.84);
+  margin-inline:26px;
+}
+.battle-card.exhausted.clickable:hover{transform:rotate(90deg) scale(.88)}
+.battle-art{
+  width:100%;
+  height:100%;
+  aspect-ratio:10/14.2;
+  border-radius:9px;
+  background-color:transparent;
+  background-position:center;
+  background-size:contain;
+  background-repeat:no-repeat;
+}
+.battle-name,.battle-stats{display:none!important}
+.power-lane{
+  min-height:78px;
+  padding:4px 2px 7px;
+  border-bottom:1px solid rgba(181,142,75,.10);
+}
+.power-lane-label{min-width:78px}
+.power-lane-cards{gap:10px;min-height:72px}
+.power-mini{
+  flex:0 0 50px;
+  width:50px;
+  aspect-ratio:10/14.2;
+  border-radius:6px;
+  background-size:contain;
+  background-repeat:no-repeat;
+}
+.duel-bottom{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:7px;
+}
+.duel-log-drawer{
+  overflow:hidden;
+  border:1px solid rgba(201,163,91,.16);
+  border-radius:9px;
+  background:rgba(6,8,10,.70);
+}
+.duel-log-drawer summary{
+  min-height:34px;
+  padding:7px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  cursor:pointer;
+  color:#bdb39f;
+  font-size:11px;
+  font-weight:800;
+  list-style:none;
+}
+.duel-log-drawer summary::-webkit-details-marker{display:none}
+.duel-log-drawer summary:before{
+  content:"▸";
+  margin-right:2px;
+  color:#b99552;
+}
+.duel-log-drawer[open] summary:before{content:"▾"}
+.duel-log-drawer summary>span:first-child{margin-right:auto}
+.duel-log-phase{color:#817866;font-weight:700}
+.duel-log-drawer .duel-log{
+  height:140px;
+  padding:7px 9px 9px;
+  border-top:1px solid rgba(201,163,91,.10);
+}
+.duel-controls{margin-top:6px}
+
+@media(max-width:850px){
+  .duel-page{padding:6px 5px 76px}
+  .board{
+    min-height:auto;
+    padding:8px 6px;
+    border-radius:11px;
+    background-size:cover;
+  }
+  .board>.board-zone:not(.hand-zone){min-height:168px}
+  .hidden-cards-strip{min-height:80px;gap:10px}
+  .hidden-card-back{width:48px;min-width:48px;margin-left:-22px}
+  .duel-deck-back{flex-basis:62px;width:62px}
+  .player-hand-strip{grid-template-columns:minmax(0,1fr) 70px;gap:8px}
+  .battle-row{min-height:158px;gap:8px}
+  .battle-card{width:106px;min-width:106px}
+  .battle-card.exhausted{margin-inline:16px}
+  .power-lane{min-height:62px}
+  .power-lane-cards{min-height:56px}
+  .power-mini{flex-basis:40px;width:40px}
+  .battle-empty{min-height:120px}
+}
