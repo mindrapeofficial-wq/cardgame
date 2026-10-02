@@ -1697,6 +1697,16 @@ function applyOnlineSnapshot(s){
     decisionIsMine:!!s.decisionIsMine
   };
   duelIdleAllowanceMs=Math.max(COMBAT_IDLE_BASE_MS,Math.min(COMBAT_IDLE_MAX_MS,Number(state.duel.playerIdleAllowanceMs)||COMBAT_IDLE_BASE_MS));
+  if(previous){
+    // Keep the attacker lit for a moment after its attack resolves (blocked, unblocked or instant).
+    state.duel.attackFlash=previous.attackFlash||null;
+    if(!state.duel.pendingAttack){
+      const before=new Map([...(previous.playerBoard||[]),...(previous.enemyBoard||[])].map(c=>[c.uid,c]));
+      const attacker=[...playerBoard,...enemyBoard].find(c=>before.has(c.uid)&&(Number(c.attacksThisTurn)||0)>(Number(before.get(c.uid).attacksThisTurn)||0));
+      const uid=attacker?.uid||previous.pendingAttack?.attackerUid||"";
+      if(uid&&[...playerBoard,...enemyBoard].some(c=>c.uid===uid))flashAttacker(state.duel,uid);
+    }
+  }
   removedPlayer.forEach(x=>queueDeathGhost(state.duel,"player",x.c,x.index));
   removedEnemy.forEach(x=>queueDeathGhost(state.duel,"enemy",x.c,x.index));
   pruneDeathGhosts(state.duel);
@@ -1829,8 +1839,22 @@ function cardCanAttackUi(d,c){
   if(c.summonedTurn===d.turn&&!c.berserker)return false;
   return true;
 }
+// The card attacking right now: the pending attacker while a block is being chosen, or a short
+// flash after an attack that resolved instantly (no possible blockers, or local player attacks).
+const ATTACK_FLASH_MS=1200;
+function flashAttacker(d,uid){
+  if(!d||!uid)return;
+  d.attackFlash={uid,until:Date.now()+ATTACK_FLASH_MS};
+  setTimeout(()=>{if(state.duel===d&&state.view==="duel")renderView()},ATTACK_FLASH_MS+40);
+}
+function attackingNowUid(d){
+  if(!d)return"";
+  if(d.pendingAttack?.attackerUid)return d.pendingAttack.attackerUid;
+  return d.attackFlash&&Date.now()<d.attackFlash.until?d.attackFlash.uid:"";
+}
 function battleCards(list,zone){
   const cards=(list||[]).map(c=>({card:c,dying:false}));
+  const attackingUid=attackingNowUid(state.duel);
   if(zone==="player"||zone==="enemy"){
     pruneDeathGhosts(state.duel);
     const ghosts=[...(state.duel?.deathGhosts?.[zone]||[])].sort((a,b)=>(a.deathSlot||0)-(b.deathSlot||0));
@@ -1843,12 +1867,13 @@ function battleCards(list,zone){
     const handPlayable=!dying&&zone==="hand"&&clickable;
     const attacked=!dying&&(Number(c.attacksThisTurn)||0)>0;
     const defended=!dying&&(Number(c.defensesThisTurn)||0)>0;
+    const attackingNow=!dying&&zone!=="hand"&&!!attackingUid&&c.uid===attackingUid;
     const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
-    const stateHint=handPlayable?" · jugable ahora":[attacked?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
-    return `<article class="battle-card ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
+    const stateHint=handPlayable?" · jugable ahora":[attackingNow?"atacando ahora":"",attacked&&!attackingNow?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
+    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){
@@ -1995,6 +2020,7 @@ function declareLocalAttack(uid){
   if(!d||d.aiActing||d.defending||d.pendingAttack||d.phase!==5||!c||!localCanAttack(d,c))return;
   c.exhausted=true;c.attacksThisTurn=(c.attacksThisTurn||0)+1;c.selected=false;
   d.log.push(c.name+" declara un ataque.");
+  flashAttacker(d,c.uid);
   const available=d.enemyBoard.filter(localCanDefend);
   const defender=chooseAiBlock(c,available,d.enemyHp)||null;
   resolveLocalSingleAttack("player",c,defender);
@@ -2010,6 +2036,7 @@ function declareLocalEnemyAttack(attacker){
   d.log.push("El Guardián ataca con "+attacker.name+".");
   const defenders=d.playerBoard.filter(localCanDefend);
   if(!defenders.length){
+    flashAttacker(d,attacker.uid);
     resolveLocalSingleAttack("enemy",attacker,null);
     d.pendingAttack=null;
     renderView();

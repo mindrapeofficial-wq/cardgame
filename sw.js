@@ -1,6 +1,6 @@
-const CACHE="arcanum-tcg-v59";
-const CORE=["./","index.html","modern.css","rules.js","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp","assets/arcanum-card-back.webp","assets/arcanum-login-background.webp","assets/arcanum-logo-oficial.webp","assets/arcanum-favicon-64.png"];
-const FRESH=new Set(["/","/index.html","/modern.css","/rules.js","/app.js","/cards.csv","/legacy-assets/image-index.json"]);
+const CACHE="arcanum-tcg-v60";
+const CORE=["./","index.html","modern.css","theme.css","rules.js","app.js","cards.csv","legacy-assets/image-index.json","legacy-assets/imagenes/icono.png","legacy-assets/imagenes/crt_back.jpg","assets/arcanum-game-table.webp","assets/arcanum-card-back.webp","assets/arcanum-login-background.webp","assets/arcanum-logo-oficial.webp","assets/arcanum-favicon-64.png"];
+const FRESH=new Set(["/","/index.html","/modern.css","/theme.css","/rules.js","/app.js","/cards.csv","/legacy-assets/image-index.json"]);
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting()));
