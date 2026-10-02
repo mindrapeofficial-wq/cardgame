@@ -16,6 +16,7 @@ const MIN_POWER_CARDS=7;
 const MAX_POWER_CARDS=40;
 const MAX_POWER_POINTS=200;
 const MATCH_LIMIT_MS=40*60*1000;
+const COMBAT_LEAVE_GRACE_MS=2*60*1000;
 let sessionToken=localStorage.getItem(SESSION_KEY)||"";
 let deckWriteQueue=Promise.resolve();
 let deckWriteVersion=0;
@@ -310,6 +311,9 @@ function updateChrome(){
   $("connectionDot").className="dot "+(state.connected?"online":"");
   $("connectionText").textContent=state.connected?"Online":state.offlineSession?"Offline":"Conectando";
   $("onlineBadge").textContent=state.users.length||0;
+  const inCombat=state.view==="duel"&&!!state.duel;
+  const shell=$("appShell");if(shell)shell.classList.toggle("duel-mode",inCombat);
+  const homeBtn=$("globalHomeBtn");if(homeBtn)homeBtn.hidden=inCombat;
   document.querySelectorAll("[data-nav]").forEach(b=>b.classList.toggle("active",b.dataset.nav===state.view));
 }
 function playerLevel(){return clamp(Number(state.profile?.level)||1,1,50)}
@@ -344,6 +348,10 @@ function uniqueOwned(){return Object.keys(state.profile?.collection||{}).filter(
 
 function go(view){
   if(view==="duel"&&!state.duel)return;
+  if(state.view==="duel"&&state.duel&&!state.duel.gameOver&&view!=="duel"){
+    toast("Durante el combate no puedes navegar a otras secciones. Si cierras o recargas la página tendrás 2 minutos para volver.","bad");
+    return;
+  }
   closeModal();
   state.view=view;updateChrome();renderView();
   if(view==="shop")void loadPackOdds(state.packLevel||playerLevel());
@@ -499,6 +507,7 @@ function renderManual(){
             <li>Los puntos vitales de un jugador llegan a <b>0</b>.</li>
             <li>La pila de cartas disponibles del mazo de un jugador llega a <b>0</b>.</li>
             <li>Un jugador se rinde, abandona o es descalificado.</li>
+            <li>Si un jugador sale o se desconecta de la página de combate, dispone de <b>2 minutos</b> para regresar. Si el plazo termina sin reconexión, pierde automáticamente la partida.</li>
             <li>La partida supera los <b>40 minutos</b>.</li>
           </ul>
           <p>Si al finalizar existe incertidumbre sobre el ganador, se usa este puntaje de desempate:</p>
@@ -1310,15 +1319,30 @@ function applyOnlineSnapshot(s){
     playerBoard,enemyBoard,
     playerPowers:(s.playerPowers||[]).map(wireInstance).filter(Boolean),enemyPowers:(s.enemyPowers||[]).map(wireInstance).filter(Boolean),
     gameOver:!!s.gameOver,result:s.result||null,won:s.won,defending:!!s.defending,attackDeclared:!!s.attackDeclared,pendingAttack:s.pendingAttack||null,blockAssignments:{},attackTargets:{},
-    damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false
+    damageDealt:Number(s.damageDealt)||0,log:s.log||[],resultApplied:previous?.resultApplied||false,
+    opponentDisconnectDeadlineAt:Number(s.opponentDisconnectDeadlineAt)||0,serverNow:Number(s.serverNow)||Date.now()
   };
   if(state.view!=="duel")state.view="duel";updateChrome();renderView();
 }
 
+function formatCombatGrace(ms){
+  const total=Math.max(0,Math.ceil(ms/1000)),m=Math.floor(total/60),sec=String(total%60).padStart(2,"0");
+  return m+":"+sec;
+}
+function updateCombatGraceCountdown(){
+  const el=document.querySelector("[data-combat-grace-countdown]");
+  const d=state.duel,deadline=Number(d?.opponentDisconnectDeadlineAt)||0;
+  if(!el||!deadline)return;
+  const left=Math.max(0,deadline-Date.now());
+  el.textContent=left>0?formatCombatGrace(left):"0:00";
+}
 function renderDuel(){
   const d=state.duel;if(!d)return'<div class="page"><div class="empty">No hay duelo activo.</div></div>';
   const phase=PHASES[d.phase]||PHASES[0];
+  const disconnectLeft=Math.max(0,(Number(d.opponentDisconnectDeadlineAt)||0)-Date.now());
+  const disconnectWarning=disconnectLeft>0?`<div class="duel-disconnect-warning"><b>Rival desconectado</b><span>Tiene <strong data-combat-grace-countdown>${formatCombatGrace(disconnectLeft)}</strong> para volver. Si no regresa, pierde la partida.</span></div>`:"";
   return `<div class="duel-page">
+    ${disconnectWarning}
     <div class="duel-top">
       <div class="fighter"><div class="avatar">${initial(state.profile.name)}</div><div><b>${esc(state.profile.name)}</b><div class="muted">PV ${d.playerHp} · Poder ${d.power}/${d.maxPower}</div><div class="hpbar"><span style="width:${clamp(d.playerHp/30*100,0,100)}%"></span></div></div></div>
       <div style="text-align:center"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
@@ -1962,5 +1986,6 @@ document.addEventListener("submit",e=>{
 });
 $("logoutBtn")?.addEventListener("click",logout);
 
+window.setInterval(updateCombatGraceCountdown,1000);
 boot();
 })();
