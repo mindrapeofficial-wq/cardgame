@@ -546,7 +546,7 @@ function renderManual(){
             <div class="reward-card draw"><div class="kicker">Empate PvP</div><strong>+5 oro</strong><span>+8 XP contra rival del mismo nivel</span></div>
             <div class="reward-card loss"><div class="kicker">Derrota PvP</div><strong>0 oro</strong><span>−15 XP contra rival del mismo nivel</span></div>
           </div>
-          <p>La XP se ajusta por diferencia de nivel: victoria entre +20 y +70, empate entre +3 y +20 y derrota entre −5 y −30. El entrenamiento contra IA ofrece recompensas menores y nunca resta XP.</p>
+          <p>La XP se ajusta por diferencia de nivel: victoria entre +20 y +70, empate entre +3 y +20 y derrota entre −5 y −30. El entrenamiento contra IA no concede XP, no modifica el ELO y no registra victorias, empates ni derrotas; una victoria de entrenamiento puede otorgar una pequeña recompensa de oro.</p>
         </div>
       </details>
 
@@ -657,7 +657,7 @@ function renderPlay(){
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento da recompensas pequeñas y nunca resta XP.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
       </section>
     </div>
     <section class="panel reward-panel" style="margin-top:14px">
@@ -1872,13 +1872,14 @@ async function awardTraining(d){
   const payload={rewardKey:d.rewardKey,win:!!d.won,damage:Math.min(30,Math.max(0,d.damageDealt||0)),mode:"training"};
   const oldLevel=playerLevel(),r=await api("award_result",payload,true);
   if(!r.ok){
-    if(r.network){queueReward(payload);toast("La recompensa de XP se sincronizará cuando vuelva la conexión.","bad")}
+    if(r.network){queueReward(payload);toast("La recompensa de entrenamiento se sincronizará cuando vuelva la conexión.","bad")}
     else toast(authErrorMessage(r.error),"bad");
     return;
   }
   applyProfile(r.profile);updateChrome();
   if(playerLevel()>oldLevel){playSound("win");toast("¡Subes a Nivel "+playerLevel()+"! Tus próximos sobres ya pueden incluir cartas de ese nivel.","good")}
-  else toast("+"+r.xpAwarded+" XP"+(r.goldAwarded?" · +"+r.goldAwarded+" oro":""),"good");
+  else if(r.goldAwarded)toast("+"+r.goldAwarded+" oro · entrenamiento sin XP, ELO ni estadísticas PvP","good");
+  else toast("Entrenamiento completado · sin XP, ELO ni estadísticas PvP","good");
   if(state.view==="duel")renderView();
 }
 function finalizeLocalResult(d,result,message){
