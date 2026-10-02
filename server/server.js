@@ -487,6 +487,7 @@ function initDuel(match) {
     availablePower: { a: 0, b: 0 },
     powerPlayed: { a: false, b: false },
     pendingAttack: null,
+    drawOfferBy: null,
     damage: { a: 0, b: 0 },
     rewardSettled: false,
     deckOut: { a: false, b: false },
@@ -544,6 +545,8 @@ function snapshotFor(match, socketId) {
     won: game.gameOver ? (game.winner === "draw" ? null : game.winner === side) : null,
     defending: false,
     attackDeclared: false,
+    drawOfferIncoming: !!(game.drawOfferBy && game.drawOfferBy !== side),
+    drawOfferOutgoing: game.drawOfferBy === side,
     blockAssignments: {},
     damageDealt: game.damage[side],
     opponent: opponent ? publicUser(opponentSocket, opponent) : { name: match.player },
@@ -637,7 +640,33 @@ function handleDuelAction(match, socketId, payload) {
   if (type === "concede") {
     game.gameOver = true;
     game.winner = sideOther(side);
-    gameLog(game, "Un jugador se ha retirado.");
+    game.drawOfferBy = null;
+    gameLog(game, "Un jugador se ha rendido. Su rival gana la partida.");
+    emitDuel(match);
+    return;
+  }
+
+  if (type === "offerDraw") {
+    if (!game.drawOfferBy) {
+      game.drawOfferBy = side;
+      gameLog(game, "Se ha ofrecido un empate por tablas.");
+      emitDuel(match);
+    }
+    return;
+  }
+
+  if (type === "respondDraw") {
+    if (!game.drawOfferBy || game.drawOfferBy === side) return;
+    const accepted = payload && payload.accept === true;
+    if (accepted) {
+      game.gameOver = true;
+      game.winner = "draw";
+      game.drawOfferBy = null;
+      gameLog(game, "La oferta de tablas ha sido aceptada. La partida termina en empate.");
+    } else {
+      game.drawOfferBy = null;
+      gameLog(game, "La oferta de tablas ha sido rechazada. La partida continúa.");
+    }
     emitDuel(match);
     return;
   }
