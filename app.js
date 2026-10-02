@@ -396,11 +396,12 @@ async function requestDuelFullscreen(silent=false){
     duelFullscreenEnteredOnce=true;
     duelFullscreenDeadlineAt=0;
     duelFullscreenForfeitHandled=false;
+    document.body.classList.add("duel-native-fullscreen");
     syncDuelOrientation(true);
     renderView();
     return true;
   }catch{
-    if(!silent)toast("La partida debe jugarse a pantalla completa. Pulsa «Entrar en pantalla completa».","bad");
+    if(!silent)toast("No se pudo activar la pantalla completa.","bad");
     renderView();
     return false;
   }
@@ -1530,14 +1531,14 @@ function renderDuel(){
   const phase=PHASES[d.phase]||PHASES[0];
   const disconnectLeft=Math.max(0,(Number(d.opponentDisconnectDeadlineAt)||0)-Date.now());
   const disconnectWarning=disconnectLeft>0?`<div class="duel-disconnect-warning"><b>Rival desconectado</b><span>Tiene <strong data-combat-grace-countdown>${formatCombatGrace(disconnectLeft)}</strong> para volver. Si no regresa, pierde la partida.</span></div>`:"";
-  const awayLeft=Math.max(0,duelFullscreenDeadlineAt-Date.now());
-  const fullscreenMissing=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver;
-  const fullscreenGate=fullscreenMissing?`<div class="duel-fullscreen-gate ${awayLeft>0?"danger":""}" role="alertdialog" aria-modal="true"><div class="duel-fullscreen-card"><b>${awayLeft>0?"Vuelve a la partida":"Pantalla completa obligatoria"}</b><span>${awayLeft>0?`Has salido de la pantalla de combate. Perderás la partida en <strong data-duel-fullscreen-countdown>${formatCombatGrace(awayLeft)}</strong> si no vuelves.`:"El combate ocupa toda la pantalla para evitar recortes y barras de desplazamiento."}</span><button class="btn primary" data-action="enterDuelFullscreen">Entrar en pantalla completa</button></div></div>`:"";
+  const fullscreenButton=fullscreenApiAvailable()&&!fullscreenElement()&&!d.gameOver
+    ? '<button class="btn icon ghost duel-fullscreen-button" data-action="enterDuelFullscreen" title="Volver a pantalla completa" aria-label="Volver a pantalla completa">⛶</button>'
+    : "";
   return `<div class="duel-page">
     ${disconnectWarning}
-    ${fullscreenGate}
     <div class="duel-top duel-turn-strip">
       <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
+      ${fullscreenButton}
     </div>
     <div class="board">
       <section class="board-zone enemy-zone">
@@ -2197,7 +2198,7 @@ function offerDraw(){
   if(state.connected&&!d.drawOfferIncoming&&!d.drawOfferOutgoing)state.socket.emit("duel:action",{matchId:d.matchId,type:"offerDraw"});
 }
 function respondDraw(accept){const d=state.duel;if(d?.online&&state.connected&&d.drawOfferIncoming){closeModal();state.socket.emit("duel:action",{matchId:d.matchId,type:"respondDraw",accept:!!accept})}}
-function leaveDuel(){state.duel=null;syncDuelFullscreenState(false);go("home")}
+function leaveDuel(){state.duel=null;document.body.classList.remove("duel-native-fullscreen");syncDuelFullscreenState(false);go("home")}
 
 document.addEventListener("click",e=>{
   const authTab=e.target.closest("[data-auth-mode]");
@@ -2285,30 +2286,27 @@ document.addEventListener("keydown",e=>{
   document.body.classList.toggle("duel-log-visible");
 });
 
-document.addEventListener("fullscreenchange",()=>{
+function handleDuelFullscreenChange(){
+  const active=!!fullscreenElement();
+  document.body.classList.toggle("duel-native-fullscreen",active);
   if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
-  if(fullscreenElement()){
+  if(active){
     duelFullscreenEnteredOnce=true;
     clearDuelAwayCountdown();
     syncDuelOrientation(true);
-  }else if(duelFullscreenEnteredOnce){
-    startDuelAwayCountdown("fullscreen");
-  }
-});
-document.addEventListener("webkitfullscreenchange",()=>{
-  if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
-  if(fullscreenElement()){
-    duelFullscreenEnteredOnce=true;
+  }else{
+    // Escape solo cambia a modo web: la partida sigue activa y no cuenta como abandono.
     clearDuelAwayCountdown();
     syncDuelOrientation(true);
-  }else if(duelFullscreenEnteredOnce){
-    startDuelAwayCountdown("fullscreen");
   }
-});
+  renderView();
+}
+document.addEventListener("fullscreenchange",handleDuelFullscreenChange);
+document.addEventListener("webkitfullscreenchange",handleDuelFullscreenChange);
 document.addEventListener("visibilitychange",()=>{
   if(state.view!=="duel"||!state.duel||state.duel.gameOver)return;
   if(document.hidden)startDuelAwayCountdown("hidden");
-  else if(fullscreenElement()||!fullscreenApiAvailable())clearDuelAwayCountdown();
+  else clearDuelAwayCountdown();
 });
 window.addEventListener("beforeunload",e=>{
   if(state.view==="duel"&&state.duel&&!state.duel.gameOver){
