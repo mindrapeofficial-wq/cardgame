@@ -1588,7 +1588,7 @@ function renderPlay(){
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button> <button class="btn ghost" data-action="tutorial">Duelo guiado</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><div class="training-options"><label class="field"><span>Nivel del Guardián</span><select class="select" id="trainingLevel">${trainingLevelOptions()}</select></label><label class="field"><span>Estilo de su mazo</span><select class="select" id="trainingStyle">${trainingStyleOptions()}</select></label></div><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button> <button class="btn ghost" data-action="tutorial">Duelo guiado</button></div>
       </section>
     </div>
     <section class="panel" style="margin-top:14px">
@@ -2912,36 +2912,90 @@ function renderFirstSteps(){
   return`<section class="panel first-steps"><div class="panel-head"><h2>Primeros pasos</h2><span class="pill">${steps.length-left}/${steps.length}</span><button class="btn icon ghost first-steps-close" data-action="firstStepsHide" title="Ocultar" aria-label="Ocultar primeros pasos">×</button></div>
     <div class="panel-body"><ol class="first-steps-list">${steps.map(s=>`<li class="${s.done?"done":""}"><span class="first-step-check" aria-hidden="true">${s.done?"✓":""}</span><span>${s.label}</span>${s.done?"":`<button class="btn small" ${s.action}>${s.cta}</button>`}</li>`).join("")}</ol></div></section>`;
 }
+// ---- Training opponents ----------------------------------------------------------------------
+// The Guardian's level is chosen by the player (1-50). Every training builds a new deck around a
+// style, using cards close to that level, a sensible cost curve, enough Power and at most 3 copies.
+const TRAINING_STYLES={
+  asalto:{name:"Asalto",desc:"agresivo",abilities:.08,score:c=>(Number(c.atk)||0)*2.2-(Number(c.cost)||0)*.35+(c.berserker?4:0)+(Number(c.def)||0)*.3},
+  muro:{name:"Muro",desc:"defensivo",abilities:.1,score:c=>(Number(c.def)||0)*2.2+(c.defender?4:0)+(c.multiDefense?2:0)+(Number(c.atk)||0)*.4},
+  arcano:{name:"Arcano",desc:"de habilidades",abilities:.3,score:c=>c.abilityCard?6:(c.tags&&c.tags.mistica?3:0)+((Number(c.atk)||0)+(Number(c.def)||0))*.7},
+  equilibrado:{name:"Equilibrado",desc:"equilibrado",abilities:.14,score:c=>((Number(c.atk)||0)+(Number(c.def)||0))*1.2+(c.abilityCard?2:0)}
+};
+const trainingPrefs={
+  get:(k,f)=>{try{return localStorage.getItem("arcanum.training."+k)||f}catch{return f}},
+  set:(k,v)=>{try{localStorage.setItem("arcanum.training."+k,v)}catch{}}
+};
+function weightedPick(list,weight){
+  const w=list.map(weight),total=w.reduce((a,b)=>a+b,0);
+  if(!list.length||total<=0)return null;
+  let r=Math.random()*total;
+  for(let i=0;i<list.length;i++){r-=w[i];if(r<=0)return list[i]}
+  return list[list.length-1];
+}
+function buildGuardianDeck(level,size,styleId){
+  const style=TRAINING_STYLES[styleId]||TRAINING_STYLES.equilibrado;
+  const usable=c=>c.level<=level&&!isExclusive(c);
+  // Prefer cards near the Guardian's level so a level-30 deck does not fill up with level-1 cards.
+  const near=c=>Math.exp(-.16*Math.max(0,level-c.level));
+  const counts={},deck=[];
+  const add=c=>{deck.push(c.id);counts[c.id]=(counts[c.id]||0)+1};
+  const free=c=>(counts[c.id]||0)<3;
+  const powers=state.catalog.filter(c=>c.powerCard&&usable(c));
+  const powerTarget=Math.min(MAX_POWER_CARDS,Math.max(MIN_POWER_CARDS,Math.round(size*.38)));
+  for(let i=0;i<powerTarget;i++){
+    // Basic Power has unlimited copies; stronger Power cards are favoured but capped at 3.
+    const c=weightedPick(powers.filter(p=>isBasicPower(p)||free(p)),p=>(isBasicPower(p)?1.2:powerValue(p))*near(p));
+    if(c)add(c);
+  }
+  const abilities=state.catalog.filter(c=>c.abilityCard&&usable(c));
+  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&usable(c));
+  const abilityTarget=abilities.length?Math.round((size-powerTarget)*style.abilities):0;
+  const scoreRange=list=>{const v=list.map(style.score);return[Math.min(...v),Math.max(...v)]};
+  const pickFrom=(list,n)=>{
+    if(!list.length)return;
+    const [lo,hi]=scoreRange(list);
+    for(let i=0;i<n;i++){
+      const c=weightedPick(list.filter(free),x=>{
+        const norm=hi>lo?(style.score(x)-lo)/(hi-lo):.5;
+        // Cost curve: cheap cards are more common so the Guardian can act every turn.
+        const curve=1/(1+Math.max(0,(Number(x.cost)||0)-level*.6)*.08);
+        return Math.exp(norm*2.4)*near(x)*curve;
+      });
+      if(!c)break;add(c);
+    }
+  };
+  pickFrom(abilities,abilityTarget);
+  pickFrom(creatures,size-deck.length);
+  while(deck.length<size){const c=weightedPick(powers,p=>isBasicPower(p)?1:0);if(!c)break;add(c)}
+  return {ids:deck,style};
+}
+function trainingLevelOptions(){
+  const chosen=Number(trainingPrefs.get("level",playerLevel()));
+  return Array.from({length:50},(_,i)=>i+1).map(l=>`<option value="${l}" ${l===chosen?"selected":""}>Nivel ${l}${l===playerLevel()?" (el tuyo)":""}</option>`).join("");
+}
+function trainingStyleOptions(){
+  const chosen=trainingPrefs.get("style","random");
+  return [["random","Estilo al azar"],...Object.entries(TRAINING_STYLES).map(([id,s])=>[id,s.name+" · "+s.desc])].map(([id,n])=>`<option value="${id}" ${id===chosen?"selected":""}>${n}</option>`).join("");
+}
 function training(){
   const size=state.profile.deck.length;
   const playerIds=deckValid()?state.profile.deck.slice():[];
   if(!deckValid()){toast(deckRuleMessage()||"Tu mazo no es válido para entrenar.","bad");go("deck");return}
-  const lvl=playerLevel();
-  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl&&!isExclusive(c));
-  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl&&!isExclusive(c));
-  const abilities=state.catalog.filter(c=>c.abilityCard&&c.level<=lvl&&!isExclusive(c));
-  const enemy=[];
-  const pickStrong=(pool)=>{
-    if(!pool.length)return null;
-    const ranked=[...pool].sort((a,b)=>aiDraftScore(b)-aiDraftScore(a));
-    const top=ranked.slice(0,Math.max(1,Math.ceil(ranked.length*.45)));
-    return top[Math.floor(Math.random()*top.length)];
-  };
-  const powerTarget=Math.min(MAX_POWER_CARDS,Math.max(MIN_POWER_CARDS,Math.round(size*.35)));
-  const abilityTarget=abilities.length?Math.min(size-powerTarget,Math.max(2,Math.round(size*.15))):0;
-  const creatureTarget=size-powerTarget-abilityTarget;
-  for(let i=0;i<powerTarget;i++){const c=pickStrong(powers);if(c)enemy.push(c.id)}
-  for(let i=0;i<abilityTarget;i++){const c=pickStrong(abilities);if(c)enemy.push(c.id)}
-  for(let i=0;i<creatureTarget;i++){const c=pickStrong(creatures.length?creatures:(abilities.length?abilities:powers));if(c)enemy.push(c.id)}
-  while(enemy.length<size){const c=pickStrong([...powers,...abilities,...creatures]);if(!c)break;enemy.push(c.id)}
+  const lvl=Math.max(1,Math.min(50,Number($("trainingLevel")?.value||trainingPrefs.get("level",playerLevel()))||playerLevel()));
+  const styleChoice=$("trainingStyle")?.value||trainingPrefs.get("style","random");
+  trainingPrefs.set("level",String(lvl));trainingPrefs.set("style",styleChoice);
+  const styleId=TRAINING_STYLES[styleChoice]?styleChoice:Object.keys(TRAINING_STYLES)[Math.floor(Math.random()*4)];
+  const guardian=buildGuardianDeck(lvl,Math.max(30,size),styleId);
+  const enemy=guardian.ids;
+  const myLvl=playerLevel();
 
   const playerStarts=Math.random()<.5;
   const startedAt=Date.now();
-  const d={online:false,opponent:"Guardián Nv "+lvl,turn:1,phase:0,playerHp:RULES.startingHp(lvl),enemyHp:RULES.startingHp(lvl),playerMaxHp:RULES.startingHp(lvl),enemyMaxHp:RULES.startingHp(lvl),power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
+  const d={online:false,opponent:"Guardián Nv "+lvl+" · "+guardian.style.name,turn:1,phase:0,playerHp:RULES.startingHp(myLvl),enemyHp:RULES.startingHp(lvl),playerMaxHp:RULES.startingHp(myLvl),enemyMaxHp:RULES.startingHp(lvl),power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
     playerDeck:shuffle(playerIds).map(makeInst),enemyDeck:shuffle(enemy).map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
     playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",pendingAttack:null,defending:false,attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
     gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
-    log:["Entrenamiento iniciado. El jugador inicial se decide al azar."]};
+    log:["Entrenamiento contra un Guardián de Nivel "+lvl+" con un mazo "+guardian.style.name+" ("+guardian.style.desc+"). El jugador inicial se decide al azar."]};
   state.duel=d;
   drawLocal("player",7);drawLocal("enemy",7);
   drawLocal(playerStarts?"enemy":"player",1);

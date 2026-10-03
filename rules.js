@@ -98,6 +98,7 @@
         effect: effect || "",
         // Engine flags already supported by the combat code.
         defender: !!tags.defensora,
+        berserker: !!tags.berserker,
         multiDefense: Number(tags.defensa_multiple) || multi || 0,
         multiAttack: multi
       };
