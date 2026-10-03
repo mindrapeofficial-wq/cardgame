@@ -666,6 +666,7 @@ function go(view){
     toast("Usa el icono de lobby para salir temporalmente del combate.","bad");
     return;
   }
+  if(state.view==="spectate"&&view!=="spectate")stopSpectating();
   closeModal();
   state.view=view;updateChrome();renderView();
   if(view==="deck")void loadDecks();
@@ -681,7 +682,7 @@ function renderView(){
   // Lobby events re-render the whole view; keep the focused field and its caret where they were.
   const active=document.activeElement,focusId=active&&root.contains(active)&&/^(INPUT|TEXTAREA)$/.test(active.tagName)?active.id:"";
   let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
-  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,support:renderSupport,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,support:renderSupport,spectate:renderSpectate,duel:renderDuel};
   const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
@@ -1018,7 +1019,7 @@ function chatChallengeButton(m){
 const ACTIVITY_LIMIT=60;
 function pushActivity(m){
   state.activity=state.activity||[];
-  state.activity.push({text:String(m.text||""),matchId:m.matchId||"",at:Date.now()});
+  state.activity.push({text:String(m.text||""),matchId:m.matchId||"",spectateId:m.spectateId||"",at:Date.now()});
   if(state.activity.length>ACTIVITY_LIMIT)state.activity.splice(0,state.activity.length-ACTIVITY_LIMIT);
 }
 function activityKind(text){
@@ -1032,7 +1033,7 @@ function activityKind(text){
 function renderActivity(){
   const list=state.activity||[];
   if(!list.length)return'<div class="empty">Aún no ha pasado nada en el salón.</div>';
-  return list.slice(-40).reverse().map(m=>`<div class="activity-item ${activityKind(m.text)}"><time>${new Date(m.at).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</time><span>${esc(m.text)}</span>${chatChallengeButton(m)}</div>`).join("");
+  return list.slice(-40).reverse().map(m=>`<div class="activity-item ${activityKind(m.text)}"><time>${new Date(m.at).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</time><span>${esc(m.text)}</span>${chatChallengeButton(m)}${spectateButton(m)}</div>`).join("");
 }
 
 let socialOpen=false;
@@ -1500,6 +1501,67 @@ function announceDailyPack(){
   const today=new Date().toDateString();
   if(p&&p.dailyPackAvailable&&dailyToastShown!==today){dailyToastShown=today;toast("🎁 Tu sobre diario está listo. Ábrelo en Inicio.","good")}
 }
+// ---- Watching matches in progress -----------------------------------------------------------
+// The server sends spectators the public table only (no hands). "Partidas en curso" in Jugar and
+// the activity feed offer an "Observar" button; the live table is a read-only view.
+function liveMatches(){return state.matches.filter(m=>m.status==="playing"&&m.opponent)}
+function renderLiveMatches(){
+  const list=liveMatches();
+  if(!list.length)return'<div class="empty">Ahora mismo no hay partidas en curso.</div>';
+  return list.map(m=>`<div class="match-row live-match"><div class="match-player"><div class="avatar">${initial(m.player)}</div><div><b>${esc(m.player)}</b> <span class="muted">vs</span> <b>${esc(m.opponent)}</b><div class="muted" style="font-size:11px">Turno ${m.turn||1}${m.spectators?" · 👁 "+m.spectators:""}</div></div></div><button class="btn small" data-action="spectate" data-id="${esc(m.id)}">Observar</button></div>`).join("");
+}
+function spectateButton(m){
+  if(!m.spectateId)return"";
+  const live=state.matches.find(x=>x.id===m.spectateId&&x.status==="playing");
+  return live?` <button class="btn small chat-accept" data-action="spectate" data-id="${esc(live.id)}">Observar</button>`:"";
+}
+function spectate(id){
+  if(!state.connected||!id)return;
+  state.spectating=id;state.spectate=null;
+  state.socket.emit("match:spectate",{id});
+  closeModal();
+  go("spectate");
+}
+function stopSpectating(){
+  if(state.spectating&&state.socket)state.socket.emit("match:unspectate",{id:state.spectating});
+  state.spectating="";state.spectate=null;
+}
+function spectateCard(inst,attackerUid){
+  const c=card(inst.cardId);if(!c)return"";
+  const def=Math.max(0,(Number(c.def)||0)+(Number(inst.defBonus)||0));
+  return `<article class="battle-card spectate-card ${inst.exhausted?"exhausted":""} ${inst.uid===attackerUid?"attacking-now":""}" data-detail="${c.id}" title="${esc(c.name)} · Ataque ${c.atk} · Defensa ${def}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div></article>`;
+}
+function renderSpectateSide(side,s,label){
+  const hpPct=clamp(side.hp/(side.maxHp||20)*100,0,100);
+  const active=s.active===label&&!s.gameOver;
+  return `<section class="panel spectate-side ${active?"active":""}">
+    <div class="spectate-head"><div class="avatar">${initial(side.name)}</div><div class="spectate-name"><b>${esc(side.name)}</b><small>${active?"Su turno":"Esperando"}</small></div>
+      <div class="spectate-stats"><span title="Vida">❤ ${side.hp}</span><span title="Poder">⚡ ${side.power}</span><span title="Cartas en mano">✋ ${side.handCount}</span><span title="Cartas en el mazo">▦ ${side.deckCount}</span></div></div>
+    <div class="spectate-hp"><i style="width:${hpPct}%"></i></div>
+    <div class="spectate-board">${side.board.length?side.board.map(c=>spectateCard(c,s.attackerUid)).join(""):'<div class="muted spectate-empty">Sin criaturas en juego</div>'}</div>
+  </section>`;
+}
+function renderSpectate(){
+  const s=state.spectate;
+  if(!s)return'<div class="page"><div class="empty">Conectando con la partida…</div></div>';
+  const winner=s.gameOver?(s.winner==="draw"?"La partida termina en empate":"Gana "+esc(s.sides[s.winner]?.name||"")):"";
+  return `<div class="page spectate-page">
+    <div class="spectate-top"><div><div class="kicker">Partida en directo · Turno ${s.turn} · ${esc(PHASES[s.phase]||"")}</div><h1>${esc(s.sides.a.name)} <span class="muted">vs</span> ${esc(s.sides.b.name)}</h1></div>
+      <div class="actions"><span class="pill">👁 ${s.spectators||1}</span><button class="btn" data-action="stopSpectate">Salir</button></div></div>
+    ${winner?`<div class="spectate-result">${winner}</div>`:""}
+    ${renderSpectateSide(s.sides.b,s,"b")}
+    ${renderSpectateSide(s.sides.a,s,"a")}
+    <section class="panel"><div class="panel-head"><h2>Registro</h2></div><div class="panel-body spectate-log">${(s.log||[]).slice().reverse().map(x=>`<div>${esc(x)}</div>`).join("")}</div></section>
+  </div>`;
+}
+function wireSpectateSocket(socket){
+  socket.on("spectate:snapshot",s=>{
+    if(!s||s.matchId!==state.spectating)return;
+    state.spectate=s;
+    if(state.view==="spectate")renderView();
+  });
+  socket.on("spectate:error",e=>{toast(e?.message||"No se pudo observar la partida.","bad");if(state.view==="spectate"){state.spectating="";go("play")}});
+}
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
   return `<div class="page">
@@ -1519,6 +1581,10 @@ function renderPlay(){
         <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
       </section>
     </div>
+    <section class="panel" style="margin-top:14px">
+      <div class="panel-head"><h2>Partidas en curso</h2><span class="pill">${liveMatches().length} en juego</span></div>
+      <div class="panel-body"><div class="match-list">${renderLiveMatches()}</div></div>
+    </section>
     <section class="panel" style="margin-top:14px">
       <div class="panel-head"><h2>Retos disponibles</h2><span class="pill">${waiting.length} abiertos</span></div>
       <div class="panel-body"><div class="match-list">${renderMatches(waiting)}</div></div>
@@ -2127,6 +2193,7 @@ function connectOnline(){
     socket.on("chat:message",m=>{pushChat({...m});if(state.view==="home")renderView()});
     wireSocialSocket(socket);
     wireVoiceSocket(socket);
+    wireSpectateSocket(socket);
     socket.on("chat:system",m=>{pushActivity(m);if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
@@ -3263,6 +3330,8 @@ document.addEventListener("click",e=>{
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
   else if(a==="socialToggle")toggleSocial();
+  else if(a==="spectate")spectate(el.dataset.id);
+  else if(a==="stopSpectate"){stopSpectating();go("play")}
   else if(a==="claimDaily")claimFreePack("daily");
   else if(a==="claimDiscord")claimFreePack("discord");
   else if(a==="openDiscord")openDiscord();

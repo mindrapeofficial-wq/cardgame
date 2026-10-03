@@ -189,8 +189,47 @@ function publicMatch(match) {
     start: match.start,
     status: match.status,
     hostSocketId: match.hostSocketId,
-    elo: Number(match.elo) || 1000
+    elo: Number(match.elo) || 1000,
+    opponent: match.status === "waiting" ? "" : (match.guestName || ""),
+    turn: match.duel ? match.duel.turn : 0,
+    spectators: match.spectators ? match.spectators.size : 0
   };
+}
+
+// Spectators see the public table only: life, Power, creatures on the board, hand and deck
+// sizes and the log. Hands are never sent, so watching a match cannot be used to cheat.
+function spectatorSnapshot(match) {
+  const game = match.duel;
+  const publicCard = inst => ({ uid: inst.uid, cardId: inst.cardId, exhausted: !!inst.exhausted, defBonus: Number(inst.defBonus) || 0 });
+  const side = s => ({
+    name: sideName(match, s),
+    hp: game.hp[s],
+    maxHp: game.maxHp ? game.maxHp[s] : 20,
+    handCount: game.hand[s].length,
+    deckCount: game.deck[s].length,
+    power: totalPower(game, s),
+    board: game.board[s].map(publicCard)
+  });
+  return {
+    matchId: match.id,
+    turn: game.turn,
+    phase: game.phase,
+    active: game.active,
+    attackerUid: game.pendingAttack ? game.pendingAttack.attackerUid : "",
+    gameOver: !!game.gameOver,
+    winner: game.winner || null,
+    spectators: match.spectators ? match.spectators.size : 0,
+    sides: { a: side("a"), b: side("b") },
+    log: game.log.slice(-12)
+  };
+}
+function emitSpectators(match) {
+  if (match.duel && match.spectators && match.spectators.size) io.to("spec:" + match.id).emit("spectate:snapshot", spectatorSnapshot(match));
+}
+function leaveSpectating(socket, matchId) {
+  const match = matches.get(matchId);
+  socket.leave("spec:" + matchId);
+  if (match && match.spectators && match.spectators.delete(socket.id)) emitMatches();
 }
 function emitMatches() {
   // Private duels (direct challenges) never show up in the public list while they wait.
@@ -755,6 +794,7 @@ function emitDuel(match) {
       match.resultDelivered[side] = true;
     }
   }
+  emitSpectators(match);
   if (match.duel.gameOver) {
     finalizeMatch(match);
     void settleMatchReward(match);
@@ -1382,7 +1422,7 @@ io.on("connection", socket => {
     });
     emitMatches();
     emitDuel(match);
-    io.emit("chat:system", { text: (host ? host.name : match.player) + " ha empezado una partida contra " + user.name + "." });
+    io.emit("chat:system", { text: (host ? host.name : match.player) + " ha empezado una partida contra " + user.name + ".", spectateId: match.id });
   });
 
   socket.on("duel:action", payload => {
@@ -1519,7 +1559,26 @@ io.on("connection", socket => {
     trades.delete(tradeId);
   });
 
+  socket.on("match:spectate", payload => {
+    const mid = cleanText(payload && payload.id, 80);
+    const match = matches.get(mid);
+    if (!users.has(socket.id)) return;
+    if (!match || !match.duel || match.status !== "playing") {
+      socket.emit("spectate:error", { message: "Esa partida ya no está en curso." });
+      return;
+    }
+    if (sideFor(match, socket.id)) return;
+    for (const other of matches.values()) if (other !== match && other.spectators && other.spectators.has(socket.id)) leaveSpectating(socket, other.id);
+    match.spectators = match.spectators || new Set();
+    match.spectators.add(socket.id);
+    socket.join("spec:" + mid);
+    socket.emit("spectate:snapshot", spectatorSnapshot(match));
+    emitMatches();
+  });
+  socket.on("match:unspectate", payload => leaveSpectating(socket, cleanText(payload && payload.id, 80)));
+
   socket.on("disconnect", () => {
+    for (const match of matches.values()) if (match.spectators && match.spectators.delete(socket.id)) emitMatches();
     const user = users.get(socket.id);
     for (const invite of [...duelInvites.values()]) {
       if (invite.from === socket.id || invite.to === socket.id) dropInvite(invite, "duel:inviteExpired", { name: user ? user.name : "" });
