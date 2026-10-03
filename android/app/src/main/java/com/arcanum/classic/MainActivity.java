@@ -2,7 +2,9 @@ package com.arcanum.classic;
 
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ActivityInfo;
 import android.graphics.Color;
 import android.net.Uri;
@@ -14,6 +16,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
@@ -34,6 +37,8 @@ public class MainActivity extends Activity {
     private View loadingView;
     private boolean combatMode;
     private PlayBilling billing;
+    private static final int MIC_PERMISSION_REQUEST = 4101;
+    private PermissionRequest pendingMicRequest;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -99,14 +104,40 @@ public class MainActivity extends Activity {
             s.setSupportZoom(false);
             s.setBuiltInZoomControls(false);
             s.setDisplayZoomControls(false);
-            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.7 GooglePlay");
+            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.8 GooglePlay");
 
             CookieManager cookies = CookieManager.getInstance();
             cookies.setAcceptCookie(true);
             cookies.setAcceptThirdPartyCookies(webView, false);
 
             webView.addJavascriptInterface(new AndroidBridge(), "ArcanumAndroid");
-            webView.setWebChromeClient(new WebChromeClient());
+            webView.setWebChromeClient(new WebChromeClient() {
+                // Voice chat: the game page may use the microphone after the player allows it in
+                // Android. Any other page or resource is refused.
+                @Override
+                public void onPermissionRequest(final PermissionRequest request) {
+                    boolean audioOnly = request.getResources().length == 1 &&
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(request.getResources()[0]);
+                    Uri origin = request.getOrigin();
+                    if (!audioOnly || origin == null || !"https".equalsIgnoreCase(origin.getScheme()) ||
+                            !GAME_HOST.equalsIgnoreCase(origin.getHost())) {
+                        request.deny();
+                        return;
+                    }
+                    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(request.getResources());
+                        return;
+                    }
+                    if (pendingMicRequest != null) pendingMicRequest.deny();
+                    pendingMicRequest = request;
+                    requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_PERMISSION_REQUEST);
+                }
+
+                @Override
+                public void onPermissionRequestCanceled(PermissionRequest request) {
+                    if (request == pendingMicRequest) pendingMicRequest = null;
+                }
+            });
             webView.setWebViewClient(new WebViewClient() {
                 @Override
                 public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -225,7 +256,7 @@ public class MainActivity extends Activity {
                 "overflow-x:hidden!important;overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}" +
                 "#appShell{width:100%!important;max-width:none!important;min-height:100dvh!important;}" +
                 "main{width:100%!important;min-width:0!important;}input,select,textarea{font-size:16px!important;}" +
-                "button,input,select,textarea{touch-action:manipulation;}.duel-mode .duel-top-actions{display:none!important;}" +
+                "button,input,select,textarea{touch-action:manipulation;}" +
                 "table{max-width:100%;}.arc-modal{max-height:calc(100dvh - 1rem)!important;}';" +
                 "var shell=document.getElementById('appShell');" +
                 "var sync=function(){var active=!!(shell&&shell.classList.contains('duel-mode'));" +
@@ -325,6 +356,16 @@ public class MainActivity extends Activity {
         if (webView == null || webView.getUrl() == null) return false;
         Uri current = Uri.parse(webView.getUrl());
         return "https".equalsIgnoreCase(current.getScheme()) && GAME_HOST.equalsIgnoreCase(current.getHost());
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode != MIC_PERMISSION_REQUEST || pendingMicRequest == null) return;
+        PermissionRequest request = pendingMicRequest;
+        pendingMicRequest = null;
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) request.grant(request.getResources());
+        else request.deny();
     }
 
     @Override

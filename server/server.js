@@ -1153,6 +1153,16 @@ setInterval(() => {
     .catch(() => console.warn("Play purchase reconciliation connection unavailable"));
 }, 10 * 60 * 1000).unref();
 
+// Push notifications (opt-in, Android): rolplay-api keeps the outbox; this server queues duel
+// challenges and drains the outbox (friend requests, daily pack reminders) every two minutes.
+function pushApi(body) {
+  if (!ROLPLAY_SERVER_KEY) return;
+  void fetch(ROLPLAY_API_URL, { method: "POST", headers: SETTLEMENT_HEADERS, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) })
+    .then(r => { if (!r.ok && r.status !== 503) console.warn("push " + body.action + " failed: " + r.status); })
+    .catch(() => {});
+}
+setInterval(() => pushApi({ action: "notifications_process" }), 2 * 60 * 1000).unref();
+
 io.on("connection", socket => {
   socket.on("hello", async payload => {
     const sessionToken = String(payload && payload.sessionToken || "");
@@ -1304,6 +1314,7 @@ io.on("connection", socket => {
     duelInvites.set(invite.id, invite);
     io.to(to).emit("duel:invited", { inviteId: invite.id, from: publicUser(socket.id, user), expiresInMs: DUEL_INVITE_TTL_MS });
     socket.emit("duel:inviteSent", { inviteId: invite.id, name: target.name });
+    if (!target.isBot && !user.isBot) pushApi({ action: "notification_challenge", from: user.accountId, to: target.accountId, inviteId: invite.id });
   });
 
   // Voice chat: WebRTC signalling and microphone state are relayed to the other player of the
