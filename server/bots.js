@@ -8,6 +8,7 @@
 // Enabled with BOTS_ENABLED=1. Optional: BOTS_MIN / BOTS_MAX (online population range).
 
 const { io: connect } = require("socket.io-client");
+const { createBotChat } = require("./bot-chat.js");
 
 const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
@@ -56,6 +57,8 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
   let lastChatAt = 0;
   let lobbyMatches = [];
   let botSockets = new Set();
+  const chat = createBotChat({ log });
+  const replyCooldown = new Map(); // player name -> last time a bot answered them
 
   async function api(action, body = {}, session = "") {
     const headers = { "content-type": "application/json" };
@@ -151,6 +154,8 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
       });
       socket.on("duel:snapshot", s => this.onSnapshot(s));
       socket.on("profile:update", u => { if (u && u.profile) this.profile = u.profile; });
+      socket.on("chat:message", m => onChannel(m, false));
+      socket.on("chat:system", m => onChannel(m, true));
       socket.on("trade:invited", t => {
         // Bots do not trade; decline after a short, human-looking pause.
         setTimeout(() => socket.emit("trade:cancel", { tradeId: t.tradeId }), rand(3, 9) * 1000 * this.p.speed);
@@ -488,6 +493,52 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
     }
   }
 
+  // ---- Channel chatter ---------------------------------------------------------------------
+  const lobbyBots = () => [...bots.values()].filter(b => b.socket && (b.state === "lobby" || b.state === "waiting"));
+  function onChannel(message, system) {
+    if (!message) return;
+    const fromBot = !system && bots.has(String(message.from || ""));
+    const entry = chat.observe({ ...message, system }, fromBot);
+    if (!entry || system || fromBot) return;
+    maybeAnswer(entry).catch(e => log("[bots] reply: " + e.message));
+  }
+  // A real player wrote in the channel: sometimes a bot answers, always when one is named.
+  async function maybeAnswer(entry) {
+    if (!chat.enabled()) return;
+    const text = entry.text.toLowerCase();
+    const online = lobbyBots();
+    if (!online.length) return;
+    const named = online.find(b => text.includes(b.name.toLowerCase()));
+    const inviting = /\?|hola|buenas|alguien|juega|reto|duelo|carta|sobre|mazo|nivel|elo|bot|\bia\b/.test(text);
+    if (!named) {
+      if (Date.now() - (replyCooldown.get(entry.from) || 0) < 45 * 1000) return;
+      if (!chance(inviting ? 0.65 : 0.2)) return;
+    }
+    const bot = named || pick(online);
+    replyCooldown.set(entry.from, Date.now());
+    const answer = await chat.reply(bot, entry.from, entry.text);
+    if (answer && bot.socket) bot.say(answer, rand(3, 7) + Math.min(8, answer.length * 0.06));
+  }
+  // Every few minutes two or three bots in the lobby talk among themselves.
+  async function sceneTick() {
+    try {
+      const online = lobbyBots();
+      if (chat.enabled() && online.length >= 2 && Date.now() - lastChatAt > 60 * 1000) {
+        const cast = online.sort(() => Math.random() - 0.5).slice(0, chance(0.35) ? 3 : 2);
+        const lines = await chat.scene(cast);
+        let at = rand(1, 4);
+        for (const line of lines) {
+          const bot = bots.get(line.name);
+          if (bot && bot.socket) bot.say(line.text, at);
+          at += rand(5, 16) + line.text.length * 0.05;
+        }
+      }
+    } catch (e) {
+      log("[bots] scene: " + e.message);
+    }
+    setTimeout(sceneTick, rand(3, 8) * 60 * 1000);
+  }
+
   // ---- Population ------------------------------------------------------------------------
   function madridHour() {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", hour: "numeric", hourCycle: "h23" }).formatToParts(new Date());
@@ -525,6 +576,9 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
     log("[bots] " + bots.size + " simulated players, " + minOnline + "-" + maxOnline + " online");
     setInterval(refreshRoster, 30 * 60 * 1000);
     setTimeout(populationTick, rand(10, 30) * 1000);
+    setTimeout(sceneTick, rand(2, 4) * 60 * 1000);
+    setInterval(() => { const st = chat.stats(); log("[bots] chat llm today: " + st.requests + " requests, " + st.tokens + " tokens, " + st.failures + " failures" + (st.paused ? ", paused" : "")); }, 60 * 60 * 1000);
+    log("[bots] channel chatter " + (chat.enabled() ? "on (Groq)" : "off (no GROQ_API_KEY)"));
     // Free Render instances sleep after 15 idle minutes; the simulated players must stay up.
     if (publicUrl) setInterval(() => { fetch(publicUrl + "/health").catch(() => {}); }, 10 * 60 * 1000);
   })();
