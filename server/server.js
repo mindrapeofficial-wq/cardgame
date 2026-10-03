@@ -1299,7 +1299,7 @@ io.on("connection", socket => {
     const invite = duelInvites.get(cleanText(payload && payload.inviteId, 80));
     if (!invite || invite.to !== socket.id || invite.accepted) return;
     const user = users.get(socket.id);
-    if (payload && payload.accept === true && users.has(invite.from)) {
+    if (payload && payload.accept === true && users.has(invite.from) && !mutuallyBlocked(user, users.get(invite.from))) {
       invite.accepted = true;
       io.to(invite.from).emit("duel:inviteAccepted", { inviteId: invite.id, name: user ? user.name : "" });
     } else {

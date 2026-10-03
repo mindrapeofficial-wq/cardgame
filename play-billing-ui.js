@@ -11,10 +11,10 @@ window.ARCANUM_PLAY=(()=>{
     return result;
   }
   function restore(){if(ctx?.state.profile&&!ctx.state.profile.suspended&&available())bridge().restorePlayPurchases()}
-  async function purchase(tier){
+  async function purchase(tier,guardianAuthorized=false){
     if(!available()){ctx.toast("Actualiza la app para utilizar las compras de Google Play.","bad");return}
     const productId="arcanum_"+tier;
-    const prepared=await ctx.api("play_prepare_purchase",{productId});
+    const prepared=await ctx.api("play_prepare_purchase",{productId,guardianAuthorized});
     if(!prepared.ok){ctx.toast(prepared.error==="tier_closed"?"Esta opción ya no está disponible.":"Las compras de Google Play aún no están disponibles.","bad");return}
     bridge().purchasePlayProduct(productId,prepared.accountHash);
   }

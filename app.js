@@ -1380,6 +1380,7 @@ function renderSupport(){
       ${s.testMode?'<p class="support-test">Modo de prueba: los pagos no son reales. Usa la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</p>':""}
       ${!s.configured?`<p class="support-test">${s.needsUpdate?"Actualiza la app para utilizar las compras de Google Play.":"Los pagos aún no están activados."}</p>`:""}
       ${IS_PLAY_CLIENT?'<p>Las compras se realizan mediante Google Play. Son pagos únicos, sin renovación automática.</p><button type="button" class="btn" data-play-restore>Comprobar mis compras</button>':""}
+      ${state.profile.ageGroup==="16-17"?'<label class="legal-check"><input type="checkbox" id="purchaseGuardian">Cuento con autorización de mi representante legal para realizar esta compra.</label>':""}
       ${mine?`<p>Tu nivel actual: ${supporterBadge(mine)} <b>${SUPPORT_TIERS[mine].name}</b>. ¡Gracias!</p>`:""}
     </div></section>
     <div class="support-grid">${cards}</div>
@@ -1389,10 +1390,12 @@ function renderSupport(){
   </div>`;
 }
 async function supportCheckout(tier){
-  if(IS_PLAY_CLIENT){await ARCANUM_PLAY.purchase(tier);return}
+  const guardianAuthorized=state.profile.ageGroup==="16-17"?!!$("purchaseGuardian")?.checked:false;
+  if(state.profile.ageGroup==="16-17"&&!guardianAuthorized){toast("Necesitas autorización de tu representante legal para comprar.","bad");return}
+  if(IS_PLAY_CLIENT){await ARCANUM_PLAY.purchase(tier,guardianAuthorized);return}
   const adult=tier==="leyenda"?!!$("supportAdult")?.checked:false;
   if(tier==="leyenda"&&!adult){toast("Para Leyenda tienes que confirmar que eres mayor de 18 años.","bad");return}
-  const r=await api("support_checkout",{tier,adult});
+  const r=await api("support_checkout",{tier,adult,guardianAuthorized});
   if(!r.ok){
     toast(r.error==="tier_closed"?"Ese nivel ya no está disponible.":r.error==="tier_sold_out"?"No quedan plazas de Leyenda.":r.error==="payments_not_configured"?"Los pagos aún no están activados.":"No se pudo iniciar el pago. Inténtalo de nuevo.","bad");
     return;

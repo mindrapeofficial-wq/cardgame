@@ -1,6 +1,6 @@
 export const PLAY_PACKAGE = "com.arcanum.classic";
 export const PLAY_PRODUCTS: Record<string,string> = {
-  arcanum_apoyador:"apoyador", arcanum_fundador:"fundador", arcanum_mecenas:"mecenas", arcanum_leyenda:"leyenda",
+  arcanum_apoyador:"apoyador", arcanum_fundador:"fundador", arcanum_mecenas:"mecenas",
 };
 export async function playAccountId(id: string) {
   const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode("arcanum-account:"+id));
@@ -59,6 +59,7 @@ export async function playBillingAction(action:string,body:any,ctx:any){
   const product=String(body.productId||"");
   if(!PLAY_PRODUCTS[product])return fail("product_invalid");
   if(action==="play_prepare_purchase"){
+    if(auth.account.age_group==="16-17"&&body.guardianAuthorized!==true)return fail("guardian_authorization_required",403);
     // Leyenda has scarce handmade rewards shared with web sales. It remains unavailable
     // on Play until stock reservation and guaranteed delivery are configured.
     if(product==="arcanum_leyenda")return fail("product_unavailable",409);

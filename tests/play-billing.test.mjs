@@ -22,4 +22,11 @@ test('Unconfigured billing fails closed without grants or external requests',asy
   assert.deepEqual(await playBillingAction('play_prepare_purchase',{productId:'arcanum_apoyador'},ctx),{error:'play_not_configured',status:503});
   assert.equal(granted,false);
 });
+test('Minor purchases require guardian authorization before opening a paid flow',async()=>{
+  globalThis.Deno={env:{get:name=>name==='PLAY_BILLING_ENABLED'?'true':name==='GOOGLE_PLAY_SERVICE_ACCOUNT_JSON'?'{}':undefined}};
+  const ctx={auth:{account:{id:'owner',terms_version:'2026-10-03',age_group:'16-17'}},founderOpen:()=>true,fail:(error,status=400)=>({error,status}),json:body=>body};
+  assert.deepEqual(await playBillingAction('play_prepare_purchase',{productId:'arcanum_apoyador'},ctx),{error:'guardian_authorization_required',status:403});
+  assert.equal((await playBillingAction('play_prepare_purchase',{productId:'arcanum_apoyador',guardianAuthorized:true},ctx)).ok,true);
+  assert.equal((await playBillingAction('play_prepare_purchase',{productId:'arcanum_leyenda',guardianAuthorized:true},ctx)).error,'product_invalid');
+});
 

@@ -951,6 +951,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "support_checkout") {
       if (isPlayClient(req)) return fail("play_checkout_unavailable", 403);
+      if (auth.account.age_group === "16-17" && body.guardianAuthorized !== true) return fail("guardian_authorization_required", 403);
       const tierId = String(body.tier || "");
       const tier = SUPPORT_TIERS[tierId];
       if (!tier) return fail("tier_invalid");
@@ -958,7 +959,7 @@ Deno.serve(async (req: Request) => {
       if (!key) return fail("payments_not_configured", 503);
       if (tierId === "fundador" && !founderOpen()) return fail("tier_closed");
       if (tierId === "leyenda") {
-        if (body.adult !== true) return fail("adult_required");
+        if (body.adult !== true || auth.account.age_group !== "18+") return fail("adult_required");
         if (await leyendaTaken() >= LEYENDA_SPOTS) return fail("tier_sold_out");
       }
       const form = new URLSearchParams({
