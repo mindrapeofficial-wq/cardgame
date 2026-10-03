@@ -6,6 +6,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
+const { mutuallyBlocked, canUseCommunity } = require("./community-safety");
 const { SyntheticPopulation } = require("./synthetic-population");
 const { version: SERVER_VERSION } = require("./package.json");
 
@@ -1095,11 +1096,28 @@ app.get("/synthetic/state", (req, res) => {
   return res.json({ ok: true, ...syntheticPopulation.state() });
 });
 
+// Refresh sessions and blocks even when a client does not cooperate. A transient API
+// failure fails closed; clients may reconnect once service is restored.
+setInterval(async () => {
+  await Promise.allSettled([...users].map(async ([sid,user]) => {
+    const profile = await profileFromSession(user.sessionToken);
+    if (!profile || !canUseCommunity(profile)) { io.sockets.sockets.get(sid)?.disconnect(true); return; }
+    user.blocks = profile.blocks || [];
+  }));
+}, 30000).unref();
+
+setInterval(() => {
+  if (!ROLPLAY_SERVER_KEY) return;
+  void fetch(ROLPLAY_API_URL, {method:"POST",headers:SETTLEMENT_HEADERS,body:JSON.stringify({action:"play_reconcile"})})
+    .then(r => { if(!r.ok) console.warn("Play purchase reconciliation temporarily unavailable"); })
+    .catch(() => console.warn("Play purchase reconciliation connection unavailable"));
+}, 10 * 60 * 1000).unref();
+
 io.on("connection", socket => {
   socket.on("hello", async payload => {
     const sessionToken = String(payload && payload.sessionToken || "");
     const profile = await profileFromSession(sessionToken);
-    if (!profile) {
+    if (!profile || !canUseCommunity(profile)) {
       socket.emit("auth:error", { message: "Sesión inválida o caducada." });
       socket.disconnect(true);
       return;
@@ -1107,6 +1125,8 @@ io.on("connection", socket => {
     const user = {
       accountId: profile.id,
       sessionToken,
+      blocks: profile.blocks || [],
+      isBot: !!profile.isBot,
       name: cleanName(profile.name),
       level: Math.max(1, Math.min(50, Number(profile.level) || 1)),
       wins: Math.max(0, Number(profile.wins) || 0),
@@ -1132,7 +1152,8 @@ io.on("connection", socket => {
     const user = users.get(socket.id);
     if (!user || !user.sessionToken) return;
     const profile = await profileFromSession(user.sessionToken);
-    if (!profile) return;
+    if (!profile || !canUseCommunity(profile)) { socket.disconnect(true); return; }
+    user.blocks = profile.blocks || [];
     user.name = cleanName(profile.name);
     user.level = Math.max(1, Math.min(50, Number(profile.level) || 1));
     user.wins = Math.max(0, Number(profile.wins) || 0);
@@ -1154,7 +1175,10 @@ io.on("connection", socket => {
     if (!user) return;
     const text = cleanText(payload && payload.text);
     if (!text) return;
-    io.emit("chat:message", { id: id("msg"), from: user.name, socketId: socket.id, tier: user.supporterTier || null, text, at: Date.now() });
+    if (Date.now() - (user.lastChatAt || 0) < 1000) return;
+    user.lastChatAt = Date.now();
+    const message = { id: id("msg"), from: user.name, accountId: user.accountId, socketId: socket.id, tier: user.supporterTier || null, text, at: Date.now() };
+    for (const [sid, recipient] of users) if (!mutuallyBlocked(user, recipient)) io.to(sid).emit("chat:message", message);
   });
 
   socket.on("match:create", async payload => {
@@ -1227,6 +1251,7 @@ io.on("connection", socket => {
     const to = cleanText(payload && payload.to, 100);
     const target = users.get(to);
     if (!user || !target || to === socket.id || String(target.accountId) === String(user.accountId)) return;
+    if (mutuallyBlocked(user, target)) return;
     if (target.status === "En combate") {
       socket.emit("duel:inviteDeclined", { name: target.name, reason: "busy" });
       return;
@@ -1249,6 +1274,7 @@ io.on("connection", socket => {
     if (!side || !match.duel || match.duel.gameOver) return;
     const other = socketForSide(match, sideOther(side));
     const body = build(payload);
+    if (mutuallyBlocked(users.get(socket.id), users.get(other))) return;
     if (other && body) io.to(other).emit(event, { matchId: match.id, ...body });
   };
   socket.on("voice:signal", voiceRelay("voice:signal", p => {
@@ -1265,7 +1291,7 @@ io.on("connection", socket => {
     const kind = payload && payload.kind === "accepted" ? "accepted" : "request";
     if (!user || !name) return;
     for (const [sid, other] of users.entries()) {
-      if (other.name === name && sid !== socket.id) io.to(sid).emit("friend:changed", { from: user.name, kind });
+      if (other.name === name && sid !== socket.id && !mutuallyBlocked(user, other)) io.to(sid).emit("friend:changed", { from: user.name, kind });
     }
   });
 
@@ -1273,7 +1299,7 @@ io.on("connection", socket => {
     const invite = duelInvites.get(cleanText(payload && payload.inviteId, 80));
     if (!invite || invite.to !== socket.id || invite.accepted) return;
     const user = users.get(socket.id);
-    if (payload && payload.accept === true && users.has(invite.from)) {
+    if (payload && payload.accept === true && users.has(invite.from) && !mutuallyBlocked(user, users.get(invite.from))) {
       invite.accepted = true;
       io.to(invite.from).emit("duel:inviteAccepted", { inviteId: invite.id, name: user ? user.name : "" });
     } else {
@@ -1409,7 +1435,7 @@ io.on("connection", socket => {
     const user = users.get(socket.id);
     const to = cleanText(payload && payload.to, 100);
     if (!user || !users.has(to) || to === socket.id) return;
-    if (users.get(to).accountId === user.accountId) return;
+    if (users.get(to).accountId === user.accountId || mutuallyBlocked(user, users.get(to))) return;
     const involves = sid => [...trades.values()].filter(t => t.a === sid || t.b === sid);
     if (involves(to).length) {
       socket.emit("trade:busy", { to, message: "Ese jugador ya está en otro intercambio." });
@@ -1545,3 +1571,4 @@ httpServer.listen(PORT, "0.0.0.0", () => {
     });
   }
 });
+

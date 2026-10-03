@@ -1,0 +1,71 @@
+name: Build ARCANUM Google Play bundle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/arcanum-play-publication]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-play-bundle.yml'
+  pull_request:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-play-bundle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Node 24
+        uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Community and purchase security tests
+        run: node --test --experimental-strip-types tests/*.test.mjs
+
+      - name: Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Check preinstalled Android SDK
+        shell: bash
+        run: |
+          test -f "$ANDROID_HOME/platforms/android-36/android.jar"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+
+      - name: Build release bundle and run Android lint
+        working-directory: android
+        run: gradle :app:bundleRelease :app:lintRelease --stacktrace
+
+      - name: Upload unsigned release bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARCANUM-TCG-1.2.7-unsigned-bundle
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARCANUM-TCG-1.2.7-lint
+          path: android/app/build/reports/lint-results-release.*
+          if-no-files-found: ignore
+          retention-days: 30
+

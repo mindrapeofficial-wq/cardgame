@@ -2,16 +2,21 @@ plugins {
     id 'com.android.application'
 }
 
+dependencies {
+    implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
+    implementation 'com.android.billingclient:billing:9.1.0'
+}
+
 android {
     namespace 'com.arcanum.classic'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId 'com.arcanum.classic'
         minSdk 26
-        targetSdk 35
-        versionCode 10
-        versionName '1.2.5'
+        targetSdk 36
+        versionCode 12
+        versionName '1.2.7'
     }
 
     buildTypes {
@@ -29,3 +34,4 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 }
+

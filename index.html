@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="modern.css?v=20261002-mobile-lobby-v2">
   <link rel="stylesheet" href="theme.css?v=20261003-rewards-v1">
+  <link rel="stylesheet" href="legal.css?v=20261003-privacy-v1">
 </head>
 <body>
   <div class="app-bg"></div>
@@ -47,8 +48,14 @@
           <div class="field"><label>Usuario</label><input id="loginName" class="input" maxlength="20" placeholder="Tu usuario" autocomplete="username"></div>
           <div class="field"><label>Contraseña</label><input id="loginPassword" class="input" type="password" minlength="8" maxlength="128" placeholder="Mínimo 8 caracteres" autocomplete="current-password"></div>
           <div id="confirmField" class="field hidden"><label>Repite la contraseña</label><input id="loginConfirm" class="input" type="password" minlength="8" maxlength="128" placeholder="Repite la contraseña" autocomplete="new-password"></div>
+          <div id="registerLegal" class="field hidden">
+            <label for="registerAge">Tu grupo de edad</label>
+            <select id="registerAge" class="input"><option value="">Selecciona tu grupo</option><option value="under16">Menos de 16 años</option><option value="16-17">16–17 años</option><option value="18+">18 años o más</option></select>
+            <label class="legal-check"><input id="registerTerms" type="checkbox"><span>Acepto los <a href="terminos.html" target="_blank" rel="noopener">términos y normas de la comunidad</a>. He leído la <a href="privacidad.html" target="_blank" rel="noopener">política de privacidad</a>.</span></label>
+          </div>
           <button id="authSubmit" class="btn primary" type="submit">Iniciar sesión</button>
         </form>
+        <nav class="legal-links" aria-label="Información legal"><a href="privacidad.html">Privacidad</a><a href="terminos.html">Términos</a><a href="aviso-legal.html">Aviso legal</a><a href="eliminar-cuenta.html">Eliminar cuenta</a><a href="mailto:mindrapeofficial@gmail.com">Asistencia</a></nav>
       </div>
     </div>
   </section>
@@ -102,8 +109,11 @@
   </div>
 
   <div id="modalRoot"></div>
+  <div id="privacyRoot"></div>
   <div id="toasts" class="toast-stack"></div>
   <script src="rules.js?v=20261003-rules-v4"></script>
-  <script src="app.js?v=20261003-rewards-v1"></script>
+  <script src="privacy-ui.js?v=20261003-privacy-v1"></script>
+  <script src="play-billing-ui.js?v=20261003-privacy-v1"></script>
+  <script src="app.js?v=20261003-privacy-v1"></script>
 </body>
 </html>

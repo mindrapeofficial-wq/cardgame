@@ -33,6 +33,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private View loadingView;
     private boolean combatMode;
+    private PlayBilling billing;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +43,11 @@ public class MainActivity extends Activity {
         setContentView(root);
         showLoading();
         createWebView(savedInstanceState);
+        billing = new PlayBilling(this, event -> runOnUiThread(() -> {
+            if (webView == null || !trustedGamePage()) return;
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('arcanum:billing',{detail:"
+                    + event.toString() + "}));", null);
+        }));
     }
 
     private void showLoading() {
@@ -93,11 +99,11 @@ public class MainActivity extends Activity {
             s.setSupportZoom(false);
             s.setBuiltInZoomControls(false);
             s.setDisplayZoomControls(false);
-            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.3");
+            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.7 GooglePlay");
 
             CookieManager cookies = CookieManager.getInstance();
             cookies.setAcceptCookie(true);
-            cookies.setAcceptThirdPartyCookies(webView, true);
+            cookies.setAcceptThirdPartyCookies(webView, false);
 
             webView.addJavascriptInterface(new AndroidBridge(), "ArcanumAndroid");
             webView.setWebChromeClient(new WebChromeClient());
@@ -107,10 +113,13 @@ public class MainActivity extends Activity {
                     Uri uri = request.getUrl();
                     String scheme = uri.getScheme();
                     String host = uri.getHost();
+                    // Purchases are not enabled in this Play edition. Legal/support links remain usable.
+                    if (host != null && (host.equalsIgnoreCase("checkout.stripe.com") ||
+                            host.equalsIgnoreCase("buy.stripe.com"))) return true;
 
                     if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
                         if (host != null &&
-                                (GAME_HOST.equalsIgnoreCase(host) || host.endsWith(".onrender.com"))) {
+                                (GAME_HOST.equalsIgnoreCase(host) || "arcanumgames.es".equalsIgnoreCase(host))) {
                             return false;
                         }
                         openExternal(uri);
@@ -297,6 +306,25 @@ public class MainActivity extends Activity {
         public void setCombatMode(final boolean active) {
             runOnUiThread(() -> MainActivity.this.setCombatMode(active));
         }
+
+        @JavascriptInterface
+        public void loadPlayProducts() {
+            runOnUiThread(() -> { if (billing != null && trustedGamePage()) billing.loadProducts(); });
+        }
+        @JavascriptInterface
+        public void purchasePlayProduct(final String productId, final String accountHash) {
+            runOnUiThread(() -> { if (billing != null && trustedGamePage()) billing.purchase(productId, accountHash); });
+        }
+        @JavascriptInterface
+        public void restorePlayPurchases() {
+            runOnUiThread(() -> { if (billing != null && trustedGamePage()) billing.restore(); });
+        }
+    }
+
+    private boolean trustedGamePage() {
+        if (webView == null || webView.getUrl() == null) return false;
+        Uri current = Uri.parse(webView.getUrl());
+        return "https".equalsIgnoreCase(current.getScheme()) && GAME_HOST.equalsIgnoreCase(current.getHost());
     }
 
     @Override
@@ -335,6 +363,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (billing != null) { billing.close(); billing = null; }
         if (webView != null) {
             root.removeView(webView);
             webView.stopLoading();
@@ -345,3 +374,4 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 }
+
