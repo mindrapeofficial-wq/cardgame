@@ -284,3 +284,4 @@ Poder Mental x 11;99;2;49;amulet;;;40;20;;;x3G.Pod, x6G.Cri
 Tentaculo;100;2;49;creature;10;85;35;;;defensora,mistica;10⚡ +3A
 Keatahn;100;2;50;creature;0;15;0;;;defensora,mistica;20⚡ +3A
 Poder x 20;100;2;50;power;;;0;;20;;
+Yeimis;100;1;1;creature;0;1;0;;;descarte_rival=1,legendaria,exclusiva;Al inicio de tu fase de Habilidades, el rival descarta la carta superior de su mazo. Si su mazo está vacío, no ocurre nada.

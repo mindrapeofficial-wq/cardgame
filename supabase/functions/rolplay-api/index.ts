@@ -1129,7 +1129,8 @@ Deno.serve(async (req: Request) => {
       const { data: eligible, error } = await db
         .from("rolplay_cards")
         .select("id,name,level,rarity,rarity_tier,level_one_drop_pct,gameplay_score,is_power,is_ability")
-        .lte("level", packLevel);
+        .lte("level", packLevel)
+        .eq("exclusive", false); // exclusive rewards (Yeimis) never come from packs
       if (error) throw error;
       const pool = (eligible || []).filter((c: any) => !(c.is_power && c.level === 1));
       if (!pool.length) return fail("no_cards_for_level");
@@ -1152,7 +1153,8 @@ Deno.serve(async (req: Request) => {
       const { data: eligible, error } = await db
         .from("rolplay_cards")
         .select("id,name,level,rarity,rarity_tier,level_one_drop_pct,gameplay_score,is_power,is_ability")
-        .lte("level", packLevel);
+        .lte("level", packLevel)
+        .eq("exclusive", false); // exclusive rewards (Yeimis) never come from packs
       if (error) throw error;
       const pool = (eligible || []).filter((c: any) => !(c.is_power && c.level === 1));
       if (!pool.length) return fail("no_cards_for_level");
@@ -1195,7 +1197,8 @@ Deno.serve(async (req: Request) => {
       const { data: eligible, error } = await db
         .from("rolplay_cards")
         .select("id,name,level,rarity,rarity_tier,level_one_drop_pct,gameplay_score,is_power,is_ability")
-        .lte("level", packLevel);
+        .lte("level", packLevel)
+        .eq("exclusive", false); // exclusive rewards (Yeimis) never come from packs
       if (error) throw error;
       const pool = (eligible || []).filter((c: any) => !(c.is_power && c.level === 1));
       if (!pool.length) return fail("no_cards_for_level");
@@ -1219,11 +1222,12 @@ Deno.serve(async (req: Request) => {
       const cardId = Number(body.cardId);
       const { data: c, error: ce } = await db
         .from("rolplay_cards")
-        .select("id,level,rarity,is_power")
+        .select("id,level,rarity,is_power,exclusive")
         .eq("id", cardId)
         .single();
       if (ce || !c) return fail("card_not_found");
       if (c.is_power && c.level === 1) return fail("basic_power_is_infinite");
+      if (c.exclusive) return fail("card_not_tradeable");
       const baseValue = Math.max(1, Math.round(c.level / 2) + Math.round(c.rarity / 20));
       const value = Math.max(1, Math.floor(baseValue / 2));
       const { data, error } = await db.rpc("rolplay_sell_card", {

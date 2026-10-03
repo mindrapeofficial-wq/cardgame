@@ -64,7 +64,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 function clamp(n,a,b){return Math.min(b,Math.max(a,n))}
 function initial(s){return (String(s||"?").trim()[0]||"?").toUpperCase()}
 function rarity(c){
-  if(LEGENDARY_IDS.has(Number(c.id)))return RARITIES[4];
+  if(LEGENDARY_IDS.has(Number(c.id))||(c.tags&&c.tags.legendaria))return RARITIES[4];
   if(c.rarity>=70)return RARITIES[3];
   if(c.rarity>=35)return RARITIES[2];
   if(c.rarity>=10)return RARITIES[1];
@@ -90,8 +90,11 @@ const LEVEL1_CARD_ART=Object.freeze({
   "Mel":"assets/cards/lvl1-mel.webp",
   "Mimit":"assets/cards/lvl1-mimit.webp",
   "Dophan":"assets/cards/lvl1-dophan-v2.webp",
-  "Gorad Menor":"assets/cards/lvl1-gorad-menor.webp"
+  "Gorad Menor":"assets/cards/lvl1-gorad-menor.webp",
+  "Yeimis":"assets/cards/lvl1-yeimis.webp"
 });
+// Exclusive cards (Yeimis) are account-bound rewards: no packs, trades, market or selling.
+function isExclusive(c){return !!(c&&c.tags&&c.tags.exclusiva)}
 function hasFullCardArt(c){return !!c&&(isBasicPower(c)||(c.level===1&&!!LEVEL1_CARD_ART[c.name]))}
 function cardImage(c){
   if(!c)return CARD_BACK_IMAGE;
@@ -1433,17 +1436,17 @@ function renderRewardsBanner(){
   const p=state.profile;if(!p||state.offlineSession)return"";
   const daily=p.dailyPackAvailable?`<div class="reward-banner daily"><span class="reward-icon">🎁</span><div><b>Tu sobre diario está listo</b><small>Un sobre gratis de tu nivel cada día.</small></div><button class="btn primary" data-action="claimDaily">Abrir sobre</button></div>`:"";
   // Discord: join the server, link the account (membership is verified) and claim the pack.
-  let discordText="Noticias, novedades y un sobre gratis por unirte.",discordStep;
+  let discordText="Noticias, novedades, un sobre gratis y la carta legendaria exclusiva <em class=\"legend-name\">Yeimis</em>.",discordStep;
   if(p.discordLinked&&p.discordMember){
-    discordText="Cuenta vinculada"+(p.discordName?" ("+esc(p.discordName)+")":"")+". ¡Tu sobre de bienvenida te espera!";
+    discordText="Cuenta vinculada"+(p.discordName?" ("+esc(p.discordName)+")":"")+". Ya tienes a <em class=\"legend-name\">Yeimis</em> y tu sobre de bienvenida te espera.";
     discordStep=`<button class="btn primary" data-action="claimDiscord">Reclamar sobre</button>`;
   }else if(p.discordLinked){
-    discordText="Tu cuenta está vinculada pero aún no estás en el servidor. Únete y vuelve a comprobarlo.";
+    discordText="Tu cuenta está vinculada pero aún no estás en el servidor. Únete y pulsa «Comprobar» para recibir a <em class=\"legend-name\">Yeimis</em> y tu sobre.";
     discordStep=`<button class="btn discord-btn" data-action="openDiscord">Unirme</button><button class="btn" data-action="discordLink">Comprobar</button>`;
   }else{
     discordStep=`<button class="btn discord-btn" data-action="openDiscord">Unirme</button><button class="btn primary" data-action="discordLink">Vincular cuenta</button>`;
   }
-  const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>${discordText}</small></div><div class="reward-actions">${discordStep}</div></div>`:"";
+  const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>${discordText}</small></div><button type="button" class="reward-legend" data-action="cardDetail" data-id="286" title="Ver la carta legendaria Yeimis" aria-label="Ver la carta legendaria Yeimis"><img src="assets/cards/lvl1-yeimis.webp" alt=""><span>Legendaria</span></button><div class="reward-actions">${discordStep}</div></div>`:"";
   return daily||discord?`<div class="reward-banners">${daily}${discord}</div>`:"";
 }
 function openDiscord(){
@@ -1462,7 +1465,7 @@ function handleDiscordReturn(){
   if(!result)return;
   history.replaceState(null,"",location.pathname);
   const msg={
-    linked:["¡Discord vinculado! Ya puedes reclamar tu sobre de bienvenida.","good"],
+    linked:["¡Discord vinculado! Has recibido la carta legendaria Yeimis y ya puedes reclamar tu sobre de bienvenida.","good"],
     not_member:["Cuenta vinculada, pero aún no estás en nuestro servidor. Únete y pulsa «Comprobar».","bad"],
     taken:["Esa cuenta de Discord ya está vinculada a otro jugador.","bad"],
     expired:["La vinculación caducó. Inténtalo de nuevo.","bad"],
@@ -1928,9 +1931,9 @@ async function sellCard(id){
 
 function renderTrade(){
   const partners=state.users.filter(u=>!state.socket||u.socketId!==state.socket.id);
-  const inventory=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()&&freeCopies(c.id)>state.trade.mine.filter(x=>x===c.id).length).slice(0,120);
-  const publishable=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()&&freeCopies(c.id)>0).slice(0,180);
-  const wanted=state.catalog.filter(c=>!isBasicPower(c)&&c.level<=playerLevel()).slice(0,285);
+  const inventory=state.catalog.filter(c=>!isBasicPower(c)&&!isExclusive(c)&&c.level<=playerLevel()&&freeCopies(c.id)>state.trade.mine.filter(x=>x===c.id).length).slice(0,120);
+  const publishable=state.catalog.filter(c=>!isBasicPower(c)&&!isExclusive(c)&&c.level<=playerLevel()&&freeCopies(c.id)>0).slice(0,180);
+  const wanted=state.catalog.filter(c=>!isBasicPower(c)&&!isExclusive(c)&&c.level<=playerLevel()).slice(0,285);
   const marketKind=state.marketKind==="trade"?"trade":"gold";
   return `<div class="page">
     <div class="grid two">
@@ -2158,7 +2161,7 @@ function renderProfile(){
 
 function cardDetail(id){
   const c=card(id);if(!c)return;const r=rarity(c),basic=isBasicPower(c),locked=c.level>playerLevel(),free=freeCopies(c.id);
-  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p><div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&free>0)?"":"disabled"}>${basic?"Poder infinito":"Vender una"}</button></div></div></div></div></div></div>`;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal"><div class="modal-head"><div><b>${esc(c.name)}</b><div class="muted" style="font-size:11px">${cardType(c)} · ${r.name}</div></div><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="card-detail"><img src="${cardImage(c)}"><div><div class="kicker">Nivel ${c.level}</div><h2>${esc(c.name)}</h2><div class="grid two"><div class="stat-card"><small>Coste</small><strong>${c.cost}</strong></div><div class="stat-card"><small>${c.powerCard?"Poder":"Ataque / Defensa"}</small><strong>${c.powerCard?"+"+powerValue(c):c.atk+" / "+c.def}</strong></div></div><p class="muted">${basic?"Poder básico de Nivel 1: tienes copias infinitas y no forma parte de tu colección.":locked?"Esta carta queda bloqueada hasta que alcances Nivel "+c.level+".":"Posees "+owned(c.id)+" copia(s), con "+free+" libre(s) fuera del mazo."}</p>${c.effect&&!c.abilityCard?'<p class="card-effect-text">'+esc(c.effect)+'</p>':""}${isExclusive(c)?'<p class="muted card-exclusive-note">Carta exclusiva: recompensa por vincular Discord. Máximo 1 por mazo; no se puede intercambiar ni vender.</p>':""}<div class="actions"><button class="btn primary" data-action="addDeck" data-id="${c.id}" ${(!locked&&state.profile.deck.length<DECK_MAX&&(!c.powerCard||deckPowerCount()<MAX_POWER_CARDS)&&(basic||free>0))?"":"disabled"}>Añadir al mazo</button><button class="btn" data-action="sellCard" data-id="${c.id}" ${(!basic&&!isExclusive(c)&&free>0)?"":"disabled"}>${basic?"Poder infinito":isExclusive(c)?"No se puede vender":"Vender una"}</button></div></div></div></div></div></div>`;
 }
 
 function openMobileMenu(){
@@ -2764,9 +2767,9 @@ function training(){
   const playerIds=deckValid()?state.profile.deck.slice():[];
   if(!deckValid()){toast(deckRuleMessage()||"Tu mazo no es válido para entrenar.","bad");go("deck");return}
   const lvl=playerLevel();
-  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl);
-  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl);
-  const abilities=state.catalog.filter(c=>c.abilityCard&&c.level<=lvl);
+  const powers=state.catalog.filter(c=>c.powerCard&&c.level<=lvl&&!isExclusive(c));
+  const creatures=state.catalog.filter(c=>!c.powerCard&&!c.abilityCard&&c.level<=lvl&&!isExclusive(c));
+  const abilities=state.catalog.filter(c=>c.abilityCard&&c.level<=lvl&&!isExclusive(c));
   const enemy=[];
   const pickStrong=(pool)=>{
     if(!pool.length)return null;
@@ -2958,6 +2961,17 @@ function advanceLocalAutomaticPhases(){
       d.maxPower=powerTotal(d.playerPowers);
       d.power=d.maxPower;
     }
+    if(d.phase===4)localAbilityTriggers(d,"player");
+  }
+}
+function localAbilityTriggers(d,side){
+  const foe=side==="player"?"enemy":"player";
+  for(const c of d[side+"Board"]||[]){
+    const n=Number(c.tags&&c.tags.descarte_rival)||0;
+    for(let i=0;i<n&&d[foe+"Deck"].length;i++){
+      const milled=d[foe+"Deck"].pop();
+      d.log.push(c.name+": "+(foe==="enemy"?"el Guardián descarta ":"descartas ")+(milled?.name||"una carta")+" de su mazo.");
+    }
   }
 }
 function localHighestLevelAttack(d,side){
@@ -2978,6 +2992,7 @@ function nextLocalPhase(){
   d.phase++;
   if(d.phase===1){drawLocal("player",1);playSound("draw");if(checkLocalEnd())return renderView()}
   if(d.phase===2){d.maxPower=powerTotal(d.playerPowers);d.power=d.maxPower}
+  if(d.phase===4)localAbilityTriggers(d,"player");
   advanceLocalAutomaticPhases();
   renderView();
 }
@@ -3142,6 +3157,7 @@ async function runEnemyTurn(d){
 
     d.phase=4;
     d.aiMessage="Fase de habilidades";
+    localAbilityTriggers(d,"enemy");
     for(let i=0;i<3;i++){
       const ability=aiBestAbility(d,3);if(!ability)break;
       d.enemyPower-=ability.cost;

@@ -275,6 +275,9 @@ function playDeckError(input, level) {
     if (!card || card.level > level) return "El mazo contiene cartas no válidas para tu nivel.";
     if (card.powerCard) powers += 1;
   }
+  const legendCopies = {};
+  for (const cardId of ids) if (BY_ID.get(cardId).tags.legendaria) legendCopies[cardId] = (legendCopies[cardId] || 0) + 1;
+  if (Object.values(legendCopies).some(n => n > 1)) return "Solo puedes llevar 1 copia de cada carta legendaria.";
   if (powers < MIN_POWER_CARDS) return "El mazo necesita al menos 7 cartas de Poder.";
   if (powers > MAX_POWER_CARDS) return "El mazo no puede contener más de 40 cartas de Poder.";
   return "";
@@ -374,6 +377,19 @@ function phaseHasAction(game, side) {
   if (game.phase === 5) return game.board[side].some(inst => canAttack(game, side, inst));
   return false;
 }
+// Cards with "descarte_rival=N" (Yeimis) make the opponent discard the top N cards of their
+// deck when their owner's ability phase begins. An empty deck is not punished by this effect.
+function abilityPhaseTriggers(game, side) {
+  const foe = sideOther(side);
+  for (const inst of game.board[side]) {
+    const card = BY_ID.get(inst.cardId);
+    const n = Number(card && card.tags && card.tags.descarte_rival) || 0;
+    for (let i = 0; i < n && game.deck[foe].length; i++) {
+      const milled = BY_ID.get(game.deck[foe].pop());
+      gameLog(game, card.name + ": el rival descarta " + (milled ? milled.name : "una carta") + " de su mazo.");
+    }
+  }
+}
 function advanceAutomaticPhases(game) {
   let guard = 0;
   while (game && !game.gameOver && !game.pendingAttack && guard++ < 128) {
@@ -393,6 +409,7 @@ function advanceAutomaticPhases(game) {
       if (checkEnd(game)) return;
     }
     if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
+    if (game.phase === 4) abilityPhaseTriggers(game, side);
   }
 }
 function highestLevelBaseAttack(game, side) {
@@ -916,6 +933,7 @@ function handleDuelAction(match, socketId, payload) {
         checkEnd(game);
       }
       if (game.phase === 2) game.availablePower[side] = totalPower(game, side);
+      if (game.phase === 4) abilityPhaseTriggers(game, side);
       advanceAutomaticPhases(game);
     }
   }

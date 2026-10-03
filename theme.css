@@ -650,3 +650,11 @@
 @media(min-width:851px){
   .shell:not(.duel-mode) .sidebar{padding-right:210px!important}
 }
+
+/* Discord banner: the exclusive legendary reward (Yeimis) as a small clickable card. */
+.reward-legend{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;padding:0;margin:0 6px;border:0;background:none;cursor:pointer}
+.reward-legend img{width:46px;height:65px;object-fit:cover;border-radius:5px;box-shadow:0 0 0 1px rgba(242,207,115,.55),0 0 14px rgba(242,207,115,.35);transition:transform .15s}
+.reward-legend:hover img{transform:translateY(-2px) rotate(-2deg)}
+.reward-legend span{font:700 8px/1 Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;color:#f2cf73}
+@media(max-width:600px){.reward-legend img{width:40px;height:57px}}
+.reward-banner small .legend-name{display:inline;font-style:normal;font-weight:700;color:#f2cf73}

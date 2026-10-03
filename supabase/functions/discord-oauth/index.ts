@@ -18,6 +18,7 @@ const CLIENT_ID = Deno.env.get("DISCORD_CLIENT_ID") || "1555291864415080628";
 const GUILD_ID = Deno.env.get("DISCORD_GUILD_ID") || "1555246692599599185";
 const SITE_URL = Deno.env.get("ROLPLAY_SITE_URL") || "https://cardgame-l9ld.onrender.com";
 const REDIRECT_URI = supabaseUrl + "/functions/v1/discord-oauth";
+const YEIMIS_CARD_ID = 286;
 const API = "https://discord.com/api/v10";
 const STATE_TTL_MS = 10 * 60 * 1000;
 
@@ -87,6 +88,11 @@ Deno.serve(async (req: Request) => {
 
   if (member) {
     try { await syncSupporterRole(String(me.id), account.supporter_tier); } catch (e) { console.error("discord role", e); }
+  }
+  // Linking a Discord account that belongs to the server grants the exclusive legendary Yeimis (once).
+  if (member) {
+    const { error: ge } = await db.rpc("rolplay_grant_exclusive", { p_account: row.account_id, p_card: YEIMIS_CARD_ID });
+    if (ge) console.error("discord yeimis", ge);
   }
   return back(member ? "linked" : "not_member");
 });
