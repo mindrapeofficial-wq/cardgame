@@ -1184,6 +1184,8 @@ io.on("connection", socket => {
     socket.join(match.id);
     socket.emit("match:created", publicMatch(match));
     emitMatches();
+    // The channel line carries the match id so other players can accept it from the chat.
+    io.emit("chat:system", { text: user.name + " (Nivel " + user.level + ") está esperando duelo.", matchId: match.id });
   });
 
   socket.on("match:cancel", payload => {

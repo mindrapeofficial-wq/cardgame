@@ -983,9 +983,16 @@ function renderUsers(){
 }
 function renderChat(){
   if(!state.chat.length)return'<div class="empty">El salón está tranquilo. Rompe el hielo.</div>';
-  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}</div>`:`<div class="chat-msg"><b>${esc(m.from)}:</b> ${esc(m.text)}</div>`).join("");
+  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}${chatChallengeButton(m)}</div>`:`<div class="chat-msg"><b>${esc(m.from)}:</b> ${esc(m.text)}</div>`).join("");
 }
 
+// "X está esperando duelo" lines get an accept button while that challenge is still open.
+function chatChallengeButton(m){
+  if(!m.matchId)return"";
+  const match=state.matches.find(x=>x.id===m.matchId&&x.status==="waiting");
+  if(!match||(state.socket&&match.hostSocketId===state.socket.id))return"";
+  return ` <button class="btn small primary chat-accept" data-action="joinMatch" data-id="${esc(match.id)}">Aceptar duelo</button>`;
+}
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
   return `<div class="page">
@@ -1590,7 +1597,7 @@ function connectOnline(){
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
-    socket.on("chat:system",m=>{pushChat({system:true,text:m.text});if(state.view==="home")renderView()});
+    socket.on("chat:system",m=>{pushChat({system:true,text:m.text,matchId:m.matchId||""});if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
     socket.on("match:ready",m=>{toast("Reto aceptado contra "+(m.opponent?.name||"otro jugador")+".","good")});
