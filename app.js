@@ -672,6 +672,7 @@ function renderView(){
   const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
+  voiceSync();
   const again=focusId&&$(focusId);
   if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
 }
@@ -1188,6 +1189,128 @@ function renderFriendsBlock(compact){
   const pending=fs.outgoing.length?`<p class="social-hint">Solicitudes enviadas: ${fs.outgoing.map(f=>esc(f.name)).join(", ")}</p>`:"";
   const empty=!incoming&&!friends?`<div class="empty">${compact?"Aún no tienes amigos.":"Aún no tienes amigos. Abre el panel de jugadores (contador de conectados) y agrega a alguien con clic derecho o manteniendo pulsado."}</div>`:"";
   return incoming+`<div class="social-list">${friends}</div>`+empty+pending;
+}
+// ---- Voice chat in online duels ------------------------------------------------------------
+// Peer-to-peer audio (WebRTC) between the two players of an online duel; the game server only
+// relays the signalling ("voice:signal") and each side's microphone state ("voice:state").
+// Each player switches their own microphone on; the rival's voice plays only while their
+// microphone is on, and it can be muted at any time. Everything is torn down when the duel ends.
+const VOICE_ICE=[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]}];
+const voice={matchId:"",on:false,starting:false,stream:null,pc:null,sender:null,remoteOn:false,remoteMuted:false,audio:null,polite:false,makingOffer:false,ignoreOffer:false,meter:null,rivalSpeaking:false};
+function voiceSupported(){return!!(window.RTCPeerConnection&&navigator.mediaDevices?.getUserMedia)}
+function voiceMatchId(){const d=state.duel;return d&&d.online&&!d.gameOver?d.matchId:""}
+function voiceSend(type,payload){const id=voiceMatchId();if(id&&state.socket)state.socket.emit(type,{matchId:id,...payload})}
+function voiceAudio(){
+  if(!voice.audio){voice.audio=document.createElement("audio");voice.audio.autoplay=true;voice.audio.setAttribute("playsinline","");document.body.appendChild(voice.audio)}
+  return voice.audio;
+}
+function voicePc(){
+  if(voice.pc)return voice.pc;
+  const d=state.duel;
+  voice.matchId=voiceMatchId();
+  voice.polite=d?.side==="b";
+  const pc=new RTCPeerConnection({iceServers:VOICE_ICE});
+  voice.pc=pc;
+  pc.onnegotiationneeded=async()=>{
+    try{voice.makingOffer=true;await pc.setLocalDescription();voiceSend("voice:signal",{data:{description:pc.localDescription}})}
+    catch{}finally{voice.makingOffer=false}
+  };
+  pc.onicecandidate=({candidate})=>{if(candidate)voiceSend("voice:signal",{data:{candidate}})};
+  pc.ontrack=({streams})=>{
+    const a=voiceAudio();a.srcObject=streams[0];a.muted=voice.remoteMuted;a.play?.().catch(()=>{});
+    voiceMeter(streams[0]);
+  };
+  return pc;
+}
+async function voiceSignal(msg){
+  if(!msg||msg.matchId!==voiceMatchId()||!voiceSupported())return;
+  const {description,candidate}=msg.data||{};
+  const pc=voicePc();
+  try{
+    if(description){
+      const collision=description.type==="offer"&&(voice.makingOffer||pc.signalingState!=="stable");
+      voice.ignoreOffer=!voice.polite&&collision;
+      if(voice.ignoreOffer)return;
+      await pc.setRemoteDescription(description);
+      if(description.type==="offer"){await pc.setLocalDescription();voiceSend("voice:signal",{data:{description:pc.localDescription}})}
+    }else if(candidate){
+      try{await pc.addIceCandidate(candidate)}catch(e){if(!voice.ignoreOffer)throw e}
+    }
+  }catch{}
+}
+async function voiceToggle(){
+  if(!voiceMatchId())return;
+  if(!voiceSupported()){toast("Tu navegador no permite el chat de voz.","bad");return}
+  if(voice.on){
+    voice.on=false;
+    voice.stream?.getTracks().forEach(t=>t.stop());voice.stream=null;
+    try{await voice.sender?.replaceTrack(null)}catch{}
+    voiceSend("voice:state",{on:false});
+    renderView();return;
+  }
+  if(voice.starting)return;
+  voice.starting=true;
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+    if(!voiceMatchId()){stream.getTracks().forEach(t=>t.stop());return}
+    voice.stream=stream;voice.on=true;
+    const pc=voicePc(),track=stream.getAudioTracks()[0];
+    if(voice.sender)await voice.sender.replaceTrack(track);
+    else voice.sender=pc.addTrack(track,stream);
+    voiceSend("voice:state",{on:true});
+    toast(voice.remoteOn?"Micrófono activado. Ya podéis hablar.":"Micrófono activado. Tu rival te oirá cuando active el suyo.","good");
+  }catch(e){
+    toast(e&&e.name==="NotAllowedError"?"Has denegado el permiso del micrófono.":"No se pudo activar el micrófono.","bad");
+  }finally{voice.starting=false;renderView()}
+}
+function voiceMuteRival(){
+  voice.remoteMuted=!voice.remoteMuted;
+  if(voice.audio)voice.audio.muted=voice.remoteMuted;
+  renderView();
+}
+function voiceMeter(stream){
+  try{
+    voice.meter?.ctx.close();
+    const ctx=new (window.AudioContext||window.webkitAudioContext)(),src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();
+    an.fftSize=512;src.connect(an);
+    const buf=new Uint8Array(an.fftSize);
+    const timer=setInterval(()=>{
+      an.getByteTimeDomainData(buf);
+      let peak=0;for(const v of buf)peak=Math.max(peak,Math.abs(v-128));
+      const speaking=peak>14&&!voice.remoteMuted;
+      if(speaking!==voice.rivalSpeaking){voice.rivalSpeaking=speaking;document.querySelector(".enemy-deck-column .deck-player-meta")?.classList.toggle("voice-speaking",speaking)}
+    },160);
+    voice.meter={ctx,timer};
+  }catch{}
+}
+function voiceStop(){
+  if(voice.on)voiceSend("voice:state",{on:false});
+  voice.stream?.getTracks().forEach(t=>t.stop());
+  try{voice.pc?.close()}catch{}
+  if(voice.meter){clearInterval(voice.meter.timer);try{voice.meter.ctx.close()}catch{}}
+  if(voice.audio){voice.audio.srcObject=null}
+  Object.assign(voice,{matchId:"",on:false,starting:false,stream:null,pc:null,sender:null,remoteOn:false,remoteMuted:false,makingOffer:false,ignoreOffer:false,meter:null,rivalSpeaking:false});
+}
+// Keeps the voice session tied to the current duel; called after every duel render.
+function voiceSync(){
+  if(voice.matchId&&voice.matchId!==voiceMatchId())voiceStop();
+  document.querySelector(".enemy-deck-column .deck-player-meta")?.classList.toggle("voice-speaking",voice.rivalSpeaking);
+}
+function voiceButtons(d){
+  if(!d||!d.online||d.gameOver||!voiceSupported())return"";
+  const mic=`<button class="btn icon ghost duel-voice-button ${voice.on?"on":""}" data-action="voiceToggle" title="${voice.on?"Desactivar micrófono":"Activar micrófono y hablar con tu rival"}" aria-label="${voice.on?"Desactivar micrófono":"Activar micrófono"}" aria-pressed="${voice.on}">${voice.on?"🎙":"🎙"}<i class="voice-dot ${voice.on?"live":""}"></i></button>`;
+  const rival=voice.remoteOn?`<button class="btn icon ghost duel-voice-rival ${voice.remoteMuted?"muted":""}" data-action="voiceMuteRival" title="${voice.remoteMuted?"Volver a oír al rival":"Silenciar al rival"}" aria-label="${voice.remoteMuted?"Volver a oír al rival":"Silenciar al rival"}">${voice.remoteMuted?"🔇":"🔊"}</button>`:"";
+  return rival+mic;
+}
+function wireVoiceSocket(socket){
+  socket.on("voice:signal",voiceSignal);
+  socket.on("voice:state",m=>{
+    if(!m||m.matchId!==voiceMatchId())return;
+    const was=voice.remoteOn;voice.remoteOn=!!m.on;
+    if(voice.remoteOn&&!was)toast((state.duel?.opponent||"Tu rival")+" ha activado el micrófono"+(voice.on?".":". Pulsa 🎙 para hablarle."));
+    if(!voice.remoteOn){voice.rivalSpeaking=false}
+    if(state.view==="duel")renderView();
+  });
 }
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
@@ -1795,6 +1918,7 @@ function connectOnline(){
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
     wireSocialSocket(socket);
+    wireVoiceSocket(socket);
     socket.on("chat:system",m=>{pushActivity(m);if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
@@ -1888,7 +2012,7 @@ function applyOnlineSnapshot(s){
   const nextEnemyUids=new Set(enemyBoard.map(c=>c.uid));
   const removedPlayer=(previous?.playerBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextPlayerUids.has(x.c.uid));
   const removedEnemy=(previous?.enemyBoard||[]).map((c,index)=>({c,index})).filter(x=>!nextEnemyUids.has(x.c.uid));
-  state.duel={online:true,matchId:s.matchId,myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
+  state.duel={online:true,matchId:s.matchId,side:s.side||"",myTurn:!!s.myTurn,opponent:s.opponent?.name||"Rival",turn:Number(s.turn)||1,phase:Number(s.phase)||0,
     playerHp:Number(s.playerHp)||0,enemyHp:Number(s.enemyHp)||0,playerMaxHp:Number(s.playerMaxHp)||30,enemyMaxHp:Number(s.enemyMaxHp)||30,power:Number(s.power)||0,maxPower:Number(s.maxPower)||0,powerPlayed:!!s.powerPlayed,
     enemyPower:Number(s.enemyPower)||0,enemyMaxPower:Number(s.enemyMaxPower)||0,playerDeckCount:Number(s.playerDeckCount)||0,enemyDeckCount:Number(s.enemyDeckCount)||0,
     playerHand:(s.playerHand||[]).map(wireInstance).filter(Boolean),enemyHandCount:Number(s.enemyHandCount)||0,
@@ -1967,7 +2091,7 @@ function renderDuel(){
     ${idleFinalWarning}
     <div class="duel-top duel-turn-strip">
       <div class="duel-turn-state"><div class="kicker">Turno ${d.turn}</div><b>${d.online?(d.myTurn?"Tu turno":"Turno rival"):(d.aiActing?(d.aiMessage||"Turno del Guardián"):"Tu turno")}</b></div>
-      <div class="duel-top-actions">${fullscreenButton}${lobbyButton}</div>
+      <div class="duel-top-actions">${voiceButtons(d)}${fullscreenButton}${lobbyButton}</div>
     </div>
     <div class="board">
       <section class="board-zone enemy-zone">
@@ -2931,6 +3055,8 @@ document.addEventListener("click",e=>{
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
   else if(a==="socialToggle")toggleSocial();
+  else if(a==="voiceToggle")voiceToggle();
+  else if(a==="voiceMuteRival")voiceMuteRival();
   else if(a==="socialClose")toggleSocial(false);
   else if(a==="socialMe"){toggleSocial(false);go("profile")}
   else if(a==="playerProfile")playerProfile(el.dataset.socket,el.dataset.name);

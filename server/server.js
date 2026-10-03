@@ -1238,6 +1238,23 @@ io.on("connection", socket => {
     socket.emit("duel:inviteSent", { inviteId: invite.id, name: target.name });
   });
 
+  // Voice chat: WebRTC signalling and microphone state are relayed to the other player of the
+  // same running duel only.
+  const voiceRelay = (event, build) => payload => {
+    const match = matches.get(cleanText(payload && payload.matchId, 80));
+    const side = match && sideFor(match, socket.id);
+    if (!side || !match.duel || match.duel.gameOver) return;
+    const other = socketForSide(match, sideOther(side));
+    const body = build(payload);
+    if (other && body) io.to(other).emit(event, { matchId: match.id, ...body });
+  };
+  socket.on("voice:signal", voiceRelay("voice:signal", p => {
+    const data = p && p.data;
+    if (!data || typeof data !== "object" || JSON.stringify(data).length > 20000) return null;
+    return { data };
+  }));
+  socket.on("voice:state", voiceRelay("voice:state", p => ({ on: !!(p && p.on) })));
+
   // Friend requests are stored by the API; this only tells the other player right away.
   socket.on("friend:notify", payload => {
     const user = users.get(socket.id);

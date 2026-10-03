@@ -538,3 +538,11 @@
 .activity-item.start{border-left-color:#e0a24a}
 .activity-item.join{border-left-color:#4f7a5a}
 .activity-item.leave{border-left-color:#6a4a4a;opacity:.8}
+
+/* Voice chat in duels: microphone toggle, rival mute and a ring while the rival speaks. */
+.duel-voice-button{position:relative}
+.duel-voice-button .voice-dot{position:absolute;right:4px;top:4px;width:7px;height:7px;border-radius:50%;background:#6b6b6b}
+.duel-voice-button .voice-dot.live{background:#7fd08a;box-shadow:0 0 8px rgba(127,208,138,.9)}
+.duel-voice-button.on{border-color:rgba(127,208,138,.7)!important;color:#bff0c8}
+.duel-voice-rival.muted{opacity:.6}
+.deck-player-meta.voice-speaking{box-shadow:0 0 0 2px rgba(127,208,138,.85),0 0 16px rgba(127,208,138,.5);border-radius:8px}
