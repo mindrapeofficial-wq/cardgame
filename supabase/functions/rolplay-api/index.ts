@@ -866,6 +866,64 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, profile: publicProfile(auth.account) });
     }
 
+    // Friends: list, request (accepts automatically if they already asked you), respond, remove.
+    if (action === "friends_list" || action === "friend_request" || action === "friend_respond" || action === "friend_remove") {
+      const me = auth.account.id;
+      let other: any = null;
+      if (action !== "friends_list") {
+        const key = usernameKey(normalizeUsername(body.name)).slice(0, 40);
+        const { data, error } = await db.from("rolplay_accounts").select("id,username").eq("username_key", key).maybeSingle();
+        if (error) throw error;
+        if (!data) return fail("player_not_found", 404);
+        if (data.id === me) return fail("cannot_friend_self");
+        other = data;
+      }
+      const accept = async (requester: string, target: string) => {
+        const { error } = await db.from("rolplay_friends").upsert([
+          { account_id: requester, friend_id: target, status: "accepted" },
+          { account_id: target, friend_id: requester, status: "accepted" },
+        ]);
+        if (error) throw error;
+      };
+      if (action === "friend_request") {
+        const { data: theirs } = await db.from("rolplay_friends").select("status").eq("account_id", other.id).eq("friend_id", me).maybeSingle();
+        if (theirs) await accept(other.id, me);
+        else {
+          const { count } = await db.from("rolplay_friends").select("friend_id", { count: "exact", head: true }).eq("account_id", me);
+          if ((count || 0) >= 200) return fail("friend_limit_reached");
+          const { error } = await db.from("rolplay_friends").upsert({ account_id: me, friend_id: other.id, status: "pending" }, { ignoreDuplicates: true });
+          if (error) throw error;
+        }
+      } else if (action === "friend_respond") {
+        const { data: request } = await db.from("rolplay_friends").select("status").eq("account_id", other.id).eq("friend_id", me).eq("status", "pending").maybeSingle();
+        if (!request) return fail("request_not_found", 404);
+        if (body.accept === true) await accept(other.id, me);
+        else await db.from("rolplay_friends").delete().eq("account_id", other.id).eq("friend_id", me);
+      } else if (action === "friend_remove") {
+        await db.from("rolplay_friends").delete().eq("account_id", me).eq("friend_id", other.id);
+        await db.from("rolplay_friends").delete().eq("account_id", other.id).eq("friend_id", me);
+      }
+      const [{ data: mine, error: e1 }, { data: incoming, error: e2 }] = await Promise.all([
+        db.from("rolplay_friends").select("friend_id,status").eq("account_id", me),
+        db.from("rolplay_friends").select("account_id").eq("friend_id", me).eq("status", "pending"),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+      const ids = [...new Set([...(mine || []).map((r: any) => r.friend_id), ...(incoming || []).map((r: any) => r.account_id)])];
+      const { data: people, error: e3 } = ids.length
+        ? await db.from("rolplay_accounts").select("id,username,level,elo").in("id", ids)
+        : { data: [], error: null } as any;
+      if (e3) throw e3;
+      const byId = new Map((people || []).map((p: any) => [p.id, p]));
+      const card = (id: string) => { const p: any = byId.get(id); return p ? { name: p.username, level: Number(p.level) || 1, elo: Number(p.elo) || 1000 } : null; };
+      return json({
+        ok: true,
+        friends: (mine || []).filter((r: any) => r.status === "accepted").map((r: any) => card(r.friend_id)).filter(Boolean),
+        outgoing: (mine || []).filter((r: any) => r.status === "pending").map((r: any) => card(r.friend_id)).filter(Boolean),
+        incoming: (incoming || []).map((r: any) => card(r.account_id)).filter(Boolean),
+      });
+    }
+
     if (action === "ranking") {
       const limit = Math.max(10, Math.min(100, Math.floor(Number(body.limit) || 50)));
       const { data: leaders, error } = await db

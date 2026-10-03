@@ -572,6 +572,7 @@ function updateChrome(){
   const openChallenges=state.matches.filter(m=>m.status==="waiting"&&!(state.socket&&m.hostSocketId===state.socket.id)).length;
   const badge=$("onlineBadge");
   if(badge){badge.textContent=openChallenges;badge.hidden=!openChallenges;badge.title=openChallenges===1?"1 reto abierto":openChallenges+" retos abiertos"}
+  if(socialOpen)renderSocial();
   const online=$("onlineCounter");
   if(online){
     const n=state.users.length;
@@ -700,8 +701,8 @@ function renderHome(){
         <div class="panel-body"><div class="match-list mobile-match-list">${renderMatches(waiting)}</div></div>
       </section>
       <section class="panel home-mobile-online">
-        <div class="panel-head"><h2>Conectados</h2><span class="pill">${state.users.length}</span></div>
-        <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
+        <div class="panel-head"><h2>Actividad</h2></div>
+        <div class="panel-body"><div class="activity-feed">${renderActivity()}</div></div>
       </section>
     </div>
     <div class="home-desktop-lobby">
@@ -727,8 +728,8 @@ function renderHome(){
       </div>
       <div class="grid two" style="margin-top:14px">
         <section class="panel">
-          <div class="panel-head"><h2>Salón online</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo offline"}</span></div>
-          <div class="panel-body"><div class="online-list">${renderUsers()}</div></div>
+          <div class="panel-head"><h2>Actividad del salón</h2><span class="pill"><span class="dot ${state.connected?"online":""}"></span>${state.connected?"Conectado":"Modo offline"}</span></div>
+          <div class="panel-body"><div class="activity-feed">${renderActivity()}</div></div>
         </section>
         <section class="panel">
           <div class="panel-head"><h2>Chat general</h2><span class="muted">${state.chat.length} mensajes</span></div>
@@ -992,6 +993,201 @@ function chatChallengeButton(m){
   const match=state.matches.find(x=>x.id===m.matchId&&x.status==="waiting");
   if(!match||(state.socket&&match.hostSocketId===state.socket.id))return"";
   return ` <button class="btn small primary chat-accept" data-action="joinMatch" data-id="${esc(match.id)}">Aceptar duelo</button>`;
+}
+// ---- Social: activity feed, players side panel, player menu and direct challenges ----------
+// System lines (joins, leaves, open challenges, match starts and results) go to the activity
+// feed instead of the chat. The online counter opens a side panel with your own card and the
+// players online; a click opens a player's profile, a right click or a long press opens a menu
+// to challenge them or add them as a friend.
+const ACTIVITY_LIMIT=60;
+function pushActivity(m){
+  state.activity=state.activity||[];
+  state.activity.push({text:String(m.text||""),matchId:m.matchId||"",at:Date.now()});
+  if(state.activity.length>ACTIVITY_LIMIT)state.activity.splice(0,state.activity.length-ACTIVITY_LIMIT);
+}
+function activityKind(text){
+  if(/ha ganado|han empatado/.test(text))return"result";
+  if(/esperando duelo/.test(text))return"challenge";
+  if(/ha empezado una partida/.test(text))return"start";
+  if(/ha salido/.test(text))return"leave";
+  if(/se ha unido/.test(text))return"join";
+  return"info";
+}
+function renderActivity(){
+  const list=state.activity||[];
+  if(!list.length)return'<div class="empty">Aún no ha pasado nada en el salón.</div>';
+  return list.slice(-40).reverse().map(m=>`<div class="activity-item ${activityKind(m.text)}"><time>${new Date(m.at).toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"})}</time><span>${esc(m.text)}</span>${chatChallengeButton(m)}</div>`).join("");
+}
+
+let socialOpen=false;
+function toggleSocial(open=!socialOpen){socialOpen=!!open;closePlayerMenu();renderSocial()}
+function socialStatusClass(status){return status==="En combate"?"busy":status==="Disponible"?"free":"away"}
+function renderSocial(){
+  let el=$("socialDrawer");
+  if(!el){el=document.createElement("aside");el.id="socialDrawer";el.className="social-drawer";el.setAttribute("aria-label","Jugadores conectados");document.body.appendChild(el)}
+  const open=socialOpen&&!!state.profile&&state.view!=="duel";
+  el.classList.toggle("open",open);
+  if(!open)return;
+  const me=state.profile,mine=u=>state.socket&&u.socketId===state.socket.id;
+  const others=state.users.filter(u=>!mine(u)).sort((a,b)=>(a.status==="Disponible"?0:1)-(b.status==="Disponible"?0:1)||(b.level||1)-(a.level||1)||String(a.name).localeCompare(b.name));
+  el.innerHTML=`<div class="social-head"><b>Salón</b><button class="btn icon ghost" data-action="socialClose" aria-label="Cerrar">×</button></div>
+    <button class="social-me" data-action="socialMe"><div class="avatar">${initial(me.name)}</div><div><b>${esc(me.name)}</b><small>Nivel ${playerLevel()} · ELO ${Number(me.elo)||1000}</small></div><span>Perfil ›</span></button>
+    <div class="social-title">Amigos <span>${friendsState().friends.length}</span></div>
+    ${renderFriendsBlock(true)}
+    <div class="social-title">Conectados <span>${others.length}</span></div>
+    <div class="social-list">${others.map(u=>`<button class="social-user" data-action="playerProfile" data-socket="${esc(u.socketId)}" data-name="${esc(u.name)}"><div class="avatar">${initial(u.name)}</div><div><b>${esc(u.name)}</b><small>Nivel ${u.level||1} · ELO ${u.elo||1000} · ${esc(u.status||"Disponible")}</small></div><i class="social-status ${socialStatusClass(u.status)}"></i></button>`).join("")||'<div class="empty">No hay nadie más conectado.</div>'}</div>
+    <p class="social-hint">Clic derecho o mantén pulsado sobre un jugador para retarlo o agregarlo.</p>`;
+}
+
+function closePlayerMenu(){$("playerMenu")?.remove()}
+function openPlayerMenu(sock,name,x,y){
+  closePlayerMenu();
+  if((state.socket&&sock===state.socket.id)||name===state.profile?.name)return;
+  const u=sock?state.users.find(p=>p.socketId===sock):null;
+  const canDuel=!!u&&u.status!=="En combate";
+  const menu=document.createElement("div");menu.className="player-menu";menu.id="playerMenu";
+  menu.innerHTML=`<b>${esc(name)}</b>
+    <button data-action="playerProfile" data-socket="${esc(sock)}" data-name="${esc(name)}">Ver perfil</button>
+    <button data-action="challengePlayer" data-socket="${esc(sock)}" data-name="${esc(name)}" ${canDuel?"":"disabled title=\"Está en combate\""}>Retar a duelo</button>
+    ${isFriend(name)?`<button data-action="removeFriend" data-name="${esc(name)}">Eliminar de amigos</button>`:`<button data-action="addFriend" data-name="${esc(name)}">Agregar a amigos</button>`}`;
+  document.body.appendChild(menu);
+  const r=menu.getBoundingClientRect();
+  menu.style.left=Math.max(8,Math.min(x,innerWidth-r.width-8))+"px";
+  menu.style.top=Math.max(8,Math.min(y,innerHeight-r.height-8))+"px";
+}
+const PLAYER_HOSTS=".social-user,.online-user[data-socket]";
+let playerPress=null,playerPressTimer=0,swallowPlayerClick=false;
+document.addEventListener("contextmenu",e=>{
+  const row=e.target instanceof Element?e.target.closest(PLAYER_HOSTS):null;if(!row)return;
+  e.preventDefault();openPlayerMenu(row.dataset.socket,row.dataset.name,e.clientX,e.clientY);
+});
+document.addEventListener("pointerdown",e=>{
+  const row=e.target instanceof Element?e.target.closest(PLAYER_HOSTS):null;
+  if(!e.target.closest?.("#playerMenu"))closePlayerMenu();
+  if(!row||e.pointerType==="mouse")return;
+  playerPress={id:e.pointerId,x:e.clientX,y:e.clientY};
+  clearTimeout(playerPressTimer);
+  playerPressTimer=setTimeout(()=>{if(playerPress){swallowPlayerClick=true;openPlayerMenu(row.dataset.socket,row.dataset.name,playerPress.x,playerPress.y);try{navigator.vibrate?.(12)}catch{}}},450);
+});
+document.addEventListener("pointermove",e=>{if(playerPress&&e.pointerId===playerPress.id&&Math.hypot(e.clientX-playerPress.x,e.clientY-playerPress.y)>10){clearTimeout(playerPressTimer);playerPress=null}},{passive:true});
+document.addEventListener("pointerup",()=>{clearTimeout(playerPressTimer);playerPress=null});
+document.addEventListener("click",e=>{
+  if(swallowPlayerClick){swallowPlayerClick=false;e.preventDefault();e.stopPropagation();return}
+  if(socialOpen&&!e.target.closest?.("#socialDrawer,#onlineCounter,#playerMenu,#modalRoot"))toggleSocial(false);
+},true);
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closePlayerMenu();if(socialOpen)toggleSocial(false)}});
+
+async function playerProfile(sock,name){
+  closePlayerMenu();
+  if(state.profile&&name===state.profile.name){toggleSocial(false);go("profile");return}
+  const u=state.users.find(p=>p.socketId===sock)||state.users.find(p=>p.name===name)||{name};
+  const root=$("modalRoot");if(!root)return;
+  const shell=body=>`<div class="modal-backdrop" data-modal-backdrop><div class="modal player-profile-modal"><div class="modal-head"><b>Perfil de jugador</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body">${body}</div></div></div>`;
+  root.innerHTML=shell('<div class="empty">Cargando perfil…</div>');
+  const data=await api("ranking",{limit:100});
+  if(!$("modalRoot")?.querySelector(".player-profile-modal"))return;
+  const row=data.ok?(data.ranking||[]).find(p=>p.name===name):null;
+  const level=row?.level||u.level||1,elo=row?.elo||u.elo||1000,online=state.users.some(p=>p.name===name);
+  const status=online?(u.status||"Disponible"):"Desconectado";
+  const games=row?(row.wins+row.losses+row.draws):0,rate=games?Math.round(row.wins/games*100):0;
+  const canDuel=online&&u.socketId&&status!=="En combate";
+  root.innerHTML=shell(`<div class="player-profile">
+      <div class="player-profile-top"><div class="avatar big">${initial(name)}</div><div><h3>${esc(name)}</h3><span class="social-status-label ${socialStatusClass(status)}">${esc(status)}</span></div></div>
+      <div class="player-profile-stats">
+        <div><small>Nivel</small><b>${level}</b></div>
+        <div><small>ELO</small><b>${elo}</b></div>
+        <div><small>Ranking</small><b>${row?"#"+row.position:"—"}</b></div>
+        <div><small>Victorias</small><b>${row?row.wins:0}</b></div>
+        <div><small>Derrotas</small><b>${row?row.losses:0}</b></div>
+        <div><small>% victorias</small><b>${games?rate+"%":"—"}</b></div>
+      </div>
+      <div class="actions"><button class="btn primary" data-action="challengePlayer" data-socket="${esc(u.socketId||"")}" data-name="${esc(name)}" ${canDuel?"":"disabled"}>Retar a duelo</button>${isFriend(name)?`<button class="btn" data-action="removeFriend" data-name="${esc(name)}">Eliminar de amigos</button>`:`<button class="btn" data-action="addFriend" data-name="${esc(name)}">Agregar a amigos</button>`}</div>
+    </div>`);
+}
+
+function challengePlayer(sock,name){
+  closePlayerMenu();closeModal();
+  if(!state.connected||!sock){toast("Ese jugador no está conectado.","bad");return}
+  if(!deckValid()){toast(deckRuleMessage()||"Necesitas un mazo válido para retar.","bad");return}
+  state.socket.emit("duel:invite",{to:sock});
+}
+function showDuelInvite(inv){
+  const from=inv.from||{};
+  state.pendingInvite=inv.inviteId;
+  playSound("turn");
+  $("modalRoot").innerHTML=`<div class="modal-backdrop"><div class="modal duel-invite-modal"><div class="modal-head"><b>⚔ Reto a duelo</b></div><div class="modal-body">
+    <p><b>${esc(from.name||"Un jugador")}</b> (Nivel ${from.level||1} · ELO ${from.elo||1000}) te reta a un duelo.</p>
+    <div class="actions"><button class="btn" data-action="declineInvite" data-id="${esc(inv.inviteId)}">Rechazar</button><button class="btn primary" data-action="acceptInvite" data-id="${esc(inv.inviteId)}">Aceptar</button></div>
+  </div></div></div>`;
+}
+function answerInvite(id,accept){
+  if(accept&&!deckValid()){toast(deckRuleMessage()||"Necesitas un mazo válido para aceptar.","bad");accept=false}
+  state.socket?.emit("duel:inviteRespond",{inviteId:id,accept});
+  state.pendingInvite="";closeModal();
+}
+function wireSocialSocket(socket){
+  socket.on("duel:invited",inv=>showDuelInvite(inv));
+  socket.on("duel:inviteSent",r=>toast("Reto enviado a "+r.name+". Esperando respuesta…"));
+  socket.on("duel:inviteAccepted",r=>{toast(r.name+" ha aceptado el reto.","good");socket.emit("match:create",{deckSize:state.profile.deck.length,start:"random",inviteId:r.inviteId})});
+  socket.on("duel:inviteDeclined",r=>toast(r.reason==="busy"?r.name+" está en combate ahora mismo.":r.name+" ha rechazado el reto.","bad"));
+  socket.on("duel:inviteExpired",r=>{if(state.pendingInvite===r.inviteId){closeModal();state.pendingInvite=""}toast("El reto ha caducado.")});
+  socket.on("duel:inviteReady",r=>socket.emit("match:join",{id:r.matchId}));
+  socket.on("friend:changed",ev=>{
+    loadFriends();
+    if(ev.kind==="request")toast(ev.from+" quiere ser tu amigo. Míralo en el panel de jugadores.","good");
+    else toast(ev.from+" y tú ahora sois amigos.","good");
+  });
+}
+// ---- Friends ----------------------------------------------------------------------------
+// Stored by rolplay-api (friends_list / friend_request / friend_respond / friend_remove); the
+// game server only relays "friend:notify" so the other player sees requests at once.
+function friendsState(){return state.friends||{friends:[],incoming:[],outgoing:[]}}
+function isFriend(name){return friendsState().friends.some(f=>f.name===name)}
+function applyFriends(r){
+  state.friends={friends:r.friends||[],incoming:r.incoming||[],outgoing:r.outgoing||[]};
+  if(socialOpen)renderSocial();
+  if(state.view==="profile")renderView();
+}
+async function loadFriends(){
+  if(!sessionToken)return;
+  const r=await api("friends_list");
+  if(r.ok)applyFriends(r);
+}
+function friendError(code){
+  return code==="player_not_found"?"Ese jugador no existe.":code==="friend_limit_reached"?"Has llegado al máximo de amigos.":"No se pudo completar. Inténtalo de nuevo.";
+}
+async function addFriend(name){
+  closePlayerMenu();
+  if(!name||name===state.profile?.name)return;
+  const r=await api("friend_request",{name});
+  if(!r.ok){toast(friendError(r.error),"bad");return}
+  applyFriends(r);
+  const done=isFriend(name);
+  toast(done?"Ahora eres amigo de "+name+".":"Solicitud de amistad enviada a "+name+".","good");
+  state.socket?.emit("friend:notify",{name,kind:done?"accepted":"request"});
+}
+async function respondFriend(name,accept){
+  const r=await api("friend_respond",{name,accept});
+  if(!r.ok){toast(friendError(r.error),"bad");return}
+  applyFriends(r);
+  if(accept){toast("Ahora eres amigo de "+name+".","good");state.socket?.emit("friend:notify",{name,kind:"accepted"})}
+}
+async function removeFriend(name){
+  closePlayerMenu();closeModal();
+  const r=await api("friend_remove",{name});
+  if(r.ok){applyFriends(r);toast(name+" ya no está en tu lista de amigos.")}
+}
+// One block used by the side panel (compact) and the profile page.
+function renderFriendsBlock(compact){
+  const fs=friendsState(),online=name=>state.users.find(u=>u.name===name);
+  const incoming=fs.incoming.map(f=>`<div class="friend-request"><div class="avatar">${initial(f.name)}</div><div><b>${esc(f.name)}</b><small>Nivel ${f.level} · quiere ser tu amigo</small></div><div class="friend-request-actions"><button class="btn small primary" data-action="acceptFriend" data-name="${esc(f.name)}">Aceptar</button><button class="btn small ghost" data-action="declineFriend" data-name="${esc(f.name)}">✕</button></div></div>`).join("");
+  const friends=[...fs.friends].sort((a,b)=>(online(a.name)?0:1)-(online(b.name)?0:1)||a.name.localeCompare(b.name)).map(f=>{
+    const u=online(f.name),status=u?(u.status||"Disponible"):"Desconectado";
+    return `<button class="social-user friend" data-action="playerProfile" data-socket="${esc(u?.socketId||"")}" data-name="${esc(f.name)}"><div class="avatar">${initial(f.name)}</div><div><b>${esc(f.name)}</b><small>Nivel ${u?.level||f.level} · ${esc(status)}</small></div><i class="social-status ${u?socialStatusClass(status):"off"}"></i></button>`;
+  }).join("");
+  const pending=fs.outgoing.length?`<p class="social-hint">Solicitudes enviadas: ${fs.outgoing.map(f=>esc(f.name)).join(", ")}</p>`:"";
+  const empty=!incoming&&!friends?`<div class="empty">${compact?"Aún no tienes amigos.":"Aún no tienes amigos. Abre el panel de jugadores (contador de conectados) y agrega a alguien con clic derecho o manteniendo pulsado."}</div>`:"";
+  return incoming+`<div class="social-list">${friends}</div>`+empty+pending;
 }
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
@@ -1551,6 +1747,7 @@ function renderProfile(){
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
       <section class="panel"><div class="panel-head"><h2>Ajustes de cuenta</h2></div><div class="panel-body"><label class="quick-row"><span class="quick-icon">♪</span><span><b>Sonidos del juego</b><small class="muted" style="display:block">Efectos originales recuperados</small></span><input type="checkbox" id="soundToggle" ${state.sound?"checked":""}></label><div class="actions" style="margin-top:12px"><button class="btn danger" data-action="logout">Cerrar sesión</button></div></div></section>
+      <section class="panel profile-friends"><div class="panel-head"><h2>Amigos</h2><span class="pill">${friendsState().friends.length}</span></div><div class="panel-body">${renderFriendsBlock(false)}</div></section>
       <section class="panel"><div class="panel-head"><h2>Resumen</h2></div><div class="panel-body"><div class="quick-list"><div class="quick-row"><span class="quick-icon">◇</span><span><b>${uniqueOwned()} cartas distintas</b><small class="muted" style="display:block">${collectionTotal()} cartas coleccionables · Poder básico Nv 1 infinito</small></span></div><div class="quick-row"><span class="quick-icon">▦</span><span><b>${state.profile.packs||0} sobres</b><small class="muted" style="display:block">abiertos</small></span></div><div class="quick-row"><span class="quick-icon">⚔</span><span><b>${total} partidas PvP</b><small class="muted" style="display:block">victorias, empates y derrotas registradas</small></span></div></div></div></section>
     </div>
   </div>`;
@@ -1584,7 +1781,7 @@ function connectOnline(){
       socket.emit("hello",{sessionToken});
     });
     socket.on("server:ready",()=>{
-      state.connected=true;state.connecting=false;updateChrome();
+      state.connected=true;state.connecting=false;updateChrome();loadFriends();
       if(["home","play","trade"].includes(state.view))renderView();
     });
     socket.on("auth:error",async m=>{
@@ -1597,7 +1794,8 @@ function connectOnline(){
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
-    socket.on("chat:system",m=>{pushChat({system:true,text:m.text,matchId:m.matchId||""});if(state.view==="home")renderView()});
+    wireSocialSocket(socket);
+    socket.on("chat:system",m=>{pushActivity(m);if(state.view==="home")renderView()});
     socket.on("match:created",()=>{toast("Reto online creado. Esperando rival.","good");if(state.view==="play")renderView()});
     socket.on("match:error",m=>toast(m?.message||"No se pudo entrar en la partida.","bad"));
     socket.on("match:ready",m=>{toast("Reto aceptado contra "+(m.opponent?.name||"otro jugador")+".","good")});
@@ -2732,6 +2930,17 @@ document.addEventListener("click",e=>{
   else if(a==="cancelMatch")cancelMatch(el.dataset.id);
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
+  else if(a==="socialToggle")toggleSocial();
+  else if(a==="socialClose")toggleSocial(false);
+  else if(a==="socialMe"){toggleSocial(false);go("profile")}
+  else if(a==="playerProfile")playerProfile(el.dataset.socket,el.dataset.name);
+  else if(a==="challengePlayer")challengePlayer(el.dataset.socket,el.dataset.name);
+  else if(a==="addFriend")addFriend(el.dataset.name);
+  else if(a==="removeFriend")removeFriend(el.dataset.name);
+  else if(a==="acceptFriend")respondFriend(el.dataset.name,true);
+  else if(a==="declineFriend")respondFriend(el.dataset.name,false);
+  else if(a==="acceptInvite")answerInvite(el.dataset.id,true);
+  else if(a==="declineInvite")answerInvite(el.dataset.id,false);
   else if(a==="addDeck"){e.stopPropagation();addDeck(Number(el.dataset.id));closeModal()}
   else if(a==="sellCard"){e.stopPropagation();sellCard(Number(el.dataset.id));closeModal()}
   else if(a==="removeDeck")removeDeck(Number(el.dataset.index));

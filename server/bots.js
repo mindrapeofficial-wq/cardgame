@@ -8,7 +8,7 @@
 // Enabled with BOTS_ENABLED=1. Optional: BOTS_MIN / BOTS_MAX (online population range).
 
 const { io: connect } = require("socket.io-client");
-const { createBotChat } = require("./bot-chat.js");
+const { createBotChat, relation } = require("./bot-chat.js");
 
 const rand = (min, max) => min + Math.random() * (max - min);
 const randInt = (min, max) => Math.floor(rand(min, max + 1));
@@ -154,6 +154,31 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
       });
       socket.on("duel:snapshot", s => this.onSnapshot(s));
       socket.on("profile:update", u => { if (u && u.profile) this.profile = u.profile; });
+      // Direct challenges: most bots in the lobby accept after a moment; busy ones decline.
+      socket.on("duel:invited", inv => {
+        const free = (this.state === "lobby" || this.state === "waiting") && Date.now() < this.leaveAt - 3 * 60 * 1000;
+        const accept = free && chance(0.85);
+        setTimeout(() => {
+          if (!this.socket) return;
+          if (accept && this.ownChallenge && this.ownChallenge.id) this.socket.emit("match:cancel", { id: this.ownChallenge.id });
+          if (accept) { this.ownChallenge = null; this.state = "lobby"; }
+          this.socket.emit("duel:inviteRespond", { inviteId: inv.inviteId, accept });
+        }, rand(4, 14) * 1000 * this.p.speed);
+      });
+      // Friend requests: most bots accept after a while, some never answer.
+      socket.on("friend:changed", ev => {
+        if (!ev || ev.kind !== "request" || !chance(0.75)) return;
+        setTimeout(async () => {
+          try {
+            await api("friend_respond", { name: ev.from, accept: true }, this.session);
+            if (this.socket) this.socket.emit("friend:notify", { name: ev.from, kind: "accepted" });
+          } catch {}
+        }, rand(10, 90) * 1000);
+      });
+      socket.on("duel:inviteAccepted", r => { if (this.socket && this.state !== "playing") this.socket.emit("match:create", { inviteId: r.inviteId }); });
+      socket.on("duel:inviteDeclined", () => { if (this.state === "inviting") this.state = "lobby"; });
+      socket.on("duel:inviteExpired", () => { if (this.state === "inviting") this.state = "lobby"; });
+      socket.on("duel:inviteReady", r => { if (this.socket && this.state !== "playing") this.socket.emit("match:join", { id: r.matchId }); });
       socket.on("chat:message", m => onChannel(m, false));
       socket.on("chat:system", m => onChannel(m, true));
       socket.on("trade:invited", t => {
@@ -190,7 +215,7 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
 
     async lobbyTick() {
       if (!this.socket || this.state === "offline" || this.state === "connecting") return;
-      if (this.state === "playing") return this.scheduleLobby(rand(20, 40));
+      if (this.state === "playing" || this.state === "inviting") return this.scheduleLobby(rand(15, 30));
 
       if (Date.now() > this.leaveAt) {
         if (chance(this.p.chatty) && chatAllowed()) this.say(pick(CHAT.bye), 1);
@@ -210,6 +235,8 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
       const open = lobbyMatches.filter(m => m.status === "waiting" && !claimed.has(m.id) && m.id !== this.ownChallenge?.id);
       const humanOpen = open.filter(m => !botSockets.has(m.hostSocketId));
       const botOpen = open.filter(m => botSockets.has(m.hostSocketId));
+
+      if (await this.socialTick()) return this.scheduleLobby(rand(20, 45));
 
       // Real players come first: someone close in level answers their challenge.
       const human = humanOpen.find(m => this.level <= (Number(m.level) || 1) + 2 && this.isBestResponderFor(m));
@@ -236,6 +263,40 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
         if (chance(this.p.chatty * 0.6) && chatAllowed()) this.say(pick(CHAT.lookingForGame), rand(3, 12));
       }
       this.scheduleLobby(rand(12, 45));
+    }
+
+    // Social life between bots: colleagues add each other as friends, and now and then a bot
+    // challenges a friend or a rival directly instead of using the public list.
+    async socialTick() {
+      if (this.state !== "lobby" || !this.socket) return false;
+      const others = [...bots.values()].filter(b => b !== this && b.socket && (b.state === "lobby" || b.state === "waiting"));
+      if (!others.length) return false;
+      this.friendNames = this.friendNames || new Set();
+      if (chance(0.06)) {
+        const mate = others.find(b => /colegas/.test(relation(this.name, b.name)) && !this.friendNames.has(b.name));
+        if (mate) {
+          try {
+            const r = await api("friend_request", { name: mate.name }, this.session);
+            (r.friends || []).forEach(f => this.friendNames.add(f.name));
+            this.socket.emit("friend:notify", { name: mate.name, kind: this.friendNames.has(mate.name) ? "accepted" : "request" });
+          } catch {}
+          return false;
+        }
+      }
+      if (chance(0.12)) {
+        const pickTarget = others.filter(b => this.friendNames.has(b.name) || relation(this.name, b.name));
+        const target = pickTarget.length ? pick(pickTarget) : null;
+        const sid = target && [...botSockets].find(id => target.socket && target.socket.id === id);
+        if (sid && Math.abs(target.level - this.level) <= 3) {
+          if (this.ownChallenge && this.ownChallenge.id) this.socket.emit("match:cancel", { id: this.ownChallenge.id });
+          this.ownChallenge = null;
+          this.state = "inviting";
+          this.socket.emit("duel:invite", { to: sid });
+          setTimeout(() => { if (this.state === "inviting") this.state = "lobby"; }, 60 * 1000);
+          return true;
+        }
+      }
+      return false;
     }
 
     // Among the idle bots, the one whose level is closest to the human answers.

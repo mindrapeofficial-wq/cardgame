@@ -192,7 +192,19 @@ function publicMatch(match) {
   };
 }
 function emitMatches() {
-  io.emit("matches:list", [...matches.values()].map(publicMatch));
+  // Private duels (direct challenges) never show up in the public list while they wait.
+  io.emit("matches:list", [...matches.values()].filter(m => !m.privateFor || m.status !== "waiting").map(publicMatch));
+}
+
+// Direct challenges: A invites B; when B accepts, A's client creates a private match that only
+// B can join (match:create with inviteId), and B is told to join it.
+const DUEL_INVITE_TTL_MS = 45 * 1000;
+const duelInvites = new Map();
+function dropInvite(invite, event, payload) {
+  if (!duelInvites.has(invite.id)) return;
+  duelInvites.delete(invite.id);
+  clearTimeout(invite.timer);
+  if (event) for (const sid of [invite.from, invite.to]) io.to(sid).emit(event, { inviteId: invite.id, ...payload });
 }
 function cardInstance(cardId) {
   return {
@@ -1161,6 +1173,11 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: deckError });
       return;
     }
+    const invite = payload && payload.inviteId ? duelInvites.get(cleanText(payload.inviteId, 80)) : null;
+    if (payload && payload.inviteId && (!invite || !invite.accepted || invite.from !== socket.id || !users.has(invite.to))) {
+      socket.emit("match:error", { message: "El reto ya no está disponible." });
+      return;
+    }
     const deckSize = user.deck.length;
     const match = {
       id: id("match"),
@@ -1186,14 +1203,63 @@ io.on("connection", socket => {
       lastActivityAt: { a: 0, b: 0 },
       idleAllowanceMs: { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS },
       duel: null,
+      privateFor: invite ? invite.to : "",
       createdAt: Date.now()
     };
     matches.set(match.id, match);
     socket.join(match.id);
     socket.emit("match:created", publicMatch(match));
     emitMatches();
+    if (invite) {
+      io.to(invite.to).emit("duel:inviteReady", { inviteId: invite.id, matchId: match.id });
+      dropInvite(invite);
+      return;
+    }
     // The channel line carries the match id so other players can accept it from the chat.
     io.emit("chat:system", { text: user.name + " (Nivel " + user.level + ") está esperando duelo.", matchId: match.id });
+  });
+
+  socket.on("duel:invite", payload => {
+    const user = users.get(socket.id);
+    const to = cleanText(payload && payload.to, 100);
+    const target = users.get(to);
+    if (!user || !target || to === socket.id || String(target.accountId) === String(user.accountId)) return;
+    if (target.status === "En combate") {
+      socket.emit("duel:inviteDeclined", { name: target.name, reason: "busy" });
+      return;
+    }
+    for (const inv of duelInvites.values()) {
+      if ((inv.from === socket.id && inv.to === to) || (inv.from === to && inv.to === socket.id)) return;
+    }
+    const invite = { id: id("inv"), from: socket.id, to, accepted: false };
+    invite.timer = setTimeout(() => dropInvite(invite, "duel:inviteExpired", { name: target.name }), DUEL_INVITE_TTL_MS);
+    duelInvites.set(invite.id, invite);
+    io.to(to).emit("duel:invited", { inviteId: invite.id, from: publicUser(socket.id, user), expiresInMs: DUEL_INVITE_TTL_MS });
+    socket.emit("duel:inviteSent", { inviteId: invite.id, name: target.name });
+  });
+
+  // Friend requests are stored by the API; this only tells the other player right away.
+  socket.on("friend:notify", payload => {
+    const user = users.get(socket.id);
+    const name = cleanName(payload && payload.name);
+    const kind = payload && payload.kind === "accepted" ? "accepted" : "request";
+    if (!user || !name) return;
+    for (const [sid, other] of users.entries()) {
+      if (other.name === name && sid !== socket.id) io.to(sid).emit("friend:changed", { from: user.name, kind });
+    }
+  });
+
+  socket.on("duel:inviteRespond", payload => {
+    const invite = duelInvites.get(cleanText(payload && payload.inviteId, 80));
+    if (!invite || invite.to !== socket.id || invite.accepted) return;
+    const user = users.get(socket.id);
+    if (payload && payload.accept === true && users.has(invite.from)) {
+      invite.accepted = true;
+      io.to(invite.from).emit("duel:inviteAccepted", { inviteId: invite.id, name: user ? user.name : "" });
+    } else {
+      io.to(invite.from).emit("duel:inviteDeclined", { inviteId: invite.id, name: user ? user.name : "" });
+      dropInvite(invite);
+    }
   });
 
   socket.on("match:cancel", payload => {
@@ -1215,6 +1281,10 @@ io.on("connection", socket => {
     }
     if (String(match.hostAccountId) === String(user.accountId)) {
       socket.emit("match:error", { message: "No puedes unirte a tu propia partida." });
+      return;
+    }
+    if (match.privateFor && match.privateFor !== socket.id) {
+      socket.emit("match:error", { message: "Ese duelo es privado." });
       return;
     }
     const fresh = await profileFromSession(user.sessionToken);
@@ -1404,6 +1474,9 @@ io.on("connection", socket => {
 
   socket.on("disconnect", () => {
     const user = users.get(socket.id);
+    for (const invite of [...duelInvites.values()]) {
+      if (invite.from === socket.id || invite.to === socket.id) dropInvite(invite, "duel:inviteExpired", { name: user ? user.name : "" });
+    }
     removeSocketMatches(socket.id, true);
     users.delete(socket.id);
     for (const [tid, trade] of trades.entries()) {

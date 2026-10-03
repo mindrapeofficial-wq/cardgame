@@ -54,6 +54,7 @@ function relation(a, b) {
 
 const RULES = [
   "Escribes mensajes del chat general de ARCANUM TCG, un juego de cartas online (antes Rolplay).",
+  "Funciones del juego que puedes mencionar: el panel de jugadores conectados (contador abajo a la derecha), ver el perfil de alguien, agregar amigos, retar a alguien directamente a un duelo, la actividad del salón con los resultados y el ELO, la tienda de sobres, intercambios.",
   "Términos del juego: sobres (cuestan 20 de oro), Poder (cartas de maná), criaturas con ataque/defensa, amuletos, nivel, ELO, ranking, retos, mazo de 20 a 50 cartas, robar, atacar, defender.",
   "Habla SOLO del juego: partidas, cartas, sobres, mazos, retos, ranking, piques sanos.",
   "Nunca pidas ni des datos personales (edad, ciudad, redes, teléfono) ni propongas hablar fuera del juego. Si alguien lo pide, desvíalo al juego.",
@@ -240,4 +241,4 @@ function createBotChat({ log = console.log, catalog = [] } = {}) {
   };
 }
 
-module.exports = { createBotChat, persona };
+module.exports = { createBotChat, persona, relation };
