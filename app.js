@@ -213,6 +213,7 @@ function setAuthMode(mode){
 }
 function showAuth(){
   ARCANUM_AUDIO.setActive(false);
+  ARCANUM_MESSAGES.stop();void ARCANUM_NOTIFICATIONS.stop();
   $("appShell")?.classList.add("hidden");$("loginScreen")?.classList.remove("hidden");
   $("bootLoader")?.classList.add("hidden");$("loginForm")?.classList.remove("hidden");
   const last=localStorage.getItem(LAST_USER_KEY)||"";
@@ -293,7 +294,7 @@ async function boot(){
   }catch(e){
     console.error(e);$("bootError")?.classList.remove("hidden");return;
   }
-  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261003-audio-v1",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
+  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261003-community-v2",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
   if(sessionToken){
     const result=await api("me",{},true);
     if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
@@ -1384,8 +1385,8 @@ function renderSupport(){
     </div></section>
     <div class="support-grid">${cards}</div>
     <section class="panel"><div class="panel-head"><h2>Muro de apoyadores</h2><span class="pill">${s.wall.length}</span></div><div class="panel-body support-wall">${wall}</div></section>
-    <p class="support-discord">¿Dudas o ideas? Habla con nosotros en <a href="${DISCORD_URL}" target="_blank" rel="noopener">nuestro Discord</a>.</p>
-    <p class="muted support-legal">Los pagos los procesa Stripe de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales (carta exclusiva, nombrar una carta, ser una carta) se entregan cuando estén listas y se gestionan desde el equipo.</p>
+    <p class="support-discord">¿Dudas o ideas? Habla con nosotros en <a href="${DISCORD_URL}" data-action="openDiscord">nuestro Discord</a>.</p>
+    <p class="muted support-legal">Los pagos los procesa ${IS_PLAY_CLIENT?"Google Play":"Stripe"} de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales se gestionan desde el equipo.</p>
   </div>`;
 }
 async function supportCheckout(tier){
@@ -1437,7 +1438,12 @@ function renderRewardsBanner(){
   return daily||discord?`<div class="reward-banners">${daily}${discord}</div>`:"";
 }
 function openDiscord(){
-  window.open(DISCORD_URL,"_blank","noopener");
+  if(IS_PLAY_CLIENT&&typeof window.ArcanumAndroid?.openCommunityLink==="function"){
+    window.ArcanumAndroid.openCommunityLink(DISCORD_URL);
+  }else{
+    // A same-window navigation works in older Android WebViews that discard new tabs.
+    location.assign(DISCORD_URL);
+  }
   state.discordOpened=true;
   if(state.view==="home")renderView();
 }
@@ -3229,6 +3235,7 @@ document.addEventListener("click",e=>{
   if(authTab){setAuthMode(authTab.dataset.authMode);return}
   const el=e.target.closest("[data-action]");if(!el)return;
   const a=el.dataset.action;
+  if(a==="openDiscord")e.preventDefault();
   if(state.view==="duel"&&state.duel&&!state.duel.gameOver&&DUEL_GAME_ACTIONS.has(a))markDuelActivity("gameAction");
   if(a!=="cardDetail")playSound("click");
   if(a==="nav")go(el.dataset.view);

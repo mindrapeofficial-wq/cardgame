@@ -1113,6 +1113,15 @@ setInterval(() => {
     .catch(() => console.warn("Play purchase reconciliation connection unavailable"));
 }, 10 * 60 * 1000).unref();
 
+let notificationProcessing=false;
+setInterval(async()=>{
+  if(!ROLPLAY_SERVER_KEY||notificationProcessing)return;
+  notificationProcessing=true;
+  try{await fetch(ROLPLAY_API_URL,{method:"POST",headers:SETTLEMENT_HEADERS,signal:AbortSignal.timeout(45000),
+    body:JSON.stringify({action:"notifications_process"})})}catch{ /* Next tick retries the durable queue. */ }
+  finally{notificationProcessing=false}
+},30000).unref();
+
 io.on("connection", socket => {
   socket.on("hello", async payload => {
     const sessionToken = String(payload && payload.sessionToken || "");
@@ -1263,6 +1272,9 @@ io.on("connection", socket => {
     invite.timer = setTimeout(() => dropInvite(invite, "duel:inviteExpired", { name: target.name }), DUEL_INVITE_TTL_MS);
     duelInvites.set(invite.id, invite);
     io.to(to).emit("duel:invited", { inviteId: invite.id, from: publicUser(socket.id, user), expiresInMs: DUEL_INVITE_TTL_MS });
+    void fetch(ROLPLAY_API_URL,{method:"POST",headers:SETTLEMENT_HEADERS,body:JSON.stringify({
+      action:"notification_challenge",from:user.accountId,to:target.accountId,inviteId:invite.id
+    })}).catch(()=>{});
     socket.emit("duel:inviteSent", { inviteId: invite.id, name: target.name });
   });
 
