@@ -1,2 +1,10 @@
 # Firebase config for the Android app: kept out of the public repository.
 android/app/google-services.json
+
+# Signing keys and local build outputs must never be committed (public repo).
+*.jks
+*.keystore
+arcanum-firma/
+play-*/
+*.aab
+*.apk
