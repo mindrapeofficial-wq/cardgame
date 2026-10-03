@@ -247,6 +247,7 @@ function enterGame(){
   ARCANUM_MESSAGES.start();void ARCANUM_NOTIFICATIONS.start();
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
   updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
+  window.setTimeout(maybeOfferTutorial,1200);
   if(IS_PLAY_CLIENT)ARCANUM_PLAY.restore();
 }
 async function logout(){
@@ -689,6 +690,7 @@ function renderView(){
   const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
+  tutorialTick();
   voiceSync();
   const again=focusId&&$(focusId);
   if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
@@ -708,6 +710,7 @@ function renderHome(){
   return `<div class="page home-page">
     ${activeDuelBanner}
     ${renderRewardsBanner()}
+    ${renderFirstSteps()}
     <div class="home-mobile-lobby">
       <section class="panel home-mobile-chat">
         <div class="panel-head"><h2>Chat</h2><span class="muted">${state.chat.length} mensajes</span></div>
@@ -1585,7 +1588,7 @@ function renderPlay(){
       </section>
       <section class="panel">
         <div class="panel-head"><h2>Entrenamiento</h2><span class="pill">IA local</span></div>
-        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button></div>
+        <div class="panel-body"><p class="muted">Prueba tu mazo reglamentario sin esperar rival. El entrenamiento no concede XP, no modifica el ELO y no cuenta para victorias, empates ni derrotas.</p><button class="btn" data-action="training" ${deckValid()?"":"disabled"}>Iniciar entrenamiento</button> <button class="btn ghost" data-action="tutorial">Duelo guiado</button></div>
       </section>
     </div>
     <section class="panel" style="margin-top:14px">
@@ -2290,6 +2293,7 @@ function queueDeathGhost(d,zone,c,slotIndex){
 }
 function applyOnlineSnapshot(s){
   if(!s)return;
+  if(!s.gameOver&&state.socket&&typeof s.manualPhases==="boolean"&&s.manualPhases!==phaseManual())state.socket.emit("duel:phaseMode",{matchId:s.matchId,manual:phaseManual()});
   const previous=state.duel&&state.duel.online&&state.duel.matchId===s.matchId?state.duel:null;
   const playerBoard=(s.playerBoard||[]).map(wireInstance).filter(Boolean);
   const ownBoardUids=new Set(playerBoard.map(c=>c.uid));
@@ -2407,10 +2411,22 @@ function renderDuel(){
     </div>
   </div>`;
 }
+// Phase advance preference (all duels): "auto" skips phases with nothing to do, "manual" waits
+// for "Siguiente fase" every time. The guided duel always runs in automatic mode.
+function phaseManual(){try{return localStorage.getItem("arcanum.phaseMode")==="manual"}catch{return false}}
+function togglePhaseMode(){
+  const manual=!phaseManual();
+  try{localStorage.setItem("arcanum.phaseMode",manual?"manual":"auto")}catch{}
+  const d=state.duel;
+  if(d&&d.online&&state.socket)state.socket.emit("duel:phaseMode",{matchId:d.matchId,manual});
+  else if(d&&!d.online&&!manual)advanceLocalAutomaticPhases();
+  toast(manual?"Fases en modo manual: pulsa «Siguiente fase» para avanzar.":"Fases en modo automático: se saltan las que no tienen acciones.","good");
+  renderView();
+}
 function duelMatchActions(d){
   if(!d||d.gameOver)return"";
   const drawDisabled=!d.online||d.drawOfferOutgoing;
-  return `<div class="duel-match-actions" aria-label="Acciones de partida"><button class="btn small danger" data-action="concede">Rendirse</button><button class="btn small" data-action="drawButton" ${drawDisabled?"disabled":""}>Tablas</button><button type="button" class="btn small audio-open" data-audio-open aria-label="Ajustes de audio" title="Ajustes de audio">♪</button></div>`;
+  return `<div class="duel-match-actions" aria-label="Acciones de partida"><button class="btn small phase-mode-btn" data-action="phaseMode" title="Cambiar entre pasar fases automático o manual">Fases: ${phaseManual()?"Manual":"Auto"}</button><button class="btn small danger" data-action="concede">Rendirse</button><button class="btn small" data-action="drawButton" ${drawDisabled?"disabled":""}>Tablas</button><button type="button" class="btn small audio-open" data-audio-open aria-label="Ajustes de audio" title="Ajustes de audio">♪</button></div>`;
 }
 function openDrawResponseModal(){
   const d=state.duel;
@@ -2762,6 +2778,140 @@ function duelControls(d){
   return`<div style="width:100%">${prompt}<div class="actions duel-phase-action-row"><button class="btn primary" data-action="nextPhase">${d.phase===5?"Pasar turno":"Siguiente fase"}</button></div></div>`;
 }
 
+// ---- Guided first duel and first steps -------------------------------------------------------
+// A scripted training duel (fixed decks, the player always starts) with a coach bubble that
+// points at what to do next: Power, summon, next phase, summoning sickness, defending, attacking.
+const TUTORIAL_KEY="arcanum.tutorialDone",FIRST_STEPS_KEY="arcanum.firstStepsHidden";
+const tutorialStore={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+function tutorialDone(){return tutorialStore.get(TUTORIAL_KEY)==="1"}
+function startTutorial(){
+  closeModal();
+  const P=1,ELFO=2,DUENDE=3,GUERRERO=4,DOPHAN=5,GORAD=6,MIMIT=7,MEL=8;
+  // drawLocal() takes cards from the end of the deck, so these lists are written in draw order and reversed.
+  const playerDraws=[P,DUENDE,P,GUERRERO,P,DOPHAN,GORAD,P,MIMIT,P,DUENDE,P,MEL,DOPHAN,P,GORAD,P,GUERRERO,P,ELFO,P,DUENDE];
+  const enemyDraws=[P,P,DUENDE,MEL,ELFO,P,GUERRERO,P,P,DUENDE,MEL,P,ELFO,P,GUERRERO,P,DUENDE,P,MEL,P,ELFO,P];
+  const startedAt=Date.now();
+  const d={online:false,tutorial:true,opponent:"Guardián aprendiz",turn:1,phase:0,playerHp:20,enemyHp:12,playerMaxHp:20,enemyMaxHp:12,power:0,maxPower:0,enemyPower:0,enemyMaxPower:0,
+    playerDeck:playerDraws.slice().reverse().map(makeInst),enemyDeck:enemyDraws.slice().reverse().map(makeInst),playerHand:[],enemyHand:[],playerBoard:[],enemyBoard:[],playerPowers:[],enemyPowers:[],
+    playerPowerPlayed:false,enemyPowerPlayed:false,aiActing:false,aiMessage:"",pendingAttack:null,defending:false,attackTargets:{},playerDeckOut:false,enemyDeckOut:false,
+    gameOver:false,won:null,result:null,damageDealt:0,rewardKey:"training:"+uid(),rewardPending:false,startedAt,deadlineAt:startedAt+MATCH_LIMIT_MS,
+    log:["Duelo guiado. Empiezas tú."]};
+  state.duel=d;
+  state.tutorial={seen:new Set(),shown:"",skipped:false};
+  drawLocal("player",7);drawLocal("enemy",8);
+  state.view="duel";updateChrome();playSound("turn");
+  advanceLocalAutomaticPhases();
+  renderView();
+}
+const tutorialHand=()=>[...document.querySelectorAll(".hand-zone .battle-card.hand-playable")];
+const tutorialAttackers=()=>[...document.querySelectorAll('.player-zone .battle-card.clickable[data-zone="player"]')];
+const TUTORIAL_LESSONS=[
+  {id:"welcome",ack:"Empezar",when:()=>true,target:()=>null,
+    title:"Tu primer duelo",text:"Gana quien deje al rival a <b>0 PV</b>. Te guiaré paso a paso: sigue la flecha dorada."},
+  {id:"hp",ack:"Entendido",when:()=>true,target:()=>document.querySelector(".player-deck-column .deck-player-meta"),
+    title:"Puntos de Vida",text:"Estos son tus <b>PV</b>. Los del Guardián están en el lado contrario. Si llegan a 0, pierdes."},
+  {id:"phases",ack:"Entendido",when:()=>true,target:()=>document.querySelector(".phase-track"),
+    title:"Las 6 fases del turno",text:"Cada turno pasa por <b>Enderezar → Robar → Poder → Invocar → Habilidades → Ataque</b>. Las fases en las que no puedes hacer nada se saltan solas."},
+  {id:"power",when:d=>!d.aiActing&&d.phase===2&&!d.playerPowerPlayed&&d.playerHand.some(c=>c.powerCard),target:()=>tutorialHand()[0],
+    title:"Fase de Poder",text:"Juega <b>una carta de Poder</b> por turno. El Poder es la energía con la que invocas criaturas. Toca la carta señalada."},
+  {id:"summon",when:d=>!d.aiActing&&d.phase===3&&tutorialHand().length>0,target:()=>tutorialHand()[0],
+    title:"Fase de Invocar",text:"Gasta tu Poder para sacar criaturas. El número de arriba es su <b>coste</b>; abajo verás su <b>ATQ / DEF</b>. Invoca la criatura señalada."},
+  {id:"next",when:d=>!d.aiActing&&!d.defending&&(d.phase===3||d.phase===4)&&!tutorialHand().length,target:()=>document.querySelector('[data-action="nextPhase"]'),
+    title:"Siguiente fase",text:"Cuando no te quede nada por hacer en una fase, pulsa <b>«Siguiente fase»</b>."},
+  {id:"sick",when:d=>!d.aiActing&&d.phase===5&&!tutorialAttackers().length&&d.playerBoard.length>0,target:()=>document.querySelector('[data-action="nextPhase"]'),
+    title:"Recién invocadas",text:"Las criaturas que acabas de invocar <b>no pueden atacar este turno</b> (salvo las que tienen Berserker). Pulsa <b>«Pasar turno»</b> y verás jugar al Guardián."},
+  {id:"enemy",when:d=>d.aiActing&&!d.defending,target:()=>null,passive:true,
+    title:"Turno del Guardián",text:"Ahora juega el rival: pondrá Poder, invocará y quizá te ataque. Observa."},
+  {id:"defend",when:d=>d.defending,target:()=>tutorialAttackers()[0]||document.querySelector('[data-action="passDefense"]'),
+    title:"¡Te atacan!",text:"Puedes <b>bloquear</b> tocando una de tus criaturas o pulsar <b>«Dejar pasar»</b>. Si el ATQ del atacante iguala o supera la DEF de tu criatura, esta muere, y el daño que sobra llega a tus PV."},
+  {id:"attack",when:d=>!d.aiActing&&!d.defending&&d.phase===5&&tutorialAttackers().length>0,target:()=>tutorialAttackers()[0],
+    title:"Fase de Ataque",text:"Toca una de tus criaturas para <b>atacar</b>. El Guardián puede bloquear con las suyas; si no lo hace, su ATQ va directo a sus PV."},
+  {id:"endturn",when:d=>!d.aiActing&&!d.defending&&d.phase===5&&!tutorialAttackers().length&&!d.pendingAttack,target:()=>document.querySelector('[data-action="nextPhase"]'),
+    title:"Fin del turno",text:"Ya has atacado. Pulsa <b>«Pasar turno»</b>. Recuerda: cada turno puedes jugar 1 Poder, invocar lo que pagues y atacar con criaturas listas."},
+  {id:"free",ack:"¡A por él!",when:d=>!d.aiActing&&d.turn>=5,target:()=>null,
+    title:"¡Ya sabes lo básico!",text:"Termina el duelo tú solo. Pulsa sobre cualquier carta para ver sus detalles. Consejo: guarda criaturas con mucha DEF para bloquear."},
+  {id:"end",ack:"Terminar",when:d=>d.gameOver,target:()=>null,final:true,
+    title:"¡Tutorial completado!",text:"Ya puedes jugar duelos online. Siguientes pasos: abre tu <b>sobre diario</b>, prepara tu <b>mazo</b> y únete a nuestro <b>Discord</b> para llevarte la carta legendaria <b>Yeimis</b>."}
+];
+function tutorialCoach(){
+  let el=$("tutorialCoach");
+  if(!el){el=document.createElement("div");el.id="tutorialCoach";el.className="tutorial-coach";el.setAttribute("role","dialog");el.setAttribute("aria-live","polite");document.body.appendChild(el)}
+  return el;
+}
+function tutorialHide(){
+  const el=$("tutorialCoach");if(el)el.hidden=true;
+  document.querySelectorAll(".tut-focus").forEach(x=>x.classList.remove("tut-focus"));
+}
+function tutorialTick(){
+  const t=state.tutorial,d=state.duel;
+  if(!t||t.skipped||!d||!d.tutorial||state.view!=="duel"){tutorialHide();return}
+  // A waiting lesson whose moment has passed counts as done.
+  const prev=TUTORIAL_LESSONS.find(l=>l.id===t.shown);
+  if(prev&&!prev.ack&&!prev.when(d))t.seen.add(prev.id);
+  const lesson=TUTORIAL_LESSONS.find(l=>!t.seen.has(l.id)&&(d.gameOver?l.id==="end":l.when(d))&&(l.id!=="free"||["power","summon","defend","attack"].every(id=>t.seen.has(id))));
+  document.querySelectorAll(".tut-focus").forEach(x=>x.classList.remove("tut-focus"));
+  if(!lesson){tutorialHide();t.shown="";return}
+  t.shown=lesson.id;
+  const target=lesson.target();
+  if(target)target.classList.add("tut-focus");
+  const el=tutorialCoach();
+  el.hidden=false;
+  el.innerHTML=`<div class="tutorial-kicker">Duelo guiado</div><b>${lesson.title}</b><p>${lesson.text}</p><div class="tutorial-actions">${lesson.final?"":'<button class="btn small ghost" data-action="tutorialSkip">Saltar tutorial</button>'}${lesson.ack?`<button class="btn small primary" data-action="tutorialAck" data-id="${lesson.id}">${lesson.ack}</button>`:""}</div><i class="tutorial-arrow"></i>`;
+  tutorialPlace(el,target);
+}
+// The bubble sits above or below the highlighted element with an arrow pointing at it;
+// without a target it rests at the top of the board.
+function tutorialPlace(el,target){
+  const arrow=el.querySelector(".tutorial-arrow");
+  const w=Math.min(340,window.innerWidth-24);el.style.width=w+"px";
+  const h=el.offsetHeight;
+  if(!target){el.style.left=Math.round((window.innerWidth-w)/2)+"px";el.style.top="76px";arrow.hidden=true;return}
+  const r=target.getBoundingClientRect();
+  const below=r.top<h+40;
+  const top=below?r.bottom+16:r.top-h-16;
+  const left=Math.max(12,Math.min(window.innerWidth-w-12,r.left+r.width/2-w/2));
+  el.style.left=Math.round(left)+"px";el.style.top=Math.round(Math.max(8,top))+"px";
+  arrow.hidden=false;arrow.className="tutorial-arrow "+(below?"up":"down");
+  arrow.style.left=Math.round(Math.max(18,Math.min(w-18,r.left+r.width/2-left)))+"px";
+}
+function tutorialAck(id){
+  const t=state.tutorial;if(!t)return;
+  t.seen.add(id);
+  if(id==="end"){tutorialStore.set(TUTORIAL_KEY,"1");state.tutorial=null;tutorialHide();toast("¡Bien hecho! Ya estás listo para jugar online.","good");return}
+  tutorialTick();
+}
+function tutorialSkip(){
+  tutorialStore.set(TUTORIAL_KEY,"1");
+  if(state.tutorial)state.tutorial.skipped=true;
+  tutorialHide();
+  toast("Tutorial omitido. Puedes repetirlo desde Jugar → Duelo guiado.","good");
+}
+window.addEventListener("resize",()=>{if(state.tutorial)tutorialTick()});
+// New accounts get the offer once per session until they play or skip it.
+function maybeOfferTutorial(){
+  const p=state.profile;
+  if(!p||p.isBot||tutorialDone()||state.tutorialOffered)return;
+  if((Number(p.wins)||0)+(Number(p.losses)||0)+(Number(p.draws)||0)>0)return;
+  state.tutorialOffered=true;
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal tutorial-offer"><div class="modal-head"><b>¿Es tu primera vez en ARCANUM?</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><p>Juega un <b>duelo guiado</b> de unos minutos: te enseñamos las fases, cómo invocar, atacar, defender y pasar turno.</p><div class="actions"><button class="btn" data-action="closeModal">Ahora no</button><button class="btn primary" data-action="tutorial">Empezar duelo guiado</button></div></div></div></div>`;
+}
+// "Primeros pasos": a checklist for new players on the home screen; each item ticks itself.
+function renderFirstSteps(){
+  const p=state.profile;
+  if(!p||state.offlineSession||tutorialStore.get(FIRST_STEPS_KEY)==="1")return"";
+  const played=(Number(p.wins)||0)+(Number(p.losses)||0)+(Number(p.draws)||0);
+  const steps=[
+    {done:tutorialDone(),label:"Juega el duelo guiado",action:'data-action="tutorial"',cta:"Jugar"},
+    {done:!p.dailyPackAvailable,label:"Abre tu sobre diario gratis",action:'data-action="claimDaily"',cta:"Abrir"},
+    {done:deckValid(),label:"Prepara un mazo válido (20–50 cartas, 7+ Poder)",action:'data-action="nav" data-view="deck"',cta:"Mazo"},
+    {done:played>0,label:"Juega tu primer duelo online",action:'data-action="nav" data-view="play"',cta:"Jugar"},
+    {done:!!(p.discordLinked&&p.discordMember),label:"Vincula Discord y llévate a Yeimis",action:'data-action="discordLink"',cta:"Vincular"}
+  ];
+  const left=steps.filter(s=>!s.done).length;
+  if(!left)return"";
+  return`<section class="panel first-steps"><div class="panel-head"><h2>Primeros pasos</h2><span class="pill">${steps.length-left}/${steps.length}</span><button class="btn icon ghost first-steps-close" data-action="firstStepsHide" title="Ocultar" aria-label="Ocultar primeros pasos">×</button></div>
+    <div class="panel-body"><ol class="first-steps-list">${steps.map(s=>`<li class="${s.done?"done":""}"><span class="first-step-check" aria-hidden="true">${s.done?"✓":""}</span><span>${s.label}</span>${s.done?"":`<button class="btn small" ${s.action}>${s.cta}</button>`}</li>`).join("")}</ol></div></section>`;
+}
 function training(){
   const size=state.profile.deck.length;
   const playerIds=deckValid()?state.profile.deck.slice():[];
@@ -2950,7 +3100,9 @@ function advanceLocalAutomaticPhases(){
   let guard=0;
   while(guard++<8&&!d.gameOver&&!d.aiActing){
     if(localPhaseHasAction(d))return;
-    if(d.phase===5){startLocalEnemyTurn(d);return}
+    if(phaseManual()&&!d.tutorial)return;
+    // The guided duel waits on the Attack phase so the player learns to press "Pasar turno".
+    if(d.phase===5){if(d.tutorial)return;startLocalEnemyTurn(d);return}
     d.phase++;
     if(d.phase===1){
       drawLocal("player",1);
@@ -3349,6 +3501,11 @@ document.addEventListener("click",e=>{
   if(a==="nav")go(el.dataset.view);
   else if(a==="mobileMenu")openMobileMenu();
   else if(a==="training")training();
+  else if(a==="tutorial")startTutorial();
+  else if(a==="phaseMode")togglePhaseMode();
+  else if(a==="tutorialAck")tutorialAck(el.dataset.id);
+  else if(a==="tutorialSkip")tutorialSkip();
+  else if(a==="firstStepsHide"){tutorialStore.set(FIRST_STEPS_KEY,"1");renderView()}
   else if(a==="createMatch")createMatch();
   else if(a==="joinMatch")joinMatch(el.dataset.id);
   else if(a==="cancelMatch")cancelMatch(el.dataset.id);

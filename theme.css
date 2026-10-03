@@ -658,3 +658,30 @@
 .reward-legend span{font:700 8px/1 Cinzel,serif;letter-spacing:.08em;text-transform:uppercase;color:#f2cf73}
 @media(max-width:600px){.reward-legend img{width:40px;height:57px}}
 .reward-banner small .legend-name{display:inline;font-style:normal;font-weight:700;color:#f2cf73}
+
+/* Guided first duel: coach bubble, pulsing highlight and arrow. */
+.tutorial-coach{position:fixed;z-index:120;padding:14px 16px 12px;border-radius:14px;border:1px solid rgba(242,207,115,.7);background:linear-gradient(180deg,#1d160b,#0d0a05);color:#f3ead2;box-shadow:0 18px 50px rgba(0,0,0,.65),0 0 24px rgba(242,207,115,.18);font-size:13px;line-height:1.45;animation:tutIn .25s ease}
+.tutorial-coach[hidden]{display:none}
+.tutorial-coach b{display:block;font-family:Cinzel,serif;color:#f2cf73;font-size:15px;margin-bottom:4px}
+.tutorial-coach p{margin:0 0 10px}
+.tutorial-coach p b{display:inline;font-family:inherit;font-size:inherit;margin:0}
+.tutorial-kicker{font:700 9px/1 Cinzel,serif;letter-spacing:.14em;text-transform:uppercase;color:#b9975a;margin-bottom:6px}
+.tutorial-actions{display:flex;justify-content:flex-end;gap:8px}
+.tutorial-arrow{position:absolute;width:0;height:0;margin-left:-10px;border:10px solid transparent}
+.tutorial-arrow.down{top:100%;border-top-color:#f2cf73;animation:tutBobDown 1s ease-in-out infinite}
+.tutorial-arrow.up{bottom:100%;border-bottom-color:#f2cf73;animation:tutBobUp 1s ease-in-out infinite}
+.tut-focus,.battle-card.tut-focus{position:relative;z-index:5;outline:3px solid #f2cf73!important;outline-offset:-3px!important;border-radius:8px;animation:tutPulse 1.1s ease-in-out infinite!important}
+@keyframes tutPulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(242,207,115,.0),0 0 6px 1px rgba(242,207,115,.45);filter:brightness(1)}50%{box-shadow:inset 0 0 22px 4px rgba(242,207,115,.55),0 0 16px 4px rgba(242,207,115,.6);filter:brightness(1.18)}}
+@keyframes tutBobDown{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+@keyframes tutBobUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes tutIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* Primeros pasos */
+.first-steps{margin-bottom:14px}
+.first-steps .panel-head{gap:10px}
+.first-steps-close{margin-left:auto}
+.first-steps-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.first-steps-list li{display:flex;align-items:center;gap:10px;min-height:36px}
+.first-steps-list li>span:nth-child(2){flex:1}
+.first-steps-list li.done>span:nth-child(2){color:#8f866f;text-decoration:line-through}
+.first-step-check{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid rgba(242,207,115,.5);display:grid;place-items:center;font-size:12px;color:#141008;background:transparent}
+.first-steps-list li.done .first-step-check{background:#d6b163;border-color:#d6b163}

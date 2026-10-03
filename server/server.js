@@ -395,6 +395,7 @@ function advanceAutomaticPhases(game) {
   while (game && !game.gameOver && !game.pendingAttack && guard++ < 128) {
     if (checkEnd(game)) return;
     const side = game.active;
+    if (game.manualPhases && game.manualPhases[side]) return;
     if (phaseHasAction(game, side)) return;
 
     if (game.phase >= 5) {
@@ -583,6 +584,7 @@ function initDuel(match) {
     availablePower: { a: 0, b: 0 },
     powerPlayed: { a: false, b: false },
     pendingAttack: null,
+    manualPhases: { a: !!match.hostManualPhases, b: !!match.guestManualPhases },
     drawOfferBy: null,
     damage: { a: 0, b: 0 },
     rewardSettled: false,
@@ -638,6 +640,7 @@ function snapshotFor(match, socketId) {
     power: game.availablePower[side],
     maxPower: totalPower(game, side),
     powerPlayed: !!game.powerPlayed[side],
+    manualPhases: !!(game.manualPhases && game.manualPhases[side]),
     enemyPower: game.availablePower[foe],
     enemyMaxPower: totalPower(game, foe),
     playerDeckCount: game.deck[side].length,
@@ -1497,6 +1500,18 @@ io.on("connection", socket => {
     const side = sideFor(match, socket.id);
     if (side) markCombatActivity(match, side, true);
     handleDuelAction(match, socket.id, payload);
+  });
+
+  // Each player chooses whether empty phases are skipped automatically or advanced by hand.
+  socket.on("duel:phaseMode", payload => {
+    const match = matches.get(cleanText(payload && payload.matchId, 80));
+    const side = match && sideFor(match, socket.id);
+    if (!side || !match.duel || match.duel.gameOver) return;
+    match.duel.manualPhases = match.duel.manualPhases || { a: false, b: false };
+    match.duel.manualPhases[side] = payload.manual === true;
+    if (!match.duel.manualPhases[side] && match.duel.active === side) advanceAutomaticPhases(match.duel);
+    checkEnd(match.duel);
+    emitDuel(match);
   });
 
   socket.on("duel:activity", payload => {
