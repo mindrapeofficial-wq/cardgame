@@ -693,6 +693,7 @@ function renderView(){
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
   tutorialTick();
+  duelTurnBanner();
   voiceSync();
   const again=focusId&&$(focusId);
   if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
@@ -786,13 +787,19 @@ function adminStatus(p){
   if(p.suspendedAt)return`<span class="pill bad">Suspendido${p.suspendedUntil?" hasta "+new Date(p.suspendedUntil).toLocaleDateString("es-ES"):""}</span>`;
   return p.bot?'<span class="pill">Bot</span>':'<span class="pill good">Activo</span>';
 }
+function adminAge(ts){
+  const min=Math.max(0,Math.floor((Date.now()-new Date(ts).getTime())/60000));
+  if(min<60)return min+" min";
+  const h=Math.floor(min/60);if(h<48)return h+" h "+(min%60)+" min";
+  const d=Math.floor(h/24);return d+" d "+(h%24)+" h";
+}
 function adminOnline(name){return (state.users||[]).some(u=>u.name===name)}
 function renderAdminDetail(p){
   if(!p)return'<div class="empty">Elige un jugador de la lista.</div>';
   const owned=Object.entries(p.collection||{}).filter(([,n])=>n>0).map(([id,n])=>({c:card(id),n})).filter(x=>x.c).sort((a,b)=>a.c.level-b.c.level);
   const log=state.adminView.selectedLog||[];
   return`<div class="admin-detail">
-    <div class="admin-detail-head"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b> ${supporterBadge(p.tier)}<div class="muted">${adminOnline(p.name)?"● Conectado":"Desconectado"} · alta ${new Date(p.createdAt).toLocaleDateString("es-ES")}${p.discord?" · Discord: "+esc(p.discord):""}</div></div>${adminStatus(p)}</div>
+    <div class="admin-detail-head"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b> ${supporterBadge(p.tier)}<div class="muted">${adminOnline(p.name)?"● Conectado":"Desconectado"} · cuenta creada hace ${adminAge(p.createdAt)} (${new Date(p.createdAt).toLocaleDateString("es-ES")})${p.discord?" · Discord: "+esc(p.discord):""}</div></div>${adminStatus(p)}</div>
     <div class="admin-facts"><span>Nivel <b>${p.level}</b></span><span>ELO <b>${p.elo}</b></span><span>Oro <b>${p.gold}</b></span><span>V/E/D <b>${p.wins}/${p.draws}/${p.losses}</b></span><span>Mazo <b>${p.deckSize}</b></span><span>Edad <b>${esc(p.ageGroup||"—")}</b></span></div>
     ${p.suspensionReason?`<p class="muted">Motivo de la suspensión: ${esc(p.suspensionReason)}</p>`:""}
     <div class="admin-actions">
@@ -814,14 +821,14 @@ function renderAdmin(){
   const v=state.adminView;
   if(!v.stats&&!v.loading)void adminLoadPlayers();
   const s=v.stats||{humans:"…",suspended:"…",supporters:"…"};
-  const rows=v.players.map(p=>`<tr class="${v.selected&&v.selected.id===p.id?"selected":""}" data-action="adminSelect" data-id="${p.id}"><td><span class="admin-dot ${adminOnline(p.name)?"on":""}"></span>${esc(p.name)} ${supporterBadge(p.tier)}</td><td>${p.level}</td><td>${p.elo}</td><td>${p.gold}</td><td>${p.wins}/${p.losses}</td><td>${adminStatus(p)}</td></tr>`).join("");
+  const rows=v.players.map(p=>`<tr class="${v.selected&&v.selected.id===p.id?"selected":""}" data-action="adminSelect" data-id="${p.id}"><td><span class="admin-dot ${adminOnline(p.name)?"on":""}"></span>${esc(p.name)} ${supporterBadge(p.tier)}</td><td>${p.level}</td><td>${p.elo}</td><td>${p.gold}</td><td>${p.wins}/${p.losses}</td><td title="${new Date(p.createdAt).toLocaleString("es-ES")}">${adminAge(p.createdAt)}</td><td>${adminStatus(p)}</td></tr>`).join("");
   return`<div class="page admin-page">
     <div class="admin-top"><div><div class="kicker">Administración</div><h1>Jugadores</h1></div>
       <div class="admin-stats"><span class="pill">${s.humans} jugadores</span><span class="pill">${(state.users||[]).length} conectados</span><span class="pill">${s.supporters} donadores</span><span class="pill">${s.suspended} suspendidos</span><button class="btn small ${v.tab==="log"?"primary":""}" data-action="adminTab" data-tab="${v.tab==="log"?"players":"log"}">${v.tab==="log"?"Ver jugadores":"Registro global"}</button></div></div>
     ${v.tab==="log"?`<section class="panel"><div class="panel-body">${(v.log||[]).map(l=>`<div class="admin-log-row"><span>${new Date(l.at).toLocaleString("es-ES")}</span><b>${ADMIN_ACTION_NAMES[l.action]||esc(l.action)}</b><span>${esc(l.target||"")} · ${esc(adminDetailText(l))}</span><span class="muted">por ${esc(l.by)}</span></div>`).join("")||(v.log?'<div class="empty">Todavía no hay acciones.</div>':'<div class="empty">Cargando…</div>')}</div></section>`:`
     <form class="admin-filters" id="adminFilters"><input class="input" id="adminSearch" placeholder="Buscar jugador" value="${esc(v.q)}"><select class="select" id="adminFilter"><option value="">Todos</option><option value="supporters" ${v.filter==="supporters"?"selected":""}>Donadores</option><option value="suspended" ${v.filter==="suspended"?"selected":""}>Suspendidos</option></select><select class="select" id="adminSort"><option value="created_at">Más recientes</option><option value="elo" ${v.sort==="elo"?"selected":""}>ELO</option><option value="level" ${v.sort==="level"?"selected":""}>Nivel</option><option value="gold" ${v.sort==="gold"?"selected":""}>Oro</option><option value="username_key" ${v.sort==="username_key"?"selected":""}>Nombre</option></select><label class="admin-check"><input type="checkbox" id="adminBots" ${v.bots?"checked":""}> Bots</label><button class="btn small primary">Buscar</button></form>
     <div class="admin-grid">
-      <section class="panel admin-list"><div class="panel-head"><h2>${v.loading?"Cargando…":v.total+" resultados"}</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Jugador</th><th>Nv</th><th>ELO</th><th>Oro</th><th>V/D</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">Sin resultados.</td></tr>'}</tbody></table></div></section>
+      <section class="panel admin-list"><div class="panel-head"><h2>${v.loading?"Cargando…":v.total+" resultados"}</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Jugador</th><th>Nv</th><th>ELO</th><th>Oro</th><th>V/D</th><th>Antigüedad</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="7" class="muted">Sin resultados.</td></tr>'}</tbody></table></div></section>
       <section class="panel">${renderAdminDetail(v.selected)}</section>
     </div>`}
   </div>`;
@@ -2336,6 +2343,10 @@ function connectOnline(){
     });
     socket.on("disconnect",()=>{state.connected=false;updateChrome();if(state.view!=="duel")renderView()});
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
+    socket.on("chat:moderation",m=>{
+      const mins=Math.max(1,Math.ceil((Number(m&&m.untilMs)||0)/60000));
+      toast(m&&m.kind==="muted"?"Estás silenciado "+mins+" min por lenguaje ofensivo.":"Tu mensaje no se ha enviado: contiene lenguaje que no está permitido.","bad");
+    });
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
     socket.on("chat:message",m=>{pushChat({...m});if(state.view==="home")renderView()});
@@ -2859,6 +2870,21 @@ function attackingNowUid(d){
   if(d.pendingAttack?.attackerUid)return d.pendingAttack.attackerUid;
   return d.attackFlash&&Date.now()<d.attackFlash.until?d.attackFlash.uid:"";
 }
+function duelIsMyTurn(d){return !!d&&(d.online?!!d.myTurn&&!d.defending:!d.aiActing&&!d.defending)}
+function duelTurnBanner(){
+  const d=state.duel;
+  if(state.view!=="duel"||!d||d.gameOver)return;
+  const mine=duelIsMyTurn(d);
+  const id=d.online?d.matchId:"local:"+(d.startedAt||0);
+  const key=id+":"+(mine?"me":"foe");
+  if(state.turnBannerKey===key)return;
+  state.turnBannerKey=key;
+  let el=$("turnBanner");
+  if(!el){el=document.createElement("div");el.id="turnBanner";el.setAttribute("aria-live","polite");document.body.appendChild(el)}
+  el.className="turn-banner "+(mine?"mine":"foe");
+  el.innerHTML=`<span>${mine?"Tu turno":"Turno del rival"}</span>`;
+  void el.offsetWidth;el.classList.add("show");
+}
 function battleCards(list,zone){
   const cards=(list||[]).map(c=>({card:c,dying:false}));
   const attackingUid=attackingNowUid(state.duel);
@@ -2873,14 +2899,17 @@ function battleCards(list,zone){
     const clickable=!dying&&duelCardClickable(c,zone);
     const handPlayable=!dying&&zone==="hand"&&clickable;
     const attacked=!dying&&(Number(c.attacksThisTurn)||0)>0;
+    // Only on its owner's turn: during the opponent's turn a new creature can still defend.
+    const ownersTurn=zone==="player"?duelIsMyTurn(state.duel):!duelIsMyTurn(state.duel);
+    const summonSick=!dying&&zone!=="hand"&&ownersTurn&&!c.powerCard&&!c.berserker&&c.summonedTurn!=null&&Number(c.summonedTurn)===Number(state.duel?.turn);
     const defended=!dying&&(Number(c.defensesThisTurn)||0)>0;
     const attackingNow=!dying&&zone!=="hand"&&!!attackingUid&&c.uid===attackingUid;
     const defense=currentDef(c);
     const label=c.powerCard
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
-    const stateHint=handPlayable?" · jugable ahora":[attackingNow?"atacando ahora":"",attacked&&!attackingNow?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
-    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} ${!dying&&c.uid?'data-card-uid="'+esc(c.uid)+'" data-card-zone="'+zone+'"':""} ${zone==="hand"&&c.uid?'data-hand-uid="'+esc(c.uid)+'"':""} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
+    const stateHint=handPlayable?" · jugable ahora":[summonSick?"recién invocada: no puede atacar este turno":"",attackingNow?"atacando ahora":"",attacked&&!attackingNow?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
+    return `<article class="battle-card zone-${zone} ${summonSick?"summon-sick":""} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} ${!dying&&c.uid?'data-card-uid="'+esc(c.uid)+'" data-card-zone="'+zone+'"':""} ${zone==="hand"&&c.uid?'data-hand-uid="'+esc(c.uid)+'"':""} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){

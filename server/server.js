@@ -8,6 +8,7 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const { mutuallyBlocked, canUseCommunity } = require("./community-safety");
 const { SyntheticPopulation } = require("./synthetic-population");
+const { filterMessage } = require("./profanity");
 const { version: SERVER_VERSION } = require("./package.json");
 
 const PORT = process.env.PORT || 10000;
@@ -1267,9 +1268,25 @@ io.on("connection", socket => {
   socket.on("chat:send", payload => {
     const user = users.get(socket.id);
     if (!user) return;
-    const text = cleanText(payload && payload.text);
-    if (!text) return;
+    const raw = cleanText(payload && payload.text);
+    if (!raw) return;
     if (Date.now() - (user.lastChatAt || 0) < 1000) return;
+    if ((user.mutedUntil || 0) > Date.now()) {
+      socket.emit("chat:moderation", { kind: "muted", untilMs: user.mutedUntil - Date.now() });
+      return;
+    }
+    // Vocabulary filter: insults are masked, hate/self-harm messages are stopped and three of
+    // them within ten minutes mute the player for ten minutes.
+    const filtered = filterMessage(raw);
+    if (filtered.blocked) {
+      const now = Date.now();
+      user.chatStrikes = (user.chatStrikes || []).filter(t => now - t < 10 * 60 * 1000).concat(now);
+      if (user.chatStrikes.length >= 3) { user.mutedUntil = now + 10 * 60 * 1000; user.chatStrikes = []; }
+      socket.emit("chat:moderation", { kind: user.mutedUntil > now ? "muted" : "blocked", untilMs: Math.max(0, (user.mutedUntil || 0) - now) });
+      return;
+    }
+    const text = filtered.text;
+    if (!text) return;
     user.lastChatAt = Date.now();
     const message = { id: id("msg"), from: user.name, accountId: user.accountId, socketId: socket.id, tier: user.supporterTier || null, text, at: Date.now() };
     for (const [sid, recipient] of users) if (!mutuallyBlocked(user, recipient)) io.to(sid).emit("chat:message", message);

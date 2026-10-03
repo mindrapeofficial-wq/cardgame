@@ -725,3 +725,15 @@
 .admin-log-row{display:grid;grid-template-columns:140px 120px 1fr auto;gap:8px;font-size:12px;padding:5px 0;border-top:1px solid rgba(214,177,99,.08)}
 .admin-log-row span:nth-child(3){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}.admin-log-row{grid-template-columns:1fr 1fr}.admin-table-wrap{max-height:44vh}}
+
+/* Creatures summoned this turn cannot attack yet: dimmed with a small hourglass. */
+.battle-card.summon-sick .battle-art{filter:brightness(.55) saturate(.65)}
+.battle-card.summon-sick::after{content:"⏳";position:absolute;top:4px;right:4px;width:18px;height:18px;display:grid;place-items:center;font-size:11px;border-radius:50%;background:rgba(0,0,0,.72);box-shadow:0 0 0 1px rgba(242,207,115,.45);pointer-events:none;z-index:3}
+/* Turn change banner. */
+.turn-banner{position:fixed;left:50%;top:42%;z-index:110;pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.85)}
+.turn-banner span{display:block;padding:14px 46px;font:800 clamp(24px,4.4vw,46px)/1 Cinzel,serif;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap;border-top:1px solid;border-bottom:1px solid;background:linear-gradient(90deg,transparent,rgba(0,0,0,.82) 18%,rgba(0,0,0,.82) 82%,transparent)}
+.turn-banner.mine span{color:#f6d57e;border-color:rgba(242,207,115,.65);text-shadow:0 0 18px rgba(242,207,115,.6)}
+.turn-banner.foe span{color:#f0a08e;border-color:rgba(214,96,80,.6);text-shadow:0 0 18px rgba(214,96,80,.55)}
+.turn-banner.show{animation:turnBanner 1.5s ease forwards}
+@keyframes turnBanner{0%{opacity:0;transform:translate(-50%,-50%) scale(.85)}14%{opacity:1;transform:translate(-50%,-50%) scale(1.04)}24%{transform:translate(-50%,-50%) scale(1)}72%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(1.02)}}
+@media (prefers-reduced-motion:reduce){.turn-banner.show{animation-duration:.01s}}
