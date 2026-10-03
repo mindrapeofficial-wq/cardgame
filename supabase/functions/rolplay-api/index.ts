@@ -153,8 +153,14 @@ function publicProfile(a: any) {
     deck: Array.isArray(a.deck) ? a.deck : [],
     packs: a.packs || 0,
     supporterTier: a.supporter_tier || null,
+    dailyPackAvailable: String(a.last_daily_pack || "") !== madridToday(),
+    discordRewardClaimed: !!a.discord_reward_claimed_at,
     createdAt: a.created_at,
   };
+}
+// Calendar day in Spain, the day boundary for the free daily pack (same as the SQL function).
+function madridToday() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
 // Supporter tiers sold through Stripe Checkout. Recognition only: no gold and nothing that
@@ -1093,6 +1099,33 @@ Deno.serve(async (req: Request) => {
       if (rpcError) throw rpcError;
       const fresh = await loadAccount(auth.account.id);
       return json({ ok: true, packLevel, cards: pulled, profile: publicProfile(fresh) });
+    }
+
+    // Free packs: the daily one and the one-off Discord reward. Same draw as a bought pack of
+    // the player's level; rolplay_claim_free_pack checks the claim and adds the cards atomically.
+    if (action === "claim_free_pack") {
+      const kind = body.kind === "discord" ? "discord" : "daily";
+      const packLevel = Math.max(1, Number(auth.account.level) || 1);
+      const { data: eligible, error } = await db
+        .from("rolplay_cards")
+        .select("id,name,level,rarity,rarity_tier,level_one_drop_pct,gameplay_score,is_power,is_ability")
+        .lte("level", packLevel);
+      if (error) throw error;
+      const pool = (eligible || []).filter((c: any) => !(c.is_power && c.level === 1));
+      if (!pool.length) return fail("no_cards_for_level");
+      const dist = packDistribution(pool, packLevel);
+      const pulled = Array.from({ length: 5 }, () => drawFromDistribution(dist));
+      const { data, error: rpcError } = await db.rpc("rolplay_claim_free_pack", {
+        p_account: auth.account.id,
+        p_kind: kind,
+        p_card_ids: pulled.map((c: any) => Number(c.id)),
+      });
+      if (rpcError) {
+        const msg = String((rpcError as any).message || "");
+        if (msg.includes("already_claimed")) return fail(kind + "_already_claimed", 409);
+        throw rpcError;
+      }
+      return json({ ok: true, kind, packLevel, cards: pulled, profile: publicProfile(data) });
     }
 
     if (action === "sell_card") {

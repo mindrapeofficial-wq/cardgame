@@ -128,6 +128,12 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
         return;
       }
       this.leaveAt = Date.now() + this.p.sessionMinutes * rand(0.6, 1.4) * 60 * 1000;
+      // Like any player, open the free daily pack first thing if it is ready.
+      if (this.profile && this.profile.dailyPackAvailable) {
+        setTimeout(async () => {
+          try { this.profile = (await api("claim_free_pack", { kind: "daily" }, this.session)).profile; await this.rebuildDeck(); } catch {}
+        }, rand(20, 120) * 1000);
+      }
       const socket = connect(serverUrl, { transports: ["websocket"], forceNew: true, reconnection: true, reconnectionDelay: 4000 });
       this.socket = socket;
       socket.on("connect", () => {

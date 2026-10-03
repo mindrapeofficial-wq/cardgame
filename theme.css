@@ -576,3 +576,42 @@
 .support-header{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0;padding:0;border:0;background:none;color:#f2cf73;font-size:15px;cursor:pointer;text-shadow:0 0 8px rgba(242,207,115,.65);transition:transform .15s}
 .support-header:hover{transform:scale(1.15)}
 .currency-sep{width:1px;height:18px;margin:0 6px 0 2px;background:rgba(242,207,115,.3)}
+
+/* Free packs: daily pack and Discord reward banners, pack reveal. */
+.reward-banners{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.reward-banner{display:flex;align-items:center;gap:14px;padding:12px 16px;border:1px solid rgba(242,207,115,.45);border-radius:14px;background:linear-gradient(90deg,rgba(60,44,16,.55),rgba(14,12,9,.85))}
+.reward-banner.discord{border-color:rgba(130,140,255,.5);background:linear-gradient(90deg,rgba(40,44,90,.55),rgba(14,12,9,.85))}
+.reward-banner>div{flex:1;min-width:0}
+.reward-banner b{display:block;font-family:var(--arc-display,Cinzel,serif);letter-spacing:.04em}
+.reward-banner small{display:block;color:var(--arc-muted,#b9b09e);font-size:12px}
+.reward-icon{font-size:26px;line-height:1}
+.discord-logo{display:inline-flex;filter:drop-shadow(0 0 8px rgba(88,101,242,.55))}
+.discord-icon{width:30px;height:30px;display:block}
+.quick-icon .discord-icon{width:20px;height:20px}
+.discord-btn{border-color:rgba(130,140,255,.7)!important;color:#c9ceff!important}
+.support-discord{margin:12px 2px 0;font-size:13px}
+.support-discord a{color:#c9ceff}
+.pack-reveal-modal{max-width:760px}
+.pack-reveal{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px;perspective:900px}
+.pack-reveal-card{opacity:0;animation:packFlip .6s cubic-bezier(.22,.8,.28,1) forwards}
+.pack-reveal-card .card-actions{display:none}
+@keyframes packFlip{0%{opacity:0;transform:rotateY(90deg) translateY(20px) scale(.85);filter:brightness(.3)}60%{opacity:1;filter:brightness(1.4)}100%{opacity:1;transform:none;filter:none}}
+@media (max-width:640px){.pack-reveal{grid-template-columns:repeat(3,minmax(0,1fr))}.reward-banner{flex-wrap:wrap}.reward-banner .btn{width:100%}}
+@media (prefers-reduced-motion:reduce){.pack-reveal-card{animation:none;opacity:1}}
+/* Shop: the free daily pack is visually separate from packs bought with gold. */
+.shop-daily{display:flex;align-items:center;gap:18px;padding:14px 18px!important;margin-bottom:14px;border-color:rgba(127,208,138,.55)!important;background:linear-gradient(90deg,rgba(26,52,32,.55),rgba(12,11,8,.9))!important}
+.shop-daily.claimed{border-color:var(--arc-line,#3a3020)!important;background:rgba(12,11,8,.85)!important;opacity:.85}
+.shop-daily h2{margin:2px 0 4px;font-family:var(--arc-display,Cinzel,serif)}
+.shop-daily p{margin:0;font-size:13px}
+.shop-daily-text{flex:1;min-width:0}
+.shop-daily-wait{text-align:right}
+.shop-daily-wait b{display:block;font-size:13px}
+.shop-daily-wait small{color:#9ad9a6}
+.shop-pack-thumb,.pack-art-wrap{position:relative;display:inline-block}
+.shop-pack-thumb img{width:74px;display:block;filter:hue-rotate(70deg) saturate(.9);border-radius:6px}
+.shop-daily.claimed .shop-pack-thumb img{filter:grayscale(.8)}
+.pack-ribbon{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);padding:2px 10px;border-radius:999px;font:700 10.5px/1.4 var(--arc-display,Cinzel,serif);letter-spacing:.12em;white-space:nowrap;box-shadow:0 4px 10px rgba(0,0,0,.5)}
+.pack-ribbon.free{background:#2f8f4a;color:#eafff0}
+.pack-ribbon.gold{background:linear-gradient(180deg,#f2cf73,#b98a2c);color:#1c1406;bottom:14px;font-size:12px}
+.shop-buy-kicker{text-align:center;margin-bottom:6px}
+@media (max-width:640px){.shop-daily{flex-wrap:wrap}.shop-daily .btn{width:100%}.shop-daily-wait{text-align:left}}

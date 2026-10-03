@@ -691,6 +691,7 @@ function renderHome(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
   return `<div class="page home-page">
     ${activeDuelBanner}
+    ${renderRewardsBanner()}
     <div class="home-mobile-lobby">
       <section class="panel home-mobile-chat">
         <div class="panel-head"><h2>Chat</h2><span class="muted">${state.chat.length} mensajes</span></div>
@@ -1362,6 +1363,7 @@ function renderSupport(){
     </div></section>
     <div class="support-grid">${cards}</div>
     <section class="panel"><div class="panel-head"><h2>Muro de apoyadores</h2><span class="pill">${s.wall.length}</span></div><div class="panel-body support-wall">${wall}</div></section>
+    <p class="support-discord">¿Dudas o ideas? Habla con nosotros en <a href="${DISCORD_URL}" target="_blank" rel="noopener">nuestro Discord</a>.</p>
     <p class="muted support-legal">Los pagos los procesa Stripe de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales (carta exclusiva, nombrar una carta, ser una carta) se entregan cuando estén listas y se gestionan desde el equipo.</p>
   </div>`;
 }
@@ -1393,6 +1395,59 @@ function handleSupportReturn(){
     };
     setTimeout(poll,2500);
   }else toast("Pago cancelado. No se ha cobrado nada.");
+}
+// ---- Free packs: daily pack and the one-off Discord reward ----------------------------------
+// rolplay-api claim_free_pack draws a pack of the player's level; the profile says whether the
+// daily pack is ready today (Spanish calendar day) and whether the Discord reward was claimed.
+const DISCORD_URL="https://discord.gg/dQxrfzPKXC";
+// Official Discord mark (simple-icons), in Discord's blurple.
+const DISCORD_ICON='<svg class="discord-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="#5865F2" d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg>';
+let dailyToastShown="";
+function renderRewardsBanner(){
+  const p=state.profile;if(!p||state.offlineSession)return"";
+  const daily=p.dailyPackAvailable?`<div class="reward-banner daily"><span class="reward-icon">🎁</span><div><b>Tu sobre diario está listo</b><small>Un sobre gratis de tu nivel cada día.</small></div><button class="btn primary" data-action="claimDaily">Abrir sobre</button></div>`:"";
+  const discordStep=state.discordOpened
+    ?`<button class="btn primary" data-action="claimDiscord">Reclamar sobre</button>`
+    :`<button class="btn discord-btn" data-action="openDiscord">Unirme al Discord</button>`;
+  const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>Noticias, novedades y un sobre gratis por unirte.</small></div>${discordStep}</div>`:"";
+  return daily||discord?`<div class="reward-banners">${daily}${discord}</div>`:"";
+}
+function openDiscord(){
+  window.open(DISCORD_URL,"_blank","noopener");
+  state.discordOpened=true;
+  if(state.view==="home")renderView();
+}
+async function claimFreePack(kind){
+  const r=await api("claim_free_pack",{kind});
+  if(!r.ok){
+    if(r.error==="daily_already_claimed")toast("Ya has abierto el sobre de hoy. Vuelve mañana.","bad");
+    else if(r.error==="discord_already_claimed")toast("Ya reclamaste el sobre de Discord.","bad");
+    else toast("No se pudo abrir el sobre. Inténtalo de nuevo.","bad");
+    if(r.error&&r.error.endsWith("already_claimed"))void refreshProfileFlags();
+    return;
+  }
+  applyProfile(r.profile);
+  const cards=(r.cards||[]).map(x=>card(x.id)).filter(Boolean);
+  state.lastPack=cards;
+  playSound("draw");
+  showPackReveal(cards,kind==="discord"?"Sobre gratis de Discord":"Sobre diario gratis · Nivel "+r.packLevel);
+  renderView();
+}
+async function refreshProfileFlags(){
+  const r=await api("me");
+  if(r.ok){applyProfile(r.profile);renderView()}
+}
+// The five cards turn over one after another.
+function showPackReveal(cards,title){
+  $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal pack-reveal-modal"><div class="modal-head"><b>${esc(title)}</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body">
+    <div class="pack-reveal">${cards.map((c,i)=>`<div class="pack-reveal-card" style="animation-delay:${0.25+i*0.32}s">${cardTile(c,{})}</div>`).join("")}</div>
+    <div class="actions"><button class="btn" data-action="nav" data-view="collection">Ver colección</button><button class="btn primary" data-action="closeModal">Genial</button></div>
+  </div></div></div>`;
+}
+function announceDailyPack(){
+  const p=state.profile;
+  const today=new Date().toDateString();
+  if(p&&p.dailyPackAvailable&&dailyToastShown!==today){dailyToastShown=today;toast("🎁 Tu sobre diario está listo. Ábrelo en Inicio.","good")}
 }
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
@@ -1704,12 +1759,29 @@ function renderPackOdds(){
   return`<div class="grid five odds-summary">${summary}</div><div class="odds-list pack-odds-scroll" style="margin-top:12px">${rows}</div>
     <p class="muted" style="margin:10px 0 0">Las probabilidades proceden del mismo motor del servidor que realiza cada tirada y tienen en cuenta nivel del sobre, rareza y balance de juego. El Poder básico Nv 1 nunca aparece en sobres.</p>`;
 }
+// Time until the next free daily pack: midnight in Spain, the same boundary the server uses.
+function nextDailyPackIn(){
+  const parts=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Madrid",hour:"numeric",minute:"numeric",hourCycle:"h23"}).formatToParts(new Date());
+  const h=Number(parts.find(p=>p.type==="hour")?.value)||0,m=Number(parts.find(p=>p.type==="minute")?.value)||0;
+  const left=24*60-(h*60+m),hh=Math.floor(left/60),mm=left%60;
+  return hh?hh+" h "+mm+" min":mm+" min";
+}
+// The free daily pack sits apart from the packs bought with gold, so the two never get mixed up.
+function renderDailyShopPanel(){
+  const ready=!!state.profile.dailyPackAvailable;
+  return `<section class="panel shop-daily ${ready?"ready":"claimed"}">
+    <div class="shop-pack-thumb"><img src="assets/packs/pack-lvl1-v2.webp" alt=""><span class="pack-ribbon free">GRATIS</span></div>
+    <div class="shop-daily-text"><div class="kicker">Recompensa diaria</div><h2>Sobre diario</h2><p class="muted">Un sobre gratis de tu nivel (Nivel ${playerLevel()}) cada día. No gasta oro y no cuenta como compra.</p></div>
+    ${ready?'<button class="btn primary" data-action="claimDaily">Abrir gratis</button>':`<div class="shop-daily-wait"><b>Ya lo has abierto hoy</b><small>Próximo sobre en ${nextDailyPackIn()}</small></div>`}
+  </section>`;
+}
 function renderShop(){
   const lvl=state.packLevel||playerLevel();
   const opts=Array.from({length:playerLevel()},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===lvl?"selected":""}>Sobre Nivel ${n}</option>`).join("");
   return `<div class="page">
+    ${renderDailyShopPanel()}
     <div class="grid two">
-      <section class="panel pack-hero"><div><img class="pack-art" src="assets/packs/pack-lvl1-v2.webp" alt="Sobre ARCANUM TCG"><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
+      <section class="panel pack-hero"><div><div class="kicker shop-buy-kicker">Comprar con oro</div><div class="pack-art-wrap"><img class="pack-art" src="assets/packs/pack-lvl1-v2.webp" alt="Sobre ARCANUM TCG"><span class="pack-ribbon gold">20 ORO</span></div><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
@@ -1966,6 +2038,7 @@ function cardDetail(id){
 function openMobileMenu(){
   $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal" style="max-width:420px"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
     <button class="quick-row btn" data-action="nav" data-view="collection"><span class="quick-icon">◇</span><span><b>Colección</b><small class="muted" style="display:block">Tus cartas</small></span></button>
+    <button class="quick-row btn" data-action="openDiscord"><span class="quick-icon">${DISCORD_ICON}</span><span><b>Discord</b><small class="muted" style="display:block">Únete a la comunidad</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="support"><span class="quick-icon">★</span><span><b>Apoya el proyecto</b><small class="muted" style="display:block">Insignias y recompensas</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="manual"><span class="quick-icon">?</span><span><b>Manual</b><small class="muted" style="display:block">Reglas y referencia</small></span></button>
@@ -1987,7 +2060,7 @@ function connectOnline(){
       socket.emit("hello",{sessionToken});
     });
     socket.on("server:ready",()=>{
-      state.connected=true;state.connecting=false;updateChrome();loadFriends();handleSupportReturn();
+      state.connected=true;state.connecting=false;updateChrome();loadFriends();handleSupportReturn();announceDailyPack();
       if(["home","play","trade"].includes(state.view))renderView();
     });
     socket.on("auth:error",async m=>{
@@ -3138,6 +3211,9 @@ document.addEventListener("click",e=>{
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
   else if(a==="socialToggle")toggleSocial();
+  else if(a==="claimDaily")claimFreePack("daily");
+  else if(a==="claimDiscord")claimFreePack("discord");
+  else if(a==="openDiscord")openDiscord();
   else if(a==="supportCheckout")supportCheckout(el.dataset.tier);
   else if(a==="voiceToggle")voiceToggle();
   else if(a==="voiceMuteRival")voiceMuteRival();
