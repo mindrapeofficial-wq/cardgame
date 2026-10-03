@@ -8,3 +8,5 @@ arcanum-firma/
 play-*/
 *.aab
 *.apk
+
+/android/firebase-config.json

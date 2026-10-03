@@ -14,10 +14,18 @@ dependencies {
     implementation 'com.android.billingclient:billing:9.1.0'
     implementation platform('com.google.firebase:firebase-bom:34.19.0')
     implementation 'com.google.firebase:firebase-messaging'
+    implementation 'com.google.firebase:firebase-installations'
 }
 
 def firebaseFile = rootProject.file('firebase-config.json')
 def firebaseConfig = firebaseFile.exists() ? new groovy.json.JsonSlurper().parse(firebaseFile) : [:]
+if (firebaseConfig.isEmpty() && file('google-services.json').exists()) {
+    def services = new groovy.json.JsonSlurper().parse(file('google-services.json'))
+    def client = services.client.find { it.client_info.android_client_info.package_name == 'com.arcanum.classic' }
+    if (client != null) firebaseConfig = [APP_ID:client.client_info.mobilesdk_app_id,
+        API_KEY:client.api_key[0].current_key, PROJECT_ID:services.project_info.project_id,
+        SENDER_ID:services.project_info.project_number]
+}
 
 android {
     namespace 'com.arcanum.classic'
