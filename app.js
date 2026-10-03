@@ -50,7 +50,7 @@ const state={
   socket:null,connected:false,connecting:false,users:[],matches:[],chat:[],
   collectionQuery:"",collectionMode:"owned",collectionType:"all",deckTarget:DECK_SIZE,
   savedDecks:[],activeDeckId:null,deckName:"",decksLoading:false,
-  duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,sound:localStorage.getItem("rolplay.sound")!=="off",
+  duel:null,trade:freshTrade(),lastPack:[],packLevel:null,packOdds:[],packOddsLoading:false,
   authMode:"login",authBusy:false,offlineSession:false,
   ranking:[],rankingLoading:false,myRank:null,
   marketListings:[],marketLoading:false,marketKind:"gold"
@@ -191,7 +191,7 @@ async function api(action,payload={},auth=true){
   if(auth&&sessionToken)headers["x-rolplay-session"]=sessionToken;
   if(IS_PLAY_CLIENT)headers["x-arcanum-client"]="google-play";
   try{
-    const res=await fetch(AUTH_API,{method:"POST",headers,body:JSON.stringify({action,...payload})});
+    const res=await fetch(AUTH_API,{method:"POST",headers,signal:AbortSignal.timeout(20000),body:JSON.stringify({action,...payload})});
     let data={};try{data=await res.json()}catch{}
     if(!res.ok||!data.ok)return{ok:false,error:data.error||"server_error",status:res.status};
     return data;
@@ -212,6 +212,7 @@ function setAuthMode(mode){
   $("registerLegal")?.classList.toggle("hidden",state.authMode!=="register");
 }
 function showAuth(){
+  ARCANUM_AUDIO.setActive(false);
   $("appShell")?.classList.add("hidden");$("loginScreen")?.classList.remove("hidden");
   $("bootLoader")?.classList.add("hidden");$("loginForm")?.classList.remove("hidden");
   const last=localStorage.getItem(LAST_USER_KEY)||"";
@@ -238,11 +239,14 @@ async function authenticateForm(){
 function enterGame(){
   if(!state.profile)return;
   if(!ARCANUM_PRIVACY.ensureAccess())return;
+  ARCANUM_AUDIO.setActive(true);
+  ARCANUM_MESSAGES.start();void ARCANUM_NOTIFICATIONS.start();
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
   updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
   if(IS_PLAY_CLIENT)ARCANUM_PLAY.restore();
 }
 async function logout(){
+  ARCANUM_MESSAGES.stop();ARCANUM_SOCIAL.clear();await ARCANUM_NOTIFICATIONS.stop();
   if(sessionToken)void api("logout",{},true);
   if(state.socket){state.socket.disconnect();state.socket=null}
   state.connected=false;state.duel=null;state.trade=freshTrade();state.profile=null;
@@ -272,12 +276,7 @@ async function syncPendingRewards(){
   updateChrome();if(state.view==="profile"||state.view==="home")renderView();
 }
 
-function playSound(name){
-  if(!state.sound)return;
-  const files={click:"sonidos/click.WAV",turn:"sonidos/turn.wav",draw:"sonidos/n_cartas.wav",summon:"sonidos/invocar.WAV",power:"sonidos/poder.WAV",hit:"sonidos/lucha1.WAV",win:"sonidos/n_lvl.WAV"};
-  const src=files[name];if(!src)return;
-  try{const a=new Audio(src);a.volume=.28;a.play().catch(()=>{})}catch{}
-}
+function playSound(name){ARCANUM_AUDIO.playEffect(name)}
 function toast(message,type=""){
   const stack=$("toasts");if(!stack)return;
   const el=document.createElement("div");el.className="toast "+type;el.textContent=message;stack.appendChild(el);
@@ -294,7 +293,7 @@ async function boot(){
   }catch(e){
     console.error(e);$("bootError")?.classList.remove("hidden");return;
   }
-  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261003-privacy-v1",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
+  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261003-audio-v1",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
   if(sessionToken){
     const result=await api("me",{},true);
     if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
@@ -2138,10 +2137,14 @@ function renderProfile(){
   return `<div class="page">
     <section class="panel profile-banner"><div><div class="kicker">${state.profile.supporterTier?SUPPORT_TIERS[state.profile.supporterTier].name:"Aprendiz"}</div><h1 class="${supporterNameClass(state.profile.supporterTier)}">${supporterBadge(state.profile.supporterTier)}${esc(state.profile.name)}</h1><button class="btn small support-cta" data-action="nav" data-view="support">★ Apoya el proyecto</button><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
     ${ARCANUM_PRIVACY.accountPanel()}
+    ${ARCANUM_AUDIO.panel()}
+    ${ARCANUM_SOCIAL.panel()}
+    ${ARCANUM_MESSAGES.panel()}
+    ${ARCANUM_NOTIFICATIONS.panel()}
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP ganada durante la carrera: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Las victorias y empates suben la barra. Las derrotas PvP pueden bajarla, pero nunca reducen un nivel ya alcanzado.</p></div>
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
-      <section class="panel"><div class="panel-head"><h2>Ajustes de cuenta</h2></div><div class="panel-body"><label class="quick-row"><span class="quick-icon">♪</span><span><b>Sonidos del juego</b><small class="muted" style="display:block">Efectos originales recuperados</small></span><input type="checkbox" id="soundToggle" ${state.sound?"checked":""}></label><div class="actions" style="margin-top:12px"><button class="btn danger" data-action="logout">Cerrar sesión</button></div></div></section>
+      <section class="panel"><div class="panel-head"><h2>Ajustes de cuenta</h2></div><div class="panel-body"><p class="muted">Puedes ajustar la música y los efectos en el panel Audio del juego.</p><div class="actions" style="margin-top:12px"><button class="btn danger" data-action="logout">Cerrar sesión</button></div></div></section>
       <section class="panel profile-friends"><div class="panel-head"><h2>Amigos</h2><span class="pill">${friendsState().friends.length}</span></div><div class="panel-body">${renderFriendsBlock(false)}</div></section>
       <section class="panel"><div class="panel-head"><h2>Resumen</h2></div><div class="panel-body"><div class="quick-list"><div class="quick-row"><span class="quick-icon">◇</span><span><b>${uniqueOwned()} cartas distintas</b><small class="muted" style="display:block">${collectionTotal()} cartas coleccionables · Poder básico Nv 1 infinito</small></span></div><div class="quick-row"><span class="quick-icon">▦</span><span><b>${state.profile.packs||0} sobres</b><small class="muted" style="display:block">abiertos</small></span></div><div class="quick-row"><span class="quick-icon">⚔</span><span><b>${total} partidas PvP</b><small class="muted" style="display:block">victorias, empates y derrotas registradas</small></span></div></div></div></section>
     </div>
@@ -2399,7 +2402,7 @@ function renderDuel(){
 function duelMatchActions(d){
   if(!d||d.gameOver)return"";
   const drawDisabled=!d.online||d.drawOfferOutgoing;
-  return `<div class="duel-match-actions" aria-label="Acciones de partida"><button class="btn small danger" data-action="concede">Rendirse</button><button class="btn small" data-action="drawButton" ${drawDisabled?"disabled":""}>Tablas</button></div>`;
+  return `<div class="duel-match-actions" aria-label="Acciones de partida"><button class="btn small danger" data-action="concede">Rendirse</button><button class="btn small" data-action="drawButton" ${drawDisabled?"disabled":""}>Tablas</button><button type="button" class="btn small audio-open" data-audio-open aria-label="Ajustes de audio" title="Ajustes de audio">♪</button></div>`;
 }
 function openDrawResponseModal(){
   const d=state.duel;
@@ -3402,7 +3405,6 @@ document.addEventListener("change",e=>{
   else if(e.target.id==="savedDeckSelect"){if(e.target.value)void activateSavedDeck(e.target.value)}
   else if(e.target.id==="packLevelSelect"){state.packLevel=clamp(Number(e.target.value)||1,1,playerLevel());renderView()}
   else if(e.target.id==="marketKind"){state.marketKind=e.target.value==="trade"?"trade":"gold";renderView()}
-  else if(e.target.id==="soundToggle"){state.sound=e.target.checked;localStorage.setItem("rolplay.sound",state.sound?"on":"off");saveProfile();toast(state.sound?"Sonidos activados.":"Sonidos desactivados.")}
 });
 document.addEventListener("submit",e=>{
   if(e.target.id==="loginForm"){e.preventDefault();authenticateForm()}
@@ -3533,5 +3535,11 @@ document.addEventListener("click",e=>{if(swallowNextClick){swallowNextClick=fals
 ARCANUM_PRIVACY.bind({api,state,applyProfile,enterGame,logout,toast,renderView,esc,closeModal,
   keys:[SESSION_KEY,PROFILE_CACHE_KEY,LAST_USER_KEY,PENDING_REWARDS_KEY]});
 ARCANUM_PLAY.bind({api,state,applyProfile,toast,renderView});
-boot();
+ARCANUM_MESSAGES.bind({api,state,toast,esc,closeModal});
+ARCANUM_NOTIFICATIONS.bind({api,state,toast,renderView,go});
+ARCANUM_SOCIAL.bind({api,state,toast,authError:authErrorMessage,legalVersion:ARCANUM_PRIVACY.version,
+  validLegal:ARCANUM_PRIVACY.validLegal,openDelete:ARCANUM_PRIVACY.deleteDialog,
+  acceptSession:result=>{ARCANUM_MESSAGES.stop();void ARCANUM_NOTIFICATIONS.stop();
+    sessionToken=result.token||"";localStorage.setItem(SESSION_KEY,sessionToken);applyProfile(result.profile);enterGame()}});
+boot().then(()=>ARCANUM_SOCIAL.init());
 })();

@@ -34,11 +34,13 @@ window.ARCANUM_PRIVACY=(()=>{
   }
   function deleteDialog(){
     ctx.closeModal();
-    shell("Eliminar cuenta y datos",`<p>Se eliminarán permanentemente <b>${ctx.esc(ctx.state.profile.name)}</b>, su progreso, cartas, mazos, amistades, sesiones y vínculo con Discord. No podrás recuperar la cuenta. Los registros mínimos de pagos se conservarán por obligaciones legales, separados del perfil.</p><form id="privacyDeleteForm"><label for="deletePassword">Confirma tu contraseña</label><input id="deletePassword" class="input" type="password" autocomplete="current-password" minlength="8" maxlength="128" required><label for="deleteConfirm">Escribe ELIMINAR</label><input id="deleteConfirm" class="input" autocomplete="off" pattern="ELIMINAR" required><div class="actions"><button class="btn danger" type="submit">Eliminar definitivamente</button><button class="btn" type="button" data-privacy-action="cancelDelete">Cancelar</button></div></form>`);
+    const social=ctx.state.profile.passwordEnabled===false;
+    const verified=social&&!!ARCANUM_SOCIAL.reauthToken();
+    shell("Eliminar cuenta y datos",`<p>Se eliminarán permanentemente <b>${ctx.esc(ctx.state.profile.name)}</b>, su progreso, cartas, mazos, amistades, mensajes privados, sesiones, dispositivos de notificaciones y accesos vinculados. No podrás recuperar la cuenta. Los registros mínimos de pagos se conservarán por obligaciones legales, separados del perfil.</p><form id="privacyDeleteForm">${social?`<p>${verified?'Identidad verificada. Confirma la eliminación a continuación.':'Verifica de nuevo tu identidad con Google o Apple antes de eliminar la cuenta.'}</p>${verified?'':'<button type="button" class="btn" data-privacy-action="socialReauth">Verificar mi identidad</button>'}`:'<label for="deletePassword">Confirma tu contraseña</label><input id="deletePassword" class="input" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>'}<label for="deleteConfirm">Escribe ELIMINAR</label><input id="deleteConfirm" class="input" autocomplete="off" pattern="ELIMINAR" required><div class="actions"><button class="btn danger" type="submit" ${social&&!verified?'disabled':''}>Eliminar definitivamente</button><button class="btn" type="button" data-privacy-action="cancelDelete">Cancelar</button></div></form>`);
   }
   function reportDialog(el){
-    const name=el.dataset.name,message=ctx.state.chat.find(m=>m.id&&m.id===el.dataset.messageId);
-    reportContext={name,messageId:message?.id||"",messageText:message?.text||""};
+    const name=el.dataset.name,message=el.dataset.directMessageId?{id:el.dataset.directMessageId,text:el.dataset.messageText||""}:ctx.state.chat.find(m=>m.id&&m.id===el.dataset.messageId);
+    reportContext={name,messageId:message?.id||"",messageText:message?.text||"",directMessageId:el.dataset.directMessageId||null};
     ctx.closeModal();
     shell("Denunciar a "+ctx.esc(name),`<p>La denuncia será revisada por moderación. Tu identidad no se mostrará al jugador denunciado.</p>${message?`<blockquote>${ctx.esc(message.text)}</blockquote>`:""}<form id="privacyReportForm"><label for="reportReason">Motivo</label><select class="input" id="reportReason" required><option value="">Selecciona un motivo</option><option value="acoso">Acoso o amenazas</option><option value="odio">Odio o discriminación</option><option value="contenido_sexual">Contenido sexual</option><option value="riesgo_menores">Riesgo o explotación de menores</option><option value="spam">Spam o estafas</option><option value="trampas">Trampas</option><option value="otro">Otro</option></select><label for="reportDetails">Detalles (opcional)</label><textarea id="reportDetails" class="input" maxlength="1000" rows="4" placeholder="Explica lo ocurrido sin incluir datos privados innecesarios."></textarea><label class="legal-check"><input type="checkbox" id="reportBlock">Bloquear también a este jugador</label><button class="btn primary" type="submit">Enviar denuncia</button></form>`);
   }
@@ -56,6 +58,7 @@ window.ARCANUM_PRIVACY=(()=>{
     else if(action==="cancelDelete"){close();ensureAccess()}
     else if(action==="logout"){required=false;close();ctx.logout()}
     else if(action==="delete")deleteDialog();
+    else if(action==="socialReauth"){root().innerHTML="";ARCANUM_SOCIAL.reauthenticate()}
     else if(action==="report")reportDialog(el);
     else if(action==="block"||action==="unblock")void block(el.dataset.name,action==="unblock");
   });
@@ -72,7 +75,7 @@ window.ARCANUM_PRIVACY=(()=>{
         if(!r.ok){status("No se pudo guardar la aceptación. Comprueba tu conexión e inténtalo de nuevo.");return}
         await refresh();required=false;root().innerHTML="";ctx.enterGame();
       } else if(id==="privacyDeleteForm"){
-        const r=await ctx.api("delete_account",{password:document.getElementById("deletePassword").value,confirm:document.getElementById("deleteConfirm").value});
+        const r=await ctx.api("delete_account",{password:document.getElementById("deletePassword")?.value||"",accessToken:ARCANUM_SOCIAL.reauthToken(),confirm:document.getElementById("deleteConfirm").value});
         if(!r.ok){status(r.error==="invalid_credentials"?"La contraseña es incorrecta.":r.error==="too_many_attempts"?"Demasiados intentos. Espera 15 minutos.":"No se pudo eliminar la cuenta. Inténtalo de nuevo o contacta con asistencia.");return}
         for(const key of ctx.keys)localStorage.removeItem(key);
         for(const id of["loginName","loginPassword","loginConfirm"]){const input=document.getElementById(id);if(input)input.value=""}
@@ -88,5 +91,5 @@ window.ARCANUM_PRIVACY=(()=>{
     } finally{busy=false;buttons.forEach(b=>b.disabled=false)}
   });
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!required&&!busy)close()});
-  return{version,bind:c=>ctx=c,validLegal,ensureAccess,isBlocked,playerTools,chatTools,accountPanel};
+  return{version,bind:c=>ctx=c,validLegal,ensureAccess,isBlocked,playerTools,chatTools,accountPanel,deleteDialog};
 })();
