@@ -581,6 +581,35 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Simulated players (rolplay_accounts.is_bot) are driven by the multiplayer server. They have
+    // no usable password; only the trusted server can list them and open a session for one.
+    if (action === "bot_roster") {
+      if (!(await isTrustedServer(req))) return fail("server_key_invalid", 403);
+      const { data, error } = await db
+        .from("rolplay_accounts")
+        .select("username,level")
+        .eq("is_bot", true)
+        .order("username_key");
+      if (error) throw error;
+      return json({ ok: true, bots: (data || []).map((b: any) => ({ name: b.username, level: Number(b.level) || 1 })) });
+    }
+    if (action === "bot_session") {
+      if (!(await isTrustedServer(req))) return fail("server_key_invalid", 403);
+      const key = usernameKey(normalizeUsername(body.username)).slice(0, 40);
+      const { data: account, error } = await db
+        .from("rolplay_accounts")
+        .select("*")
+        .eq("username_key", key)
+        .eq("is_bot", true)
+        .maybeSingle();
+      if (error) throw error;
+      if (!account) return fail("bot_not_found", 404);
+      // One live session per bot: drop the previous ones so they do not pile up.
+      await db.from("rolplay_sessions").delete().eq("account_id", account.id);
+      const token = await createSession(account.id);
+      return json({ ok: true, token, profile: publicProfile(account) });
+    }
+
     const auth = await authenticate(req);
     if (!auth) return fail("unauthorized", 401);
 

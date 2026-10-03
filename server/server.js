@@ -1410,4 +1410,14 @@ httpServer.listen(PORT, "0.0.0.0", () => {
       syntheticPopulation = null;
     });
   }
+  // Simulated players for the live balance test (server/bots.js); off unless BOTS_ENABLED=1.
+  if (process.env.BOTS_ENABLED === "1" && ROLPLAY_SERVER_KEY) {
+    require("./bots.js").startBots({
+      port: PORT,
+      apiUrl: ROLPLAY_API_URL,
+      serverKey: ROLPLAY_SERVER_KEY,
+      byId: BY_ID,
+      publicUrl: process.env.RENDER_EXTERNAL_URL || ""
+    });
+  }
 });
