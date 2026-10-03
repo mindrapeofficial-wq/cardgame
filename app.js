@@ -213,6 +213,7 @@ function setAuthMode(mode){
 }
 function showAuth(){
   ARCANUM_AUDIO.setActive(false);
+  ARCANUM_MESSAGES.stop();void ARCANUM_NOTIFICATIONS.stop();
   $("appShell")?.classList.add("hidden");$("loginScreen")?.classList.remove("hidden");
   $("bootLoader")?.classList.add("hidden");$("loginForm")?.classList.remove("hidden");
   const last=localStorage.getItem(LAST_USER_KEY)||"";
@@ -1385,8 +1386,8 @@ function renderSupport(){
     </div></section>
     <div class="support-grid">${cards}</div>
     <section class="panel"><div class="panel-head"><h2>Muro de apoyadores</h2><span class="pill">${s.wall.length}</span></div><div class="panel-body support-wall">${wall}</div></section>
-    <p class="support-discord">¿Dudas o ideas? Habla con nosotros en <a href="${DISCORD_URL}" target="_blank" rel="noopener">nuestro Discord</a>.</p>
-    <p class="muted support-legal">Los pagos los procesa Stripe de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales (carta exclusiva, nombrar una carta, ser una carta) se entregan cuando estén listas y se gestionan desde el equipo.</p>
+    <p class="support-discord">¿Dudas o ideas? Habla con nosotros en <a href="${DISCORD_URL}" data-action="openDiscord">nuestro Discord</a>.</p>
+    <p class="muted support-legal">Los pagos los procesa ${IS_PLAY_CLIENT?"Google Play":"Stripe"} de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales se gestionan desde el equipo.</p>
   </div>`;
 }
 async function supportCheckout(tier){
@@ -1445,7 +1446,11 @@ function renderRewardsBanner(){
   const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>${discordText}</small></div><div class="reward-actions">${discordStep}</div></div>`:"";
   return daily||discord?`<div class="reward-banners">${daily}${discord}</div>`:"";
 }
-function openDiscord(){window.open(DISCORD_URL,"_blank","noopener")}
+function openDiscord(){
+  if(IS_PLAY_CLIENT&&typeof window.ArcanumAndroid?.openCommunityLink==="function"){
+    window.ArcanumAndroid.openCommunityLink(DISCORD_URL);
+  }else location.assign(DISCORD_URL);
+}
 // Sends the player to Discord to authorise the link; discord-oauth brings them back with ?discord=…
 async function discordLink(){
   const r=await api("discord_link_start");
@@ -3322,6 +3327,7 @@ document.addEventListener("click",e=>{
   if(authTab){setAuthMode(authTab.dataset.authMode);return}
   const el=e.target.closest("[data-action]");if(!el)return;
   const a=el.dataset.action;
+  if(a==="openDiscord")e.preventDefault();
   if(state.view==="duel"&&state.duel&&!state.duel.gameOver&&DUEL_GAME_ACTIONS.has(a))markDuelActivity("gameAction");
   if(a!=="cardDetail")playSound("click");
   if(a==="nav")go(el.dataset.view);

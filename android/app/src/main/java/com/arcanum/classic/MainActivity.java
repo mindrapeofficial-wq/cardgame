@@ -370,6 +370,18 @@ public class MainActivity extends Activity {
     }
 
     public final class AndroidBridge {
+        @JavascriptInterface public void openCommunityLink(final String url) {
+            runOnUiThread(() -> {
+                if (!trustedGamePage()) return;
+                try {
+                    Uri uri = Uri.parse(url);
+                    if ("https".equals(uri.getScheme()) && "discord.gg".equals(uri.getHost()) &&
+                            uri.getUserInfo() == null && (uri.getPort() == -1 || uri.getPort() == 443)) {
+                        openExternal(uri);
+                    }
+                } catch (Exception ignored) {}
+            });
+        }
         @JavascriptInterface public void openSocialLogin(final String url) {
             runOnUiThread(() -> {
                 if (!trustedGamePage()) return;
@@ -438,7 +450,7 @@ public class MainActivity extends Activity {
             JSONObject event=new JSONObject().put("requestId",requestId).put("available",PushNotifications.configured())
                     .put("permission",permission).put("enabled",PushNotifications.enabled(this));
             if(!PushNotifications.configured()||!permission||!PushNotifications.enabled(this)) { nativeEvent("arcanum:push",event); return; }
-            FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+            PushNotifications.token().addOnCompleteListener(task -> {
                 try { if(task.isSuccessful())event.put("token",task.getResult());else event.put("error","push_token_unavailable"); }
                 catch(Exception ignored) {}
                 nativeEvent("arcanum:push",event);
@@ -481,7 +493,8 @@ public class MainActivity extends Activity {
     private boolean trustedGamePage() {
         if (webView == null || webView.getUrl() == null) return false;
         Uri current = Uri.parse(webView.getUrl());
-        return "https".equalsIgnoreCase(current.getScheme()) && GAME_HOST.equalsIgnoreCase(current.getHost());
+        return "https".equalsIgnoreCase(current.getScheme()) && GAME_HOST.equalsIgnoreCase(current.getHost())
+                && (current.getPort()==-1||current.getPort()==443) && current.getUserInfo()==null;
     }
 
     @Override

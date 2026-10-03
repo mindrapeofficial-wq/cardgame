@@ -11,12 +11,15 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.installations.FirebaseInstallations;
+import com.google.android.gms.tasks.Task;
 import java.util.Map;
 
 final class PushNotifications {
     static final String[] CATEGORIES = {"challenges", "friends", "packs", "messages"};
     static final String[] CHANNEL_NAMES = {"Retos a combate", "Solicitudes de amistad", "Sobres gratuitos", "Mensajes privados"};
     static volatile boolean foreground;
+    private static Task<Void> resetting;
     static SharedPreferences prefs(Context c) { return c.getSharedPreferences("arcanum-push", Context.MODE_PRIVATE); }
     static boolean configured() { return !BuildConfig.FIREBASE_APP_ID.isEmpty() && !BuildConfig.FIREBASE_API_KEY.isEmpty()
             && !BuildConfig.FIREBASE_PROJECT_ID.isEmpty() && !BuildConfig.FIREBASE_SENDER_ID.isEmpty(); }
@@ -38,7 +41,17 @@ final class PushNotifications {
     static void disable(Context c) {
         prefs(c).edit().putBoolean("enabled",false).remove("account").apply();
         c.getSystemService(NotificationManager.class).cancelAll();
-        if (configured()) { FirebaseMessaging.getInstance().setAutoInitEnabled(false); FirebaseMessaging.getInstance().deleteToken(); }
+        if (configured()) {
+            FirebaseMessaging.getInstance().setAutoInitEnabled(false);
+            Task<Void> prior=resetting;
+            resetting=(prior==null ? FirebaseMessaging.getInstance().deleteToken()
+                    : prior.continueWithTask(task -> FirebaseMessaging.getInstance().deleteToken()))
+                    .continueWithTask(task -> FirebaseInstallations.getInstance().delete());
+        }
+    }
+    static Task<String> token() {
+        return resetting==null ? FirebaseMessaging.getInstance().getToken()
+                : resetting.continueWithTask(task -> FirebaseMessaging.getInstance().getToken());
     }
     static void bindAccount(Context c,String account) {
         if (!account.matches("[0-9a-fA-F-]{36}")) return;
