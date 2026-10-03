@@ -706,10 +706,18 @@ function enforceDecisionTimeout(match, signature) {
 
 // Every way a duel can end passes through emitDuel. Finished matches stay for a while so a
 // player who missed the ending (closed tab, lost connection) can reconnect and see the result.
+function setMatchPresence(match, status) {
+  for (const sid of [match.hostSocketId, match.guestSocketId]) {
+    const u = sid && users.get(sid);
+    if (u) u.status = status;
+  }
+  emitUsers();
+}
 function finalizeMatch(match) {
   if (match.status === "finished") return;
   match.status = "finished";
   match.finishedAt = Date.now();
+  setMatchPresence(match, "Disponible");
   clearDecisionTimer(match);
   clearCombatIdleWatch(match.id, "a");
   clearCombatIdleWatch(match.id, "b");
@@ -1242,6 +1250,7 @@ io.on("connection", socket => {
     match.idleAllowanceMs = { a: COMBAT_IDLE_BASE_MS, b: COMBAT_IDLE_BASE_MS };
     socket.join(mid);
     initDuel(match);
+    setMatchPresence(match, "En combate");
     scheduleCombatIdleWatch(match, "a");
     scheduleCombatIdleWatch(match, "b");
 

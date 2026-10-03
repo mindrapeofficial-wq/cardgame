@@ -59,10 +59,42 @@ const RULES = [
   "Nunca pidas ni des datos personales (edad, ciudad, redes, teléfono) ni propongas hablar fuera del juego. Si alguien lo pide, desvíalo al juego.",
   "Si alguien pregunta en serio si eres un bot o una IA, no lo niegues: di que sí sin darle importancia y vuelve al juego.",
   "Nada de insultos fuertes, odio, contenido sexual ni temas fuera del juego. Bromas y piques suaves sí.",
-  "Mensajes cortos de chat (máx. 90 caracteres), naturales, como un jugador hispanohablante joven. Sin comillas ni nombres de usuario al principio del texto salvo para mencionar a alguien."
+  "PROHIBIDO inventar: solo puedes nombrar cartas de la lista de cartas reales que te doy, y solo cosas que existen en el juego (sobres, oro, nivel, ELO, ranking, retos, mazo, colección, intercambios, Poder, criaturas, amuletos, manual). No existen torneos, clanes, eventos, gemas, pases ni otros modos de juego. Si no estás seguro de que algo existe, no lo menciones.",
+  "Escribe como en un chat de verdad: casi todo en minúsculas, sin ¿ ni ¡, sin punto final, recortando palabras (q, xq, tmb, k, pa, ns, xd, jaja, bro, tio) y con alguna falta típica (a/ha, ola, aver, haci). Nada de frases redondas ni educadas de más.",
+  "Ejemplos del tono (no los copies): alguien pa una? / ns q mazo hacer con lo q tengo / me a salido otro mimit xd / gg wp / q suerte con los sobres bro / ese dophan m reventó / toy nivel 2 ya / nah q va / jajaj ez",
+  "Mensajes cortos (máx. 80 caracteres). Sin comillas. No empieces el texto con el nombre de usuario salvo para mencionar a alguien."
 ].join("\n");
 
-function createBotChat({ log = console.log } = {}) {
+// Make a line read like a real chat message: lowercase, no opening marks, clipped words and the
+// odd missing accent, with some randomness so every bot does it a little differently.
+function roughen(text, name) {
+  const h = hash(name), r = () => Math.random();
+  let t = text.replace(/[¿¡]/g, "").replace(/[“”«»"]/g, "").replace(/\.$/, "").trim();
+  if (h % 5 !== 0) t = t.charAt(0).toLowerCase() + t.slice(1);
+  if (h % 3 !== 0 && r() < 0.8) t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").normalize("NFC");
+  const swaps = [
+    [/\bque\b/gi, "q", 0.6], [/\bpor qu[eé]\b|\bporque\b/gi, "xq", 0.7], [/\btambi[eé]n\b/gi, "tmb", 0.7],
+    [/\bpara\b/gi, "pa", 0.5], [/\bno s[eé]\b/gi, "ns", 0.5], [/\bestoy\b/gi, "toy", 0.3], [/\bhola\b/gi, "ola", 0.3],
+    [/\bde verdad\b/gi, "enserio", 0.4], [/\bpor favor\b/gi, "porfa", 0.8], [/\bme ha\b/gi, "me a", 0.4], [/\ba ver\b/gi, "aver", 0.5]
+  ];
+  for (const [re, to, p] of swaps) if (r() < p) t = t.replace(re, to);
+  return t;
+}
+
+function createBotChat({ log = console.log, catalog = [] } = {}) {
+  const cardNames = [...new Set(catalog.map(c => c.name))];
+  const cardsUpTo = level => [...new Set(catalog.filter(c => c.level <= level).map(c => c.name))];
+  // A line that names, in quotes or with capitals, a card that does not exist is thrown away.
+  const knownCard = phrase => {
+    const p = phrase.toLowerCase();
+    return cardNames.some(n => n.toLowerCase() === p || n.toLowerCase().startsWith(p + " "));
+  };
+  function inventsCards(text) {
+    for (const m of text.matchAll(/[“"«]([^”"»]{3,40})[”"»]/g)) if (!knownCard(m[1].trim())) return true;
+    const named = /\b(?:carta|la|el|mi|un|una|tu|otro|otra)\s+([A-ZÁÉÍÓÚÑ][\wáéíóúñ]+(?:\s+(?:de|del|x)?\s*[A-ZÁÉÍÓÚÑ0-9][\wáéíóúñ]*){0,3})/g;
+    for (const m of text.matchAll(named)) if (!knownCard(m[1].trim()) && !/^(ELO|Poder|Nivel)$/i.test(m[1].trim())) return true;
+    return false;
+  }
   const key = process.env.GROQ_API_KEY || "";
   const model = process.env.GROQ_MODEL || "openai/gpt-oss-20b";
   const dailyTokens = Number(process.env.BOTS_LLM_DAILY_TOKENS) || 180000;
@@ -90,7 +122,7 @@ function createBotChat({ log = console.log } = {}) {
         body: JSON.stringify({
           model,
           messages: [{ role: "system", content: system }, { role: "user", content: user }],
-          temperature: 1,
+          temperature: 0.9,
           max_completion_tokens: 600,
           reasoning_effort: "low",
           include_reasoning: false
@@ -117,6 +149,7 @@ function createBotChat({ log = console.log } = {}) {
   }
 
   function clean(text) {
+    if (inventsCards(String(text || ""))) return "";
     let t = String(text || "").replace(/^["'«»\s]+|["'«»\s]+$/g, "").replace(/\s+/g, " ").trim();
     if (/https?:|www\.|\.com\b|@\w|discord|instagram|insta\b|whatsapp|telegram|tiktok|\d{6,}/i.test(t)) return "";
     if (t.length > 120) t = t.slice(0, 117).replace(/\s+\S*$/, "") + "...";
@@ -127,8 +160,10 @@ function createBotChat({ log = console.log } = {}) {
   }
   function describe(bot) {
     const p = persona(bot.name);
+    const owned = Object.keys(bot.profile && bot.profile.collection || {}).map(id => catalog.find(c => c.id === Number(id))).filter(Boolean).map(c => c.name);
+    const has = owned.length ? " Tiene en su colección: " + [...new Set(owned)].slice(0, 8).join(", ") + "." : " Aún casi no tiene cartas.";
     const record = bot.profile ? " · nivel " + (bot.profile.level || 1) + ", " + (bot.profile.wins || 0) + " victorias y " + (bot.profile.losses || 0) + " derrotas" : "";
-    return "- " + bot.name + ": habla " + p.dialect + "; " + p.style + record + ".";
+    return "- " + bot.name + ": habla " + p.dialect + "; " + p.style + record + "." + has;
   }
   function parseLines(raw, names) {
     const out = [];
@@ -137,7 +172,7 @@ function createBotChat({ log = console.log } = {}) {
       if (!m) continue;
       const name = names.find(n => n.toLowerCase() === m[1].toLowerCase());
       const text = clean(m[2]);
-      if (name && text) out.push({ name, text });
+      if (name && text) out.push({ name, text: roughen(text, name) });
     }
     return out.slice(0, 4);
   }
@@ -167,14 +202,19 @@ function createBotChat({ log = console.log } = {}) {
           const r = relation(cast[i].name, cast[j].name);
           if (r) pairs.push(cast[i].name + " y " + cast[j].name + " " + r + ".");
         }
-        const topic = pick([
+        const newcomer = cast.find(b => (Number(b.profile && b.profile.wins) || 0) + (Number(b.profile && b.profile.losses) || 0) < 5);
+        const topic = newcomer && Math.random() < 0.45
+          ? newcomer.name + " es nuevo y pregunta una duda real de cómo se juega (fases del turno, para qué sirve el Poder, cómo atacar o defender, qué pasa si se acaba el mazo, cuánto cuesta un sobre, cómo subir de nivel) y otro le contesta bien según las reglas"
+          : pick([
           "buscar rival o retar a alguien", "comentar una partida reciente", "preguntar qué carta es mejor",
           "presumir o quejarse de lo que salió en un sobre", "pedir consejo para el mazo", "hablar del ranking o del ELO",
           "picarse por una derrota", "comentar algo de lo que se acaba de decir en el chat"
         ]);
+        const rules = "Reglas reales por si salen: turno = enderezar, robar, poner 1 carta de Poder, invocar criaturas pagando Poder, amuletos, atacar. El defensor elige quién bloquea; el daño que sobra pasa al jugador. Vida inicial 20 + bonus por nivel. Si tu mazo está vacío pierdes 1 PV por cada robo. Sobre = 20 de oro, 5 cartas. Ganar da oro, experiencia y ELO.";
         const user = [
+          "Cartas reales que existen ahora mismo (no hay otras): " + cardsUpTo(Math.max(1, ...cast.map(b => Number(b.profile && b.profile.level) || 1)) + 1).join(", ") + ".",
           "Personajes:", ...cast.map(describe), ...pairs,
-          "", "Últimos mensajes del chat:", recentTranscript(), "",
+          rules, "", "Últimos mensajes del chat:", recentTranscript(), "",
           "Escribe de 2 a 4 mensajes seguidos entre estos personajes (" + topic + "), que encajen con lo último del chat.",
           "Formato estricto, una línea por mensaje: Nombre: texto"
         ].join("\n");
@@ -188,6 +228,7 @@ function createBotChat({ log = console.log } = {}) {
     async reply(bot, playerName, text) {
       if (!enabled()) return "";
       const user = [
+        "Cartas reales que existen ahora mismo (no hay otras): " + cardsUpTo((Number(bot.profile && bot.profile.level) || 1) + 1).join(", ") + ".",
         "Personaje:", describe(bot), "",
         "Últimos mensajes del chat:", recentTranscript(), "",
         "El jugador " + playerName + " acaba de escribir: \"" + String(text).slice(0, 200) + "\"",

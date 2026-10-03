@@ -57,7 +57,7 @@ function startBots({ port, apiUrl, serverKey, byId, publicUrl, log = console.log
   let lastChatAt = 0;
   let lobbyMatches = [];
   let botSockets = new Set();
-  const chat = createBotChat({ log });
+  const chat = createBotChat({ log, catalog: [...byId.values()] });
   const replyCooldown = new Map(); // player name -> last time a bot answered them
 
   async function api(action, body = {}, session = "") {
