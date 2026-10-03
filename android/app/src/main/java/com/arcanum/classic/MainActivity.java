@@ -1,6 +1,7 @@
 package com.arcanum.classic;
 
 import android.app.Activity;
+import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -25,6 +26,8 @@ import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import com.google.firebase.messaging.FirebaseMessaging;
+import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     private static final String GAME_URL = "https://cardgame-l9ld.onrender.com/";
@@ -35,6 +38,9 @@ public class MainActivity extends Activity {
     private View loadingView;
     private boolean combatMode;
     private PlayBilling billing;
+    private JSONObject pendingAuth;
+    private JSONObject pendingNotification;
+    private String permissionRequest="";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,6 +67,7 @@ public class MainActivity extends Activity {
             webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('arcanum:billing',{detail:"
                     + event.toString() + "}));", null);
         }));
+        acceptLaunchIntent(getIntent());
     }
 
     private void showLoading() {
@@ -159,6 +166,7 @@ public class MainActivity extends Activity {
                     revealWebView();
                     injectMobileOptimizations();
                     CookieManager.getInstance().flush();
+                    dispatchPendingEvents();
                 }
 
                 @Override
@@ -332,6 +340,40 @@ public class MainActivity extends Activity {
     }
 
     public final class AndroidBridge {
+        @JavascriptInterface public void openSocialLogin(final String url) {
+            runOnUiThread(() -> {
+                if (!trustedGamePage()) return;
+                try {
+                    Uri uri=Uri.parse(url),redirect=Uri.parse(uri.getQueryParameter("redirect_to"));
+                    String provider=uri.getQueryParameter("provider"),challenge=uri.getQueryParameter("code_challenge");
+                    if (!"https".equals(uri.getScheme()) || !"mrmvmoyysxuopqexbxfk.supabase.co".equals(uri.getHost()) ||
+                            !"/auth/v1/authorize".equals(uri.getPath()) || !("google".equals(provider)||"apple".equals(provider)) ||
+                            !"s256".equals(uri.getQueryParameter("code_challenge_method")) || challenge==null ||
+                            !challenge.matches("[A-Za-z0-9_-]{43,128}") || !"https".equals(redirect.getScheme()) ||
+                            !GAME_HOST.equals(redirect.getHost()) || !"/oauth-callback.html".equals(redirect.getPath())) return;
+                    // OAuth providers require a real browser, never the embedded WebView.
+                    openExternal(uri);
+                } catch (Exception ignored) {}
+            });
+        }
+        @JavascriptInterface public void bindPushAccount(final String account) {
+            runOnUiThread(() -> { if(trustedGamePage()) PushNotifications.bindAccount(MainActivity.this,account); });
+        }
+        @JavascriptInterface public void getPushState(final String requestId) {
+            runOnUiThread(() -> { if(trustedGamePage()) pushState(requestId,false); });
+        }
+        @JavascriptInterface public void enableNotifications(final String requestId) {
+            runOnUiThread(() -> {
+                if(!trustedGamePage()||!PushNotifications.configured()||requestId.length()>100) { pushState(requestId,false); return; }
+                if(android.os.Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        !=android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    permissionRequest=requestId;requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},41);
+                } else pushState(requestId,true);
+            });
+        }
+        @JavascriptInterface public void disableNotifications() {
+            runOnUiThread(() -> { if(trustedGamePage()) PushNotifications.disable(MainActivity.this); });
+        }
         @JavascriptInterface
         public void setCombatMode(final boolean active) {
             runOnUiThread(() -> { if (trustedGamePage()) MainActivity.this.setCombatMode(active); });
@@ -351,6 +393,56 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void nativeEvent(String name,JSONObject data) {
+        if(!trustedGamePage())return;
+        webView.evaluateJavascript("window.dispatchEvent(new CustomEvent("+JSONObject.quote(name)+",{detail:"+data.toString()+"}));",null);
+    }
+    private void pushState(String requestId,boolean enable) {
+        try {
+            if(requestId.length()>100)return;
+            boolean permission=PushNotifications.permission(this);
+            if(enable&&permission) {
+                PushNotifications.prefs(this).edit().putBoolean("enabled",true).apply();
+                FirebaseMessaging.getInstance().setAutoInitEnabled(true);
+            }
+            JSONObject event=new JSONObject().put("requestId",requestId).put("available",PushNotifications.configured())
+                    .put("permission",permission).put("enabled",PushNotifications.enabled(this));
+            if(!PushNotifications.configured()||!permission||!PushNotifications.enabled(this)) { nativeEvent("arcanum:push",event); return; }
+            FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
+                try { if(task.isSuccessful())event.put("token",task.getResult());else event.put("error","push_token_unavailable"); }
+                catch(Exception ignored) {}
+                nativeEvent("arcanum:push",event);
+            });
+        } catch(Exception ignored) {}
+    }
+    @Override public void onRequestPermissionsResult(int requestCode,String[] permissions,int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode,permissions,grantResults);
+        if(requestCode==41) { pushState(permissionRequest,true);permissionRequest="";enableImmersiveMode(); }
+    }
+    private void acceptLaunchIntent(Intent intent) {
+        if(intent==null)return;
+        try {
+            Uri uri=intent.getData();
+            if(uri!=null&&"arcanumtcg".equals(uri.getScheme())&&"auth".equals(uri.getHost())&&"/callback".equals(uri.getPath())) {
+                String code=uri.getQueryParameter("code"),flow=uri.getQueryParameter("flow");
+                if(code!=null&&code.length()<=512&&flow!=null&&flow.matches("[A-Za-z0-9_-]{43}"))
+                    pendingAuth=new JSONObject().put("code",code).put("flow",flow);
+            }
+            String route=intent.getStringExtra("notificationRoute"),account=intent.getStringExtra("notificationAccount");
+            if(account!=null&&account.equals(PushNotifications.prefs(this).getString("account",""))&&
+                    ("home".equals(route)||"friends".equals(route)||"shop".equals(route)||"messages".equals(route)))
+                pendingNotification=new JSONObject().put("route",route).put("accountId",account);
+        }catch(Exception ignored){}
+    }
+    private void dispatchPendingEvents() {
+        if(!trustedGamePage())return;
+        if(pendingAuth!=null) { nativeEvent("arcanum:auth",pendingAuth);pendingAuth=null; }
+        if(pendingNotification!=null) { nativeEvent("arcanum:notification-open",pendingNotification);pendingNotification=null; }
+    }
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);setIntent(intent);acceptLaunchIntent(intent);dispatchPendingEvents();enableImmersiveMode();
+    }
+
     private boolean trustedGamePage() {
         if (webView == null || webView.getUrl() == null) return false;
         Uri current = Uri.parse(webView.getUrl());
@@ -366,12 +458,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        PushNotifications.foreground=true;
         if (webView != null) webView.onResume();
         enableImmersiveMode();
     }
 
     @Override
     protected void onPause() {
+        PushNotifications.foreground=false;
         if (webView != null) webView.onPause();
         super.onPause();
     }

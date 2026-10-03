@@ -13,7 +13,7 @@ export function isPlayClient(req: Request) {
 // Called only after custom session authentication. The privileged database client stays
 // inside the Edge Function; browsers cannot read reports, blocks, or invoke deletion RPCs.
 export async function privacyAction(action: string, body: any, ctx: any) {
-  const { db, auth, req, json, fail, derivePassword, unb64, safeEqual, recentAttempts, recordAttempts } = ctx;
+  const { db, auth, req, json, fail, derivePassword, unb64, safeEqual, recentAttempts, recordAttempts, verifySocial, eraseSocialUsers } = ctx;
   const me = auth.account;
   if (["moderation_list", "moderation_review", "moderator_status"].includes(action)) {
     const { data: moderator, error: ae } = await db.from("rolplay_moderators").select("account_id").eq("account_id", me.id).maybeSingle();
@@ -55,14 +55,25 @@ export async function privacyAction(action: string, body: any, ctx: any) {
   if (action === "delete_account") {
     if (body.confirm !== "ELIMINAR") return fail("delete_confirmation_required");
     const password = String(body.password || "");
-    if (password.length < 8 || password.length > 128) return fail("password_invalid");
     if (await recentAttempts("delete_fail", me.id, 15 * 60 * 1000) >= 5) return fail("too_many_attempts", 429);
-    if (!safeEqual(await derivePassword(password, unb64(me.password_salt)), me.password_hash)) {
+    let verified=false;
+    if(me.password_enabled===false){
+      const social=await verifySocial(body.accessToken);
+      if(social){
+        const {data,error}=await db.from("rolplay_social_identities").select("account_id").eq("auth_user_id",social.id).eq("account_id",me.id).maybeSingle();
+        if(error)throw error;verified=!!data;
+      }
+    }else{
+      if (password.length < 8 || password.length > 128) return fail("password_invalid");
+      verified=safeEqual(await derivePassword(password, unb64(me.password_salt)), me.password_hash);
+    }
+    if (!verified) {
       await recordAttempts([{ kind: "delete_fail", subject: me.id }]);
       return fail("invalid_credentials", 401);
     }
     const { error } = await db.rpc("rolplay_delete_account", { p_account_id: me.id });
     if (error) throw error;
+    try{await eraseSocialUsers?.(db)}catch{ /* Persisted erasure queue retries without keeping the game account. */ }
     return json({ ok: true, deleted: true });
   }
   if (action === "blocks_list") {
@@ -94,13 +105,21 @@ export async function privacyAction(action: string, body: any, ctx: any) {
     .eq("reporter_id", me.id).gte("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
   if (ce) throw ce;
   if ((count || 0) >= 10) return fail("report_limit", 429);
-  // Evidence is supplied by the reporter, not a verified server transcript. A moderator
+  let messageText=String(body.messageText||"").slice(0,300)||null;
+  let details=String(body.details||"").trim().slice(0,1000);
+  if(body.directMessageId){
+    const {data:message,error}=await db.from("rolplay_direct_messages").select("id,sender_id,recipient_id,body")
+      .eq("id",String(body.directMessageId)).eq("sender_id",target.id).eq("recipient_id",me.id).maybeSingle();
+    if(error)throw error;if(!message)return fail("message_not_found",404);
+    messageText=message.body.slice(0,300);details=("[Mensaje privado verificado] "+details).slice(0,1000);
+  }
+  // Public-chat evidence is supplied by the reporter, not a verified server transcript. A moderator
   // must review it before taking any action. Never suspend users automatically on a report.
   const { error } = await db.from("rolplay_reports").insert({
     reporter_id: me.id, target_id: target.id, reason: body.reason,
-    details: String(body.details || "").trim().slice(0, 1000),
-    message_id: String(body.messageId || "").slice(0, 100) || null,
-    message_text: String(body.messageText || "").slice(0, 300) || null,
+    details,
+    message_id: String(body.directMessageId || body.messageId || "").slice(0, 100) || null,
+    message_text: messageText,
   });
   if (error) throw error;
   return json({ ok: true });

@@ -1,7 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { LEGAL_VERSION, legalAccepted, isPlayClient, privacyAction } from "./privacy.ts";
 import { playBillingAction, reconcilePlayPurchases } from "./play-billing.ts";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { socialAuthAction, verifiedSocialUser, eraseSocialUsers } from "./social-auth.ts";
+import { messagesAction } from "./messages.ts";
+import { notificationsAction, processNotifications } from "./notifications.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -139,6 +142,7 @@ function xpNeeded(level: number) {
 function publicProfile(a: any) {
   return {
     id: a.id,
+    passwordEnabled: a.password_enabled !== false,
     termsVersion: a.terms_version || null,
     ageGroup: a.age_group || null,
     suspended: !!a.suspended_at,
@@ -386,6 +390,24 @@ Deno.serve(async (req: Request) => {
   const action = String(body.action || "");
 
   try {
+    const socialResult = await socialAuthAction(action, body, {
+      db,req,fail,json,authenticate,createSession,loadAccount,publicProfile,supabaseUrl,
+      recentAttempts,recordAttempts,sha256Text,clientIp,
+    });
+    if (socialResult) return socialResult;
+    if (action === "notifications_process" || action === "notification_challenge") {
+      if (!(await isTrustedServer(req))) return fail("server_key_invalid",403);
+      if (action === "notification_challenge") {
+        const from=String(body.from||""),to=String(body.to||"");
+        if (!/^[0-9a-f-]{36}$/i.test(from)||!/^[0-9a-f-]{36}$/i.test(to)||from===to||
+            !/^inv[a-zA-Z0-9_-]{1,90}$/.test(String(body.inviteId||""))) return fail("challenge_invalid");
+        const {error}=await db.rpc("rolplay_queue_notification",{p_account:to,p_source:from,p_category:"challenges",
+          p_key:"challenge:"+body.inviteId,p_route:"home",p_expires:new Date(Date.now()+90000).toISOString()});
+        if(error)throw error;
+      }
+      await eraseSocialUsers(db);
+      return json({ok:true,...await processNotifications(db)});
+    }
     if (action === "register") {
       if (!legalAccepted(body)) return fail("legal_acceptance_required");
       const username = normalizeUsername(body.username);
@@ -466,7 +488,7 @@ Deno.serve(async (req: Request) => {
         .select("*")
         .eq("username_key", key)
         .maybeSingle();
-      if (error || !account) return await loginFailed();
+      if (error || !account || account.password_enabled === false) return await loginFailed();
       const derived = await derivePassword(password, unb64(account.password_salt));
       if (!safeEqual(derived, account.password_hash)) return await loginFailed();
       await db.from("rolplay_auth_attempts").delete().eq("kind", "login_fail_user").eq("subject", key);
@@ -657,6 +679,7 @@ Deno.serve(async (req: Request) => {
     if (!auth) return fail("unauthorized", 401);
     const privacyResult = await privacyAction(action, body, {
       db, auth, req, json, fail, derivePassword, unb64, safeEqual, recentAttempts, recordAttempts,
+      verifySocial: (token: unknown) => verifiedSocialUser(db,token,supabaseUrl), eraseSocialUsers,
     });
     if (privacyResult) return privacyResult;
     const playResult = await playBillingAction(action, body, {auth,db,json,fail,loadAccount,publicProfile,founderOpen});
@@ -665,6 +688,11 @@ Deno.serve(async (req: Request) => {
       if (auth.account.suspended_at) return fail("account_suspended", 403);
       if (!auth.account.is_bot && auth.account.terms_version !== LEGAL_VERSION) return fail("legal_acceptance_required", 403);
     }
+
+    const messageResult=await messagesAction(action,body,{db,auth,json,fail});
+    if(messageResult)return messageResult;
+    const notificationResult=await notificationsAction(action,body,{db,auth,json,fail});
+    if(notificationResult)return notificationResult;
 
     if (action === "market_list") {
       const limit = Math.max(10, Math.min(200, Math.floor(Number(body.limit) || 100)));

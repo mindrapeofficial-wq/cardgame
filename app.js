@@ -191,7 +191,7 @@ async function api(action,payload={},auth=true){
   if(auth&&sessionToken)headers["x-rolplay-session"]=sessionToken;
   if(IS_PLAY_CLIENT)headers["x-arcanum-client"]="google-play";
   try{
-    const res=await fetch(AUTH_API,{method:"POST",headers,body:JSON.stringify({action,...payload})});
+    const res=await fetch(AUTH_API,{method:"POST",headers,signal:AbortSignal.timeout(20000),body:JSON.stringify({action,...payload})});
     let data={};try{data=await res.json()}catch{}
     if(!res.ok||!data.ok)return{ok:false,error:data.error||"server_error",status:res.status};
     return data;
@@ -240,11 +240,13 @@ function enterGame(){
   if(!state.profile)return;
   if(!ARCANUM_PRIVACY.ensureAccess())return;
   ARCANUM_AUDIO.setActive(true);
+  ARCANUM_MESSAGES.start();void ARCANUM_NOTIFICATIONS.start();
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
   updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
   if(IS_PLAY_CLIENT)ARCANUM_PLAY.restore();
 }
 async function logout(){
+  ARCANUM_MESSAGES.stop();ARCANUM_SOCIAL.clear();await ARCANUM_NOTIFICATIONS.stop();
   if(sessionToken)void api("logout",{},true);
   if(state.socket){state.socket.disconnect();state.socket=null}
   state.connected=false;state.duel=null;state.trade=freshTrade();state.profile=null;
@@ -2044,6 +2046,9 @@ function renderProfile(){
     <section class="panel profile-banner"><div><div class="kicker">${state.profile.supporterTier?SUPPORT_TIERS[state.profile.supporterTier].name:"Aprendiz"}</div><h1 class="${supporterNameClass(state.profile.supporterTier)}">${supporterBadge(state.profile.supporterTier)}${esc(state.profile.name)}</h1><button class="btn small support-cta" data-action="nav" data-view="support">★ Apoya el proyecto</button><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
     ${ARCANUM_PRIVACY.accountPanel()}
     ${ARCANUM_AUDIO.panel()}
+    ${ARCANUM_SOCIAL.panel()}
+    ${ARCANUM_MESSAGES.panel()}
+    ${ARCANUM_NOTIFICATIONS.panel()}
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP ganada durante la carrera: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Las victorias y empates suben la barra. Las derrotas PvP pueden bajarla, pero nunca reducen un nivel ya alcanzado.</p></div>
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
@@ -3434,5 +3439,11 @@ document.addEventListener("click",e=>{if(swallowNextClick){swallowNextClick=fals
 ARCANUM_PRIVACY.bind({api,state,applyProfile,enterGame,logout,toast,renderView,esc,closeModal,
   keys:[SESSION_KEY,PROFILE_CACHE_KEY,LAST_USER_KEY,PENDING_REWARDS_KEY]});
 ARCANUM_PLAY.bind({api,state,applyProfile,toast,renderView});
-boot();
+ARCANUM_MESSAGES.bind({api,state,toast,esc,closeModal});
+ARCANUM_NOTIFICATIONS.bind({api,state,toast,renderView,go});
+ARCANUM_SOCIAL.bind({api,state,toast,authError:authErrorMessage,legalVersion:ARCANUM_PRIVACY.version,
+  validLegal:ARCANUM_PRIVACY.validLegal,openDelete:ARCANUM_PRIVACY.deleteDialog,
+  acceptSession:result=>{ARCANUM_MESSAGES.stop();void ARCANUM_NOTIFICATIONS.stop();
+    sessionToken=result.token||"";localStorage.setItem(SESSION_KEY,sessionToken);applyProfile(result.profile);enterGame()}});
+boot().then(()=>ARCANUM_SOCIAL.init());
 })();
