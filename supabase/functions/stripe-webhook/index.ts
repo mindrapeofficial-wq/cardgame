@@ -14,6 +14,29 @@ const db = createClient(supabaseUrl, secretKey, { auth: { persistSession: false,
 
 const TIER_RANK: Record<string, number> = { apoyador: 1, fundador: 2, mecenas: 3, leyenda: 4 };
 const TOLERANCE_S = 5 * 60;
+const GUILD_ID = Deno.env.get("DISCORD_GUILD_ID") || "1555246692599599185";
+const ROLE: Record<string, { name: string; color: number }> = {
+  apoyador: { name: "Apoyador", color: 0xc98a52 },
+  fundador: { name: "Fundador", color: 0xf2cf73 },
+  mecenas: { name: "Mecenas", color: 0xc49bff },
+  leyenda: { name: "Leyenda", color: 0x9b6bff },
+};
+// Same as discord-oauth: give a linked member the role of their new tier (created if missing).
+async function syncSupporterRole(discordUserId: string, tier: string) {
+  const token = Deno.env.get("DISCORD_BOT_TOKEN") || "";
+  const role = ROLE[tier];
+  if (!token || !role) return;
+  const api = "https://discord.com/api/v10";
+  const headers = { authorization: "Bot " + token, "content-type": "application/json" };
+  const roles = await fetch(api + "/guilds/" + GUILD_ID + "/roles", { headers }).then(r => r.ok ? r.json() : []);
+  let found = (roles as any[]).find(r => r.name === role.name);
+  if (!found) {
+    const res = await fetch(api + "/guilds/" + GUILD_ID + "/roles", { method: "POST", headers, body: JSON.stringify({ name: role.name, color: role.color, hoist: true }) });
+    if (!res.ok) return;
+    found = await res.json();
+  }
+  await fetch(api + "/guilds/" + GUILD_ID + "/members/" + discordUserId + "/roles/" + found.id, { method: "PUT", headers });
+}
 
 async function hmacHex(secret: string, payload: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -65,7 +88,7 @@ Deno.serve(async (req: Request) => {
   if (insertError && (insertError as any).code === "23505") return new Response("duplicate", { status: 200 });
   if (insertError) { console.error("stripe-webhook insert", insertError); return new Response("error", { status: 500 }); }
 
-  const { data: account, error } = await db.from("rolplay_accounts").select("supporter_tier,supporter_since").eq("id", accountId).maybeSingle();
+  const { data: account, error } = await db.from("rolplay_accounts").select("supporter_tier,supporter_since,discord_user_id,discord_member").eq("id", accountId).maybeSingle();
   if (error || !account) { console.error("stripe-webhook account", error); return new Response("account missing", { status: 200 }); }
   const current = TIER_RANK[account.supporter_tier || ""] || 0;
   if (TIER_RANK[tier] > current) {
@@ -73,6 +96,9 @@ Deno.serve(async (req: Request) => {
       supporter_tier: tier,
       supporter_since: account.supporter_since || new Date().toISOString(),
     }).eq("id", accountId);
+    if (account.discord_user_id && account.discord_member) {
+      try { await syncSupporterRole(String(account.discord_user_id), tier); } catch (e) { console.error("stripe-webhook discord role", e); }
+    }
   }
   return new Response("ok", { status: 200 });
 });

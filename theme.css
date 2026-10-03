@@ -615,3 +615,5 @@
 .pack-ribbon.gold{background:linear-gradient(180deg,#f2cf73,#b98a2c);color:#1c1406;bottom:14px;font-size:12px}
 .shop-buy-kicker{text-align:center;margin-bottom:6px}
 @media (max-width:640px){.shop-daily{flex-wrap:wrap}.shop-daily .btn{width:100%}.shop-daily-wait{text-align:left}}
+.reward-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+@media (max-width:640px){.reward-actions{width:100%}.reward-actions .btn{flex:1}}

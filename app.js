@@ -1431,22 +1431,48 @@ let dailyToastShown="";
 function renderRewardsBanner(){
   const p=state.profile;if(!p||state.offlineSession)return"";
   const daily=p.dailyPackAvailable?`<div class="reward-banner daily"><span class="reward-icon">🎁</span><div><b>Tu sobre diario está listo</b><small>Un sobre gratis de tu nivel cada día.</small></div><button class="btn primary" data-action="claimDaily">Abrir sobre</button></div>`:"";
-  const discordStep=state.discordOpened
-    ?`<button class="btn primary" data-action="claimDiscord">Reclamar sobre</button>`
-    :`<button class="btn discord-btn" data-action="openDiscord">Unirme al Discord</button>`;
-  const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>Noticias, novedades y un sobre gratis por unirte.</small></div>${discordStep}</div>`:"";
+  // Discord: join the server, link the account (membership is verified) and claim the pack.
+  let discordText="Noticias, novedades y un sobre gratis por unirte.",discordStep;
+  if(p.discordLinked&&p.discordMember){
+    discordText="Cuenta vinculada"+(p.discordName?" ("+esc(p.discordName)+")":"")+". ¡Tu sobre de bienvenida te espera!";
+    discordStep=`<button class="btn primary" data-action="claimDiscord">Reclamar sobre</button>`;
+  }else if(p.discordLinked){
+    discordText="Tu cuenta está vinculada pero aún no estás en el servidor. Únete y vuelve a comprobarlo.";
+    discordStep=`<button class="btn discord-btn" data-action="openDiscord">Unirme</button><button class="btn" data-action="discordLink">Comprobar</button>`;
+  }else{
+    discordStep=`<button class="btn discord-btn" data-action="openDiscord">Unirme</button><button class="btn primary" data-action="discordLink">Vincular cuenta</button>`;
+  }
+  const discord=!p.discordRewardClaimed?`<div class="reward-banner discord"><span class="reward-icon discord-logo">${DISCORD_ICON}</span><div><b>Únete a nuestro Discord</b><small>${discordText}</small></div><div class="reward-actions">${discordStep}</div></div>`:"";
   return daily||discord?`<div class="reward-banners">${daily}${discord}</div>`:"";
 }
-function openDiscord(){
-  window.open(DISCORD_URL,"_blank","noopener");
-  state.discordOpened=true;
-  if(state.view==="home")renderView();
+function openDiscord(){window.open(DISCORD_URL,"_blank","noopener")}
+// Sends the player to Discord to authorise the link; discord-oauth brings them back with ?discord=…
+async function discordLink(){
+  const r=await api("discord_link_start");
+  if(!r.ok||!r.url){toast("No se pudo iniciar la vinculación con Discord.","bad");return}
+  location.href=r.url;
+}
+function handleDiscordReturn(){
+  const q=new URLSearchParams(location.search),result=q.get("discord");
+  if(!result)return;
+  history.replaceState(null,"",location.pathname);
+  const msg={
+    linked:["¡Discord vinculado! Ya puedes reclamar tu sobre de bienvenida.","good"],
+    not_member:["Cuenta vinculada, pero aún no estás en nuestro servidor. Únete y pulsa «Comprobar».","bad"],
+    taken:["Esa cuenta de Discord ya está vinculada a otro jugador.","bad"],
+    expired:["La vinculación caducó. Inténtalo de nuevo.","bad"],
+    cancelled:["Has cancelado la vinculación con Discord.",""],
+    not_configured:["La vinculación con Discord aún no está activada.","bad"]
+  }[result]||["No se pudo vincular Discord. Inténtalo de nuevo.","bad"];
+  toast(msg[0],msg[1]);
+  void refreshProfileFlags();
 }
 async function claimFreePack(kind){
   const r=await api("claim_free_pack",{kind});
   if(!r.ok){
     if(r.error==="daily_already_claimed")toast("Ya has abierto el sobre de hoy. Vuelve mañana.","bad");
     else if(r.error==="discord_already_claimed")toast("Ya reclamaste el sobre de Discord.","bad");
+    else if(r.error==="discord_not_member")toast("Primero únete a nuestro servidor de Discord y vincula tu cuenta.","bad");
     else toast("No se pudo abrir el sobre. Inténtalo de nuevo.","bad");
     if(r.error&&r.error.endsWith("already_claimed"))void refreshProfileFlags();
     return;
@@ -2086,7 +2112,7 @@ function connectOnline(){
       socket.emit("hello",{sessionToken});
     });
     socket.on("server:ready",()=>{
-      state.connected=true;state.connecting=false;updateChrome();loadFriends();handleSupportReturn();announceDailyPack();
+      state.connected=true;state.connecting=false;updateChrome();loadFriends();handleSupportReturn();handleDiscordReturn();announceDailyPack();
       if(["home","play","trade"].includes(state.view))renderView();
     });
     socket.on("auth:error",async m=>{
@@ -3240,6 +3266,7 @@ document.addEventListener("click",e=>{
   else if(a==="claimDaily")claimFreePack("daily");
   else if(a==="claimDiscord")claimFreePack("discord");
   else if(a==="openDiscord")openDiscord();
+  else if(a==="discordLink")discordLink();
   else if(a==="supportCheckout")supportCheckout(el.dataset.tier);
   else if(a==="voiceToggle")voiceToggle();
   else if(a==="voiceMuteRival")voiceMuteRival();
