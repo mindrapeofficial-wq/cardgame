@@ -59,6 +59,34 @@ jobs:
         working-directory: android
         run: gradle :app:bundleRelease :app:lintRelease --stacktrace
 
+      # Play upload key: kept only as GitHub secrets (never in the repository). Without them the
+      # bundle stays unsigned and the signing steps are skipped.
+      - name: Sign release bundle with the upload key
+        id: sign
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+        shell: bash
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then echo "No upload key secrets: bundle left unsigned"; exit 0; fi
+          printf "%s" "$KEYSTORE_B64" | tr -d '
+ ' | base64 -d > "$RUNNER_TEMP/upload.jks"
+          cp android/app/build/outputs/bundle/release/app-release.aab ARCANUM-TCG-1.2.8.aab
+          jarsigner -sigalg SHA256withRSA -digestalg SHA-256 -keystore "$RUNNER_TEMP/upload.jks" -storepass:env KEYSTORE_PASSWORD ARCANUM-TCG-1.2.8.aab "$KEY_ALIAS"
+          jarsigner -verify ARCANUM-TCG-1.2.8.aab | tail -1
+          rm -f "$RUNNER_TEMP/upload.jks"
+          echo "signed=1" >> "$GITHUB_OUTPUT"
+
+      - name: Upload signed bundle (for Google Play)
+        if: steps.sign.outputs.signed == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ARCANUM-TCG-1.2.8-play-signed
+          path: ARCANUM-TCG-1.2.8.aab
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Upload unsigned release bundle
         uses: actions/upload-artifact@v4
         with:
