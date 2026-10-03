@@ -639,3 +639,9 @@
 .spectate-empty{font-size:13px}
 .spectate-log{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;font-size:13px;color:var(--arc-muted,#b9b09e)}
 @media (max-width:640px){.spectate-card{width:64px!important;height:90px!important}.spectate-stats{width:100%;justify-content:space-between}}
+
+/* Private messages and audio live in the gold HUD pill, next to the support star. */
+.currency .hud-icon{position:relative;min-width:24px!important;width:24px!important;min-height:24px!important;height:24px!important;padding:0!important;border:0!important;background:none!important;box-shadow:none!important;font-size:14px!important;line-height:1}
+.currency .hud-icon+.hud-icon{margin-left:2px}
+.currency .hud-icon.audio-is-muted{opacity:.55}
+.currency .message-open [data-message-count]{right:-6px;top:-6px}

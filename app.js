@@ -1535,7 +1535,7 @@ function renderSpectateSide(side,s,label){
   const active=s.active===label&&!s.gameOver;
   return `<section class="panel spectate-side ${active?"active":""}">
     <div class="spectate-head"><div class="avatar">${initial(side.name)}</div><div class="spectate-name"><b>${esc(side.name)}</b><small>${active?"Su turno":"Esperando"}</small></div>
-      <div class="spectate-stats"><span title="Vida">❤ ${side.hp}</span><span title="Poder">⚡ ${side.power}</span><span title="Cartas en mano">✋ ${side.handCount}</span><span title="Cartas en el mazo">▦ ${side.deckCount}</span></div></div>
+      <div class="spectate-stats"><span title="Vida">❤ ${Math.max(0,side.hp)}</span><span title="Poder">⚡ ${side.power}</span><span title="Cartas en mano">✋ ${side.handCount}</span><span title="Cartas en el mazo">▦ ${side.deckCount}</span></div></div>
     <div class="spectate-hp"><i style="width:${hpPct}%"></i></div>
     <div class="spectate-board">${side.board.length?side.board.map(c=>spectateCard(c,s.attackerUid)).join(""):'<div class="muted spectate-empty">Sin criaturas en juego</div>'}</div>
   </section>`;
@@ -1897,7 +1897,7 @@ function renderShop(){
   return `<div class="page">
     ${renderDailyShopPanel()}
     <div class="grid two">
-      <section class="panel pack-hero"><div><div class="kicker shop-buy-kicker">Comprar con oro</div><div class="pack-art-wrap"><img class="pack-art" src="assets/packs/pack-lvl1-v2.webp" alt="Sobre ARCANUM TCG"><span class="pack-ribbon gold">20 ORO</span></div><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
+      <section class="panel pack-hero"><div><div class="kicker shop-buy-kicker">Comprar con oro</div><div class="pack-art-wrap"><img class="pack-art" src="assets/packs/pack-lvl1-v2.webp" alt="Sobre ARCANUM TCG"></div><div class="field" style="max-width:260px;margin:14px auto"><select class="select" id="packLevelSelect" aria-label="Nivel del sobre">${opts}</select></div><button class="btn primary" data-action="buyPack" ${state.profile.coins<20?"disabled":""}>Abrir por 20 oro</button></div></section>
       <section class="panel"><div class="panel-head"><h2>Última apertura</h2><span class="pill">${state.profile.packs||0} sobres abiertos</span></div><div class="panel-body">${state.lastPack.length?'<div class="reveal-grid">'+state.lastPack.map(c=>cardTile(c,{qty:owned(c.id)})).join("")+'</div>':'<div class="empty">Abre un sobre para revelar cartas aquí.</div>'}</div></section>
     </div>
     <section class="panel" style="margin-top:14px"><div class="panel-head"><h2>Economía del jugador</h2><span class="muted">Nivel ${playerLevel()}</span></div><div class="panel-body"><div class="grid three"><div class="stat-card"><small>Oro actual</small><strong>${state.profile.coins}</strong></div><div class="stat-card"><small>Cartas coleccionables</small><strong>${collectionTotal()}</strong></div><div class="stat-card"><small>Poder básico Nv 1</small><strong>∞</strong></div></div></div></section>
@@ -2378,7 +2378,7 @@ function renderDuel(){
         ${powerLane(d.enemyPowers||[],"Poder rival","enemyPower")}
         <div class="battle-row">${battleCards(d.enemyBoard||[],"enemy")}</div>
         <div class="duel-deck-rail enemy-deck-rail">
-          <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${d.enemyHp} PV</span><div class="deck-hp-bar" aria-label="${d.enemyHp} de ${d.enemyMaxHp||30} puntos de vida"><i style="width:${clamp(d.enemyHp/(d.enemyMaxHp||30)*100,0,100)}%"></i></div></div></div>
+          <div class="duel-deck-column enemy-deck-column">${deckBack(d.enemyDeckCount??d.enemyDeck?.length??0,"Mazo rival")}<div class="deck-player-meta"><b>${esc(d.opponent||"Guardián")}</b><span>${Math.max(0,d.enemyHp)} PV</span><div class="deck-hp-bar" aria-label="${Math.max(0,d.enemyHp)} de ${d.enemyMaxHp||30} puntos de vida"><i style="width:${clamp(d.enemyHp/(d.enemyMaxHp||30)*100,0,100)}%"></i></div></div></div>
         </div>
       </section>
       <div class="phase-track duel-phase-divider" aria-label="Fases del turno">${PHASES.map((p,i)=>`<div class="phase-step ${i===d.phase?"active":""}">${i+1}. ${p}</div>`).join("")}</div>
@@ -2389,7 +2389,7 @@ function renderDuel(){
           <div class="player-hand-layout">
             <div class="player-hand-strip"><div class="battle-row">${battleCards(d.playerHand||[],"hand")}</div></div>
             <div class="duel-deck-rail player-deck-rail">
-              <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${d.playerHp} PV</span><div class="deck-hp-bar" aria-label="${d.playerHp} de ${d.playerMaxHp||30} puntos de vida"><i style="width:${clamp(d.playerHp/(d.playerMaxHp||30)*100,0,100)}%"></i></div></div></div>
+              <div class="duel-deck-column player-deck-column">${deckBack(d.playerDeckCount??d.playerDeck?.length??0,"Tu mazo")}<div class="deck-player-meta"><b>${esc(state.profile.name)}</b><span>${Math.max(0,d.playerHp)} PV</span><div class="deck-hp-bar" aria-label="${Math.max(0,d.playerHp)} de ${d.playerMaxHp||30} puntos de vida"><i style="width:${clamp(d.playerHp/(d.playerMaxHp||30)*100,0,100)}%"></i></div></div></div>
             </div>
           </div>
           <div class="duel-controls"><div class="duel-controls-left">${duelControls(d)}</div>${duelMatchActions(d)}</div>

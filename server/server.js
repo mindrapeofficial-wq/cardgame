@@ -34,7 +34,7 @@ app.use(express.json({ limit: "64kb" }));
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: [FRONTEND_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: [FRONTEND_ORIGIN, "https://arcanumgames.es", "https://www.arcanumgames.es", "http://localhost:3000", "http://127.0.0.1:3000"],
     methods: ["GET", "POST"]
   },
   transports: ["websocket", "polling"]
@@ -57,20 +57,27 @@ let syntheticPopulation = null;
 function cleanName(value) {
   return String(value || "Jugador").replace(/[<>]/g, "").trim().slice(0, 24) || "Jugador";
 }
-async function profileFromSession(sessionToken) {
+// Returns the profile, null when the session is rejected, or undefined when the API could not
+// be reached (timeout, 5xx). Callers that must be certain treat both as "no profile".
+async function checkSession(sessionToken) {
   if (!sessionToken || typeof sessionToken !== "string") return null;
   try {
     const response = await fetch(ROLPLAY_API_URL, {
       method: "POST",
       headers: { "content-type": "application/json", "x-rolplay-session": sessionToken },
-      body: JSON.stringify({ action: "me" })
+      body: JSON.stringify({ action: "me" }),
+      signal: AbortSignal.timeout(10000)
     });
+    if (response.status >= 500 || response.status === 429) return undefined;
     if (!response.ok) return null;
     const data = await response.json();
     return data && data.ok && data.profile ? data.profile : null;
   } catch {
-    return null;
+    return undefined;
   }
+}
+async function profileFromSession(sessionToken) {
+  return (await checkSession(sessionToken)) || null;
 }
 async function awardProfile(sessionToken, payload) {
   if (!sessionToken) return null;
@@ -370,6 +377,7 @@ function phaseHasAction(game, side) {
 function advanceAutomaticPhases(game) {
   let guard = 0;
   while (game && !game.gameOver && !game.pendingAttack && guard++ < 128) {
+    if (checkEnd(game)) return;
     const side = game.active;
     if (phaseHasAction(game, side)) return;
 
@@ -1056,6 +1064,20 @@ function removeSocketMatches(socketId, useGrace = false) {
   if (changed) emitMatches();
 }
 
+function activeDuelFor(socketId) {
+  for (const match of matches.values()) {
+    if (match.status === "playing" && match.duel && !match.duel.gameOver && sideFor(match, socketId)) return match;
+  }
+  return null;
+}
+function dropWaitingMatchesOf(socketId) {
+  let changed = false;
+  for (const [mid, match] of matches.entries()) {
+    if (match.status === "waiting" && match.hostSocketId === socketId) { matches.delete(mid); changed = true; }
+  }
+  return changed;
+}
+
 function resumeCombatForUser(socket, user) {
   for (const match of matches.values()) {
     if (!match.duel) continue;
@@ -1140,7 +1162,8 @@ app.get("/synthetic/state", (req, res) => {
 // failure fails closed; clients may reconnect once service is restored.
 setInterval(async () => {
   await Promise.allSettled([...users].map(async ([sid,user]) => {
-    const profile = await profileFromSession(user.sessionToken);
+    const profile = await checkSession(user.sessionToken);
+    if (profile === undefined) return;
     if (!profile || !canUseCommunity(profile)) { io.sockets.sockets.get(sid)?.disconnect(true); return; }
     user.blocks = profile.blocks || [];
   }));
@@ -1234,6 +1257,10 @@ io.on("connection", socket => {
   socket.on("match:create", async payload => {
     const user = users.get(socket.id);
     if (!user) return;
+    if (activeDuelFor(socket.id)) {
+      socket.emit("match:error", { message: "Ya estás en un duelo." });
+      return;
+    }
     const fresh = await profileFromSession(user.sessionToken);
     if (!fresh) {
       socket.emit("match:error", { message: "No se pudo validar tu cuenta." });
@@ -1362,7 +1389,7 @@ io.on("connection", socket => {
   socket.on("match:cancel", payload => {
     const mid = cleanText(payload && payload.id, 80);
     const match = matches.get(mid);
-    if (!match || match.hostSocketId !== socket.id) return;
+    if (!match || match.hostSocketId !== socket.id || match.status !== "waiting") return;
     matches.delete(mid);
     emitMatches();
   });
@@ -1382,6 +1409,10 @@ io.on("connection", socket => {
     }
     if (match.privateFor && match.privateFor !== socket.id) {
       socket.emit("match:error", { message: "Ese duelo es privado." });
+      return;
+    }
+    if (activeDuelFor(socket.id)) {
+      socket.emit("match:error", { message: "Ya estás en un duelo." });
       return;
     }
     const fresh = await profileFromSession(user.sessionToken);
@@ -1404,6 +1435,11 @@ io.on("connection", socket => {
       socket.emit("match:error", { message: deckError });
       return;
     }
+    if (activeDuelFor(socket.id)) {
+      socket.emit("match:error", { message: "Ya estás en un duelo." });
+      return;
+    }
+    dropWaitingMatchesOf(socket.id);
     match.status = "playing";
     match.guestSocketId = socket.id;
     match.guestDeck = user.deck.slice();
@@ -1467,19 +1503,6 @@ io.on("connection", socket => {
     } else if (presence === "active") {
       markCombatActivity(match, side);
     }
-  });
-
-  socket.on("game:event", payload => {
-    const mid = cleanText(payload && payload.matchId, 80);
-    const match = matches.get(mid);
-    if (!match) return;
-    if (match.hostSocketId !== socket.id && match.guestSocketId !== socket.id) return;
-    socket.to(mid).emit("game:event", {
-      matchId: mid,
-      from: socket.id,
-      type: cleanText(payload && payload.type, 60),
-      data: payload && payload.data || null
-    });
   });
 
   socket.on("trade:invite", payload => {
