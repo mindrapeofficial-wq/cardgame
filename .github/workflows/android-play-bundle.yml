@@ -48,6 +48,13 @@ jobs:
           test -f "$ANDROID_HOME/platforms/android-36/android.jar"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
+      - name: Firebase config (google-services.json from secret)
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        shell: bash
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then printf "%s" "$GOOGLE_SERVICES_JSON" > android/app/google-services.json; echo "Firebase config written"; else echo "No GOOGLE_SERVICES_JSON secret: building without Firebase"; fi
+
       - name: Build release bundle and run Android lint
         working-directory: android
         run: gradle :app:bundleRelease :app:lintRelease --stacktrace
