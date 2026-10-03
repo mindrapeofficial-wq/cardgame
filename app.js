@@ -668,8 +668,9 @@ function renderView(){
   const active=document.activeElement,focusId=active&&root.contains(active)&&/^(INPUT|TEXTAREA)$/.test(active.tagName)?active.id:"";
   let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
   const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
+  const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
-  if(state.view==="duel")animateHandDraws();
+  if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
   const again=focusId&&$(focusId);
   if(again){again.focus();if(caret&&caret[0]!=null){try{again.setSelectionRange(caret[0],caret[1])}catch{}}}
 }
@@ -1812,7 +1813,7 @@ function drawButton(){
 // Cards entering the player's hand fly in from their deck: the opening hand is dealt one by
 // one and every later draw gets the same flight. renderView rebuilds the DOM, so flights still
 // running are resumed on the new elements at the point they had reached.
-const HAND_DRAW_MS=520,HAND_DEAL_GAP_MS=150;
+const HAND_DRAW_MS=640,HAND_DEAL_GAP_MS=150;
 const handDraws={key:"",seen:new Set(),flights:new Map()};
 function animateHandDraws(){
   const d=state.duel,key=duelPresentationKey(d);
@@ -1836,13 +1837,215 @@ function animateHandDraws(){
     const dx=(from.left+from.width/2)-(to.left+to.width/2),dy=(from.top+from.height/2)-(to.top+to.height/2);
     const scale=Math.min(1,from.width/to.width||1);
     const anim=el.animate([
-      {transform:`translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg)`,opacity:0,filter:"brightness(.35)"},
-      {transform:`translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg)`,opacity:1,filter:"brightness(.35)",offset:.12},
-      {transform:"translate(0,-14px) scale(1.04) rotate(0deg)",opacity:1,filter:"brightness(1)",offset:.8},
+      {transform:`perspective(900px) translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg) rotateY(88deg)`,opacity:0,filter:"brightness(.35)"},
+      {transform:`perspective(900px) translate(${dx}px,${dy}px) scale(${scale}) rotate(-6deg) rotateY(88deg)`,opacity:1,filter:"brightness(.35)",offset:.1},
+      {transform:`perspective(900px) translate(${dx*.35}px,${dy*.35-28}px) scale(${(scale+1)/2}) rotate(-3deg) rotateY(40deg)`,opacity:1,filter:"brightness(.6)",offset:.5},
+      {transform:"perspective(900px) translate(0,-14px) scale(1.04) rotate(0deg) rotateY(0deg)",opacity:1,filter:"brightness(1)",offset:.82},
       {transform:"none",opacity:1,filter:"none"}
     ],{duration:HAND_DRAW_MS,delay:Math.max(0,start-now),easing:"cubic-bezier(.2,.75,.25,1)",fill:"backwards"});
     if(now>start)anim.currentTime=now-start;
   }
+}
+// ---- Duel motion ---------------------------------------------------------------------------
+// renderView rebuilds the duel on every change. Before each rebuild duelFxCapture remembers where
+// every card was; afterwards duelFxApply animates the difference: cards slide to their new place
+// (and turn when tapped or untapped), cards played from the hand travel to the board, the
+// rival's cards come out of their hand face down and turn over, Power and spells fly to their
+// spot, attacks lunge, blocks clash, life changes float over the life bars and each turn is
+// announced. Transient effects live in a fixed layer so a re-render never cuts them short, and
+// durations vary slightly so nothing looks mechanical.
+const duelFx={key:"",prev:null};
+const fxVary=ms=>Math.round(ms*(0.9+Math.random()*0.2));
+const FX_EASE="cubic-bezier(.22,.8,.28,1)";
+function fxReduced(){try{return matchMedia("(prefers-reduced-motion: reduce)").matches}catch{return false}}
+function fxLayer(){
+  let layer=document.getElementById("duelFxLayer");
+  if(!layer){layer=document.createElement("div");layer.id="duelFxLayer";layer.setAttribute("aria-hidden","true");document.body.appendChild(layer)}
+  return layer;
+}
+function fxCenter(r){return{x:r.left+r.width/2,y:r.top+r.height/2}}
+function fxSpawn(className,css,html=""){
+  const el=document.createElement("div");el.className=className;Object.assign(el.style,css);el.innerHTML=html;fxLayer().appendChild(el);return el;
+}
+function fxDone(anim,el){anim.onfinish=()=>el.remove();anim.oncancel=()=>el.remove()}
+function duelIsMyTurn(d){return d.online?!!d.myTurn:!d.aiActing}
+function duelFxCapture(){
+  if(!state.duel)return null;
+  const cards=new Map();
+  for(const el of document.querySelectorAll(".battle-card[data-card-uid]")){
+    const zone=el.dataset.cardZone;
+    cards.set(el.dataset.cardUid,{zone,rect:el.getBoundingClientRect(),transform:getComputedStyle(el).transform,exhausted:el.classList.contains("exhausted"),cardId:Number(el.dataset.detail)||0,clone:zone==="hand"?el.cloneNode(true):null});
+  }
+  const rect=sel=>document.querySelector(sel)?.getBoundingClientRect()||null;
+  const bar=side=>document.querySelector("."+side+"-deck-column .deck-hp-bar i")?.style.width||"";
+  return{cards,enemyHand:rect(".enemy-zone .hidden-cards-strip"),enemyDeck:rect(".enemy-deck-column .duel-deck-back"),bars:{player:bar("player"),enemy:bar("enemy")}};
+}
+function duelFxState(d){
+  return{playerHp:Number(d.playerHp)||0,enemyHp:Number(d.enemyHp)||0,myTurn:duelIsMyTurn(d),
+    enemyHand:Number(d.enemyHandCount??d.enemyHand?.length??0),enemyPowers:(d.enemyPowers||[]).length,
+    defenses:new Map([...(d.playerBoard||[]),...(d.enemyBoard||[])].map(c=>[c.uid,Number(c.defensesThisTurn)||0])),
+    attackUid:attackingNowUid(d),gameOver:!!d.gameOver};
+}
+function duelFxApply(before){
+  const d=state.duel;if(!d)return;
+  const key=duelPresentationKey(d),now=duelFxState(d);
+  const prev=duelFx.key===key?duelFx.prev:null;
+  duelFx.key=key;duelFx.prev=now;
+  if(!prev||!before||fxReduced())return;
+  const els=new Map([...document.querySelectorAll(".battle-card[data-card-uid]")].map(el=>[el.dataset.cardUid,el]));
+  let landed=0;
+  for(const [uid,el] of els){
+    const zone=el.dataset.cardZone,old=before.cards.get(uid);
+    if(zone==="hand"&&!old)continue; // a draw: animateHandDraws brings it from the deck
+    if(handDraws.flights.has(uid))continue;
+    const to=fxCenter(el.getBoundingClientRect()),finalT=getComputedStyle(el).transform,endT=finalT==="none"?"translate(0,0)":finalT;
+    if(old){
+      const from=fxCenter(old.rect),dx=from.x-to.x,dy=from.y-to.y;
+      const turned=old.exhausted!==el.classList.contains("exhausted");
+      if(Math.abs(dx)<2&&Math.abs(dy)<2&&!turned)continue;
+      const startT="translate("+dx+"px,"+dy+"px) "+(old.transform==="none"?"":old.transform);
+      if(old.zone==="hand"&&zone!=="hand"){
+        // Played from the hand: an arc up and over, then it settles on the board.
+        el.animate([
+          {transform:startT,zIndex:30},
+          {transform:"translate("+dx*.45+"px,"+(dy*.45-46)+"px) scale(1.14) rotate("+(dx>0?-4:4)+"deg)",zIndex:30,offset:.55},
+          {transform:"translate(0,-6px) scale(1.03)",zIndex:30,offset:.86},
+          {transform:endT,zIndex:30}
+        ],{duration:fxVary(620),easing:FX_EASE});
+        fxLand(el,620+landed++*60);
+      }else{
+        el.animate([{transform:startT},{transform:endT}],{duration:fxVary(turned?480:360),easing:FX_EASE});
+      }
+    }else if(zone==="enemy"&&before.enemyHand){
+      // The rival plays a card: it leaves their hand face down and turns over on landing.
+      const from=fxCenter(before.enemyHand),dx=from.x-to.x,dy=from.y-to.y;
+      el.animate([
+        {transform:"perspective(900px) translate("+dx+"px,"+dy+"px) scale(.45) rotateY(90deg)",filter:"brightness(.3)",zIndex:30},
+        {transform:"perspective(900px) translate("+dx*.4+"px,"+(dy*.4+30)+"px) scale(1.1) rotateY(45deg)",filter:"brightness(.6)",zIndex:30,offset:.55},
+        {transform:"perspective(900px) translate(0,4px) scale(1.03) rotateY(0deg)",filter:"brightness(1)",zIndex:30,offset:.85},
+        {transform:endT,filter:"none",zIndex:30}
+      ],{duration:fxVary(700),easing:FX_EASE});
+      fxLand(el,700+landed++*60);
+      if(d.online)playSound("summon");
+    }
+  }
+  // Cards that left the hand without reaching the board: Power cards and spells.
+  for(const [uid,old] of before.cards){
+    if(old.zone!=="hand"||els.has(uid)||!old.clone)continue;
+    const c=card(old.cardId);
+    if(c&&c.powerCard)fxGhostTo(old.clone,old.rect,document.querySelector(".player-zone .power-lane"),false);
+    else fxSpell(old.clone,old.rect);
+  }
+  // The rival's hand: new cards come from their deck, Power goes to their Power zone.
+  const backs=[...document.querySelectorAll(".enemy-zone .hidden-card-back")];
+  if(now.enemyHand>prev.enemyHand&&before.enemyDeck&&backs.length){
+    const from=fxCenter(before.enemyDeck);
+    backs.slice(-Math.min(backs.length,now.enemyHand-prev.enemyHand)).forEach((b,i)=>{
+      const to=fxCenter(b.getBoundingClientRect()),dx=from.x-to.x,dy=from.y-to.y;
+      b.animate([
+        {transform:"translate("+dx+"px,"+dy+"px) scale(.9)",opacity:0},
+        {transform:"translate("+dx+"px,"+dy+"px) scale(.9)",opacity:1,offset:.1},
+        {transform:"none",opacity:1}
+      ],{duration:fxVary(560),delay:i*140,easing:FX_EASE,fill:"backwards"});
+    });
+  }
+  if(now.enemyPowers>prev.enemyPowers&&before.enemyHand){
+    fxGhostTo(null,before.enemyHand,document.querySelector(".enemy-zone .power-lane"),true);
+    if(d.online)playSound("power");
+  }
+  // Attacks lunge towards the other side; blocks clash.
+  if(now.attackUid&&now.attackUid!==prev.attackUid){
+    const el=els.get(now.attackUid);
+    if(el){
+      const dir=el.dataset.cardZone==="enemy"?1:-1;
+      el.animate([
+        {transform:"translate(0,0)"},
+        {transform:"translate(0,"+(dir*-10)+"px) scale(.97)",offset:.2},
+        {transform:"translate(0,"+(dir*34)+"px) scale(1.08)",offset:.5},
+        {transform:"translate(0,0)"}
+      ],{duration:fxVary(560),easing:"cubic-bezier(.3,.6,.3,1)",composite:"add"});
+    }
+  }
+  for(const [uid,count] of now.defenses){
+    if(count>(prev.defenses.get(uid)||0)&&els.has(uid))fxClash(els.get(uid));
+  }
+  // Life totals.
+  fxLife("player",prev.playerHp,now.playerHp,before.bars.player);
+  fxLife("enemy",prev.enemyHp,now.enemyHp,before.bars.enemy);
+  if(Math.min(now.playerHp-prev.playerHp,now.enemyHp-prev.enemyHp)<=-4)fxShake(document.querySelector(".board"));
+  // Turn banner.
+  if(now.myTurn!==prev.myTurn&&!now.gameOver){
+    const rival=d.opponent?.name||(typeof d.opponent==="string"?d.opponent:"")||"tu rival";
+    fxBanner(now.myTurn?"Tu turno":"Turno de "+rival,!now.myTurn);
+  }
+}
+function fxLand(el,delay){
+  setTimeout(()=>{
+    if(!el.isConnected)return;
+    const r=el.getBoundingClientRect();
+    const ring=fxSpawn("fx-land",{left:r.left+"px",top:r.top+"px",width:r.width+"px",height:r.height+"px"});
+    fxDone(ring.animate([{opacity:.95,transform:"scale(1)"},{opacity:0,transform:"scale(1.18)"}],{duration:fxVary(520),easing:"ease-out"}),ring);
+  },delay);
+}
+function fxGhostTo(clone,fromRect,target,cardBack){
+  if(!fromRect||!target)return;
+  const to=target.getBoundingClientRect(),w=cardBack?46:fromRect.width,h=cardBack?64:fromRect.height;
+  const ghost=clone||document.createElement("div");
+  if(!clone)ghost.className="hidden-card-back";
+  ghost.classList.add("fx-ghost");
+  Object.assign(ghost.style,{left:(fromRect.left+fromRect.width/2-w/2)+"px",top:(fromRect.top+fromRect.height/2-h/2)+"px",width:w+"px",height:h+"px"});
+  fxLayer().appendChild(ghost);
+  const dx=to.left+Math.min(to.width,120)/2-(fromRect.left+fromRect.width/2),dy=to.top+to.height/2-(fromRect.top+fromRect.height/2);
+  fxDone(ghost.animate([
+    {transform:"translate(0,0) scale(1)",opacity:1},
+    {transform:"translate("+dx*.5+"px,"+(dy*.5-34)+"px) scale(.85) rotate(-6deg)",opacity:1,offset:.5},
+    {transform:"translate("+dx+"px,"+dy+"px) scale(.42) rotate(0deg)",opacity:.15}
+  ],{duration:fxVary(640),easing:FX_EASE}),ghost);
+}
+function fxSpell(clone,fromRect){
+  const board=document.querySelector(".board")?.getBoundingClientRect();if(!board)return;
+  clone.classList.add("fx-ghost");
+  Object.assign(clone.style,{left:fromRect.left+"px",top:fromRect.top+"px",width:fromRect.width+"px",height:fromRect.height+"px"});
+  fxLayer().appendChild(clone);
+  const dx=board.left+board.width/2-(fromRect.left+fromRect.width/2),dy=board.top+board.height*.42-(fromRect.top+fromRect.height/2);
+  fxDone(clone.animate([
+    {transform:"translate(0,0) scale(1)",opacity:1,filter:"none"},
+    {transform:"translate("+dx+"px,"+dy+"px) scale(1.25)",opacity:1,filter:"brightness(1.5) drop-shadow(0 0 18px rgba(255,210,120,.9))",offset:.55},
+    {transform:"translate("+dx+"px,"+(dy-20)+"px) scale(1.4)",opacity:0,filter:"brightness(2.4) blur(6px)"}
+  ],{duration:fxVary(900),easing:"ease-out"}),clone);
+}
+function fxClash(el){
+  const c=fxCenter(el.getBoundingClientRect());
+  const burst=fxSpawn("fx-clash",{left:c.x+"px",top:c.y+"px"});
+  fxDone(burst.animate([{transform:"scale(.2)",opacity:1},{transform:"scale(1)",opacity:.9,offset:.35},{transform:"scale(1.5)",opacity:0}],{duration:fxVary(520),easing:"ease-out"}),burst);
+  el.animate([{transform:"translate(0,0)"},{transform:"translate(-5px,0)"},{transform:"translate(5px,0)"},{transform:"translate(-3px,0)"},{transform:"translate(0,0)"}],{duration:320,composite:"add"});
+}
+function fxLife(side,before,after,oldWidth){
+  if(before===after)return;
+  const meta=document.querySelector("."+side+"-deck-column .deck-player-meta");if(!meta)return;
+  const r=meta.getBoundingClientRect(),delta=after-before;
+  const num=fxSpawn("fx-float"+(delta>0?" heal":""),{left:(r.left+r.width/2)+"px",top:(r.top+r.height*.3)+"px"},(delta>0?"+":"")+delta);
+  fxDone(num.animate([
+    {transform:"translate(-50%,-30%) scale(.6)",opacity:0},
+    {transform:"translate(-50%,-90%) scale(1.15)",opacity:1,offset:.25},
+    {transform:"translate(-50%,-190%) scale(1)",opacity:0}
+  ],{duration:fxVary(1200),easing:"ease-out"}),num);
+  const bar=meta.querySelector(".deck-hp-bar i");
+  if(bar&&oldWidth)bar.animate([{width:oldWidth},{width:bar.style.width}],{duration:fxVary(650),easing:FX_EASE});
+  if(delta<0&&state.duel?.online)playSound("hit");
+}
+function fxShake(el){
+  if(!el)return;
+  el.animate([{transform:"translate(0,0)"},{transform:"translate(-6px,3px)"},{transform:"translate(5px,-3px)"},{transform:"translate(-3px,2px)"},{transform:"translate(0,0)"}],{duration:360,composite:"add"});
+}
+function fxBanner(text,rival){
+  const b=fxSpawn("fx-banner"+(rival?" rival":""),{},esc(text));
+  fxDone(b.animate([
+    {opacity:0,transform:"translate(-50%,-50%) scale(.85)",letterSpacing:".3em"},
+    {opacity:1,transform:"translate(-50%,-50%) scale(1)",letterSpacing:".08em",offset:.22},
+    {opacity:1,transform:"translate(-50%,-50%) scale(1)",offset:.75},
+    {opacity:0,transform:"translate(-50%,-50%) scale(1.04)"}
+  ],{duration:fxVary(1500),easing:"ease-out"}),b);
 }
 function hiddenCardBacks(count){
   const total=Math.max(0,Number(count)||0),shown=Math.min(total,10);
@@ -1912,7 +2115,7 @@ function battleCards(list,zone){
       ? `${c.name} · Poder +${powerValue(c)}`
       : `${c.name} · Ataque ${c.atk} · Defensa ${defense}`;
     const stateHint=handPlayable?" · jugable ahora":[attackingNow?"atacando ahora":"",attacked&&!attackingNow?"ataque declarado":"",defended?"defensa declarada":""].filter(Boolean).map(x=>" · "+x).join("");
-    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} ${zone==="hand"&&c.uid?'data-hand-uid="'+esc(c.uid)+'"':""} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
+    return `<article class="battle-card zone-${zone} ${attackingNow?"attacking-now":""} ${dying?"dying":""} ${clickable?"clickable":""} ${handPlayable?"hand-playable":""} ${attacked?"attacked":""} ${defended?"defended":""} ${!dying&&c.selected?"selected":""} ${!dying&&c.exhausted?"exhausted":""}" ${clickable?'data-action="duelCard" data-zone="'+zone+'" data-uid="'+c.uid+'"':""} ${dying?"":'data-detail="'+c.id+'"'} ${!dying&&c.uid?'data-card-uid="'+esc(c.uid)+'" data-card-zone="'+zone+'"':""} ${zone==="hand"&&c.uid?'data-hand-uid="'+esc(c.uid)+'"':""} title="${esc(dying?c.name+" · destruida":label+stateHint)}" aria-label="${esc(dying?c.name+" destruida":label+stateHint)}"><div class="battle-art" style="background-image:url('${cardImage(c)}')"></div>${attackingNow?'<span class="battle-attacking-badge" aria-hidden="true">⚔</span>':""}${attacked?'<span class="battle-attack-label" aria-hidden="true">ATAQUE</span>':""}${defended?'<span class="battle-defense-label" aria-hidden="true">DEFENSA</span>':""}${dying?'<span class="battle-death-label">Destruida</span>':""}</article>`;
   }).join("");
 }
 function duelCardClickable(c,zone){

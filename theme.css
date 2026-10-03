@@ -457,3 +457,13 @@
 /* Phase bar: the steps have a fixed height with a tiny line-height, which left the label at
    the top of each box; centre it both ways. */
 .shell .phase-track .phase-step{display:flex!important;align-items:center;justify-content:center;text-align:center;line-height:1.1!important}
+
+/* Duel motion layer (app.js duelFxApply): transient effects that outlive a re-render. */
+#duelFxLayer{position:fixed;inset:0;pointer-events:none;z-index:9000;overflow:hidden}
+#duelFxLayer .fx-ghost{position:absolute;margin:0;animation:none!important;transition:none;z-index:2}
+.fx-float{position:absolute;font:800 clamp(20px,2.4vw,30px)/1 Cinzel,Georgia,serif;color:#ff6a58;text-shadow:0 2px 6px #000,0 0 14px rgba(255,80,60,.65);white-space:nowrap}
+.fx-float.heal{color:#72e597;text-shadow:0 2px 6px #000,0 0 14px rgba(80,230,120,.55)}
+.fx-clash{position:absolute;width:130px;height:130px;margin:-65px 0 0 -65px;border-radius:50%;background:radial-gradient(circle,rgba(255,246,210,.95) 0 7%,rgba(255,200,95,.75) 20%,rgba(255,140,40,.28) 44%,transparent 68%);mix-blend-mode:screen}
+.fx-land{position:absolute;border-radius:10px;box-shadow:0 0 0 2px rgba(255,214,120,.85),0 0 26px 6px rgba(255,190,90,.45)}
+.fx-banner{position:absolute;left:50%;top:44%;padding:14px 56px;font:700 clamp(22px,3.2vw,42px)/1 Cinzel,Georgia,serif;letter-spacing:.08em;color:#f4d68a;background:linear-gradient(90deg,transparent,rgba(10,8,6,.9) 16%,rgba(10,8,6,.9) 84%,transparent);text-shadow:0 0 18px rgba(240,190,90,.6);white-space:nowrap}
+.fx-banner.rival{color:#e9aaa0;text-shadow:0 0 18px rgba(220,90,70,.5)}
