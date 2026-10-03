@@ -1,9 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { LEGAL_VERSION, legalAccepted, isPlayClient, privacyAction } from "./privacy.ts";
+import { playBillingAction, reconcilePlayPurchases } from "./play-billing.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, x-rolplay-session, x-rolplay-server-key",
+  "Access-Control-Allow-Headers": "content-type, x-rolplay-session, x-rolplay-server-key, x-arcanum-client",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8",
   "Cache-Control": "no-store",
@@ -137,6 +139,10 @@ function xpNeeded(level: number) {
 function publicProfile(a: any) {
   return {
     id: a.id,
+    termsVersion: a.terms_version || null,
+    ageGroup: a.age_group || null,
+    suspended: !!a.suspended_at,
+    isBot: !!a.is_bot,
     name: a.username,
     level: a.level,
     xp: a.xp,
@@ -155,6 +161,9 @@ function publicProfile(a: any) {
     supporterTier: a.supporter_tier || null,
     dailyPackAvailable: String(a.last_daily_pack || "") !== madridToday(),
     discordRewardClaimed: !!a.discord_reward_claimed_at,
+    discordLinked: !!a.discord_user_id,
+    discordMember: !!a.discord_member,
+    discordName: a.discord_username || null,
     createdAt: a.created_at,
   };
 }
@@ -378,6 +387,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (action === "register") {
+      if (!legalAccepted(body)) return fail("legal_acceptance_required");
       const username = normalizeUsername(body.username);
       const password = String(body.password || "");
       if (!validateUsername(username)) return fail("username_invalid");
@@ -400,6 +410,9 @@ Deno.serve(async (req: Request) => {
       const { data: account, error } = await db
         .from("rolplay_accounts")
         .insert({
+          terms_version: LEGAL_VERSION,
+          terms_accepted_at: new Date().toISOString(),
+          age_group: body.ageGroup,
           username,
           username_key: key,
           password_hash: hash,
@@ -635,8 +648,23 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, token, profile: publicProfile(account) });
     }
 
+    if (action === "play_reconcile") {
+      if (!(await isTrustedServer(req))) return fail("server_key_invalid", 403);
+      return json({ ok: true, ...await reconcilePlayPurchases(db) });
+    }
+
     const auth = await authenticate(req);
     if (!auth) return fail("unauthorized", 401);
+    const privacyResult = await privacyAction(action, body, {
+      db, auth, req, json, fail, derivePassword, unb64, safeEqual, recentAttempts, recordAttempts,
+    });
+    if (privacyResult) return privacyResult;
+    const playResult = await playBillingAction(action, body, {auth,db,json,fail,loadAccount,publicProfile,founderOpen});
+    if (playResult) return playResult;
+    if (!["me", "logout"].includes(action)) {
+      if (auth.account.suspended_at) return fail("account_suspended", 403);
+      if (!auth.account.is_bot && auth.account.terms_version !== LEGAL_VERSION) return fail("legal_acceptance_required", 403);
+    }
 
     if (action === "market_list") {
       const limit = Math.max(10, Math.min(200, Math.floor(Number(body.limit) || 100)));
@@ -888,7 +916,11 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "me") {
-      return json({ ok: true, profile: publicProfile(auth.account) });
+      const blocks = await privacyAction("blocks_list", {}, { db, auth, req, json, fail });
+      const blockData = await blocks!.json();
+      const moderatorStatus = await privacyAction("moderator_status", {}, { db, auth, req, json, fail });
+      const moderatorData = await moderatorStatus!.json();
+      return json({ ok: true, profile: { ...publicProfile(auth.account), blocks: blockData.blocks, moderator: moderatorData.moderator } });
     }
 
     if (action === "support_info") {
@@ -918,6 +950,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "support_checkout") {
+      if (isPlayClient(req)) return fail("play_checkout_unavailable", 403);
       const tierId = String(body.tier || "");
       const tier = SUPPORT_TIERS[tierId];
       if (!tier) return fail("tier_invalid");
@@ -966,6 +999,12 @@ Deno.serve(async (req: Request) => {
         if (!data) return fail("player_not_found", 404);
         if (data.id === me) return fail("cannot_friend_self");
         other = data;
+      }
+      if (other && (action === "friend_request" || (action === "friend_respond" && body.accept === true))) {
+        const { data: blocked, error: be } = await db.from("rolplay_blocks").select("account_id")
+          .or(`and(account_id.eq.${me},blocked_id.eq.${other.id}),and(account_id.eq.${other.id},blocked_id.eq.${me})`).limit(1);
+        if (be) throw be;
+        if (blocked?.length) return fail("player_blocked", 403);
       }
       const accept = async (requester: string, target: string) => {
         const { error } = await db.from("rolplay_friends").upsert([
@@ -1101,6 +1140,24 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, packLevel, cards: pulled, profile: publicProfile(fresh) });
     }
 
+    // "Vincular Discord": a one-time state tied to this account, then Discord's consent page.
+    // The discord-oauth function finishes the link and checks server membership.
+    if (action === "discord_link_start") {
+      const state = tokenString(randomBytes(24));
+      await db.from("rolplay_discord_states").delete().lt("created_at", new Date(Date.now() - 60 * 60 * 1000).toISOString());
+      const { error } = await db.from("rolplay_discord_states").insert({ state, account_id: auth.account.id });
+      if (error) throw error;
+      const params = new URLSearchParams({
+        client_id: Deno.env.get("DISCORD_CLIENT_ID") || "1555291864415080628",
+        response_type: "code",
+        redirect_uri: supabaseUrl + "/functions/v1/discord-oauth",
+        scope: "identify guilds.members.read",
+        state,
+        prompt: "none",
+      });
+      return json({ ok: true, url: "https://discord.com/oauth2/authorize?" + params.toString() });
+    }
+
     // Free packs: the daily one and the one-off Discord reward. Same draw as a bought pack of
     // the player's level; rolplay_claim_free_pack checks the claim and adds the cards atomically.
     if (action === "claim_free_pack") {
@@ -1123,6 +1180,7 @@ Deno.serve(async (req: Request) => {
       if (rpcError) {
         const msg = String((rpcError as any).message || "");
         if (msg.includes("already_claimed")) return fail(kind + "_already_claimed", 409);
+        if (msg.includes("discord_not_member")) return fail("discord_not_member", 409);
         throw rpcError;
       }
       return json({ ok: true, kind, packLevel, cards: pulled, profile: publicProfile(data) });
@@ -1202,3 +1260,5 @@ Deno.serve(async (req: Request) => {
     return fail("server_error", 500);
   }
 });
+
+

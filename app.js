@@ -3,6 +3,8 @@
 (function(){
 const SERVER_URL="https://cardgame-server-erng.onrender.com";
 const AUTH_API="https://mrmvmoyysxuopqexbxfk.supabase.co/functions/v1/rolplay-api";
+const IS_PLAY_CLIENT=isNativeAndroidCombatClient()||/ArcanumTCGAndroid\//i.test(navigator.userAgent||"");
+if(IS_PLAY_CLIENT)document.documentElement.classList.add("play-client");
 const PHASES=["Enderezar","Robar","Poder","Invocar","Habilidades","Ataque"];
 const SESSION_KEY="rolplay.session.v1";
 const PROFILE_CACHE_KEY="rolplay.profile.cache.v2";
@@ -124,6 +126,8 @@ function applyProfile(profile){
   if(!profile)return;
   state.profile={
     ...profile,
+    blocks:profile.blocks||(state.profile?.id===profile.id?state.profile.blocks:[])||[],
+    moderator:profile.moderator??(state.profile?.id===profile.id?state.profile.moderator:false),
     level:clamp(Number(profile.level)||1,1,50),
     xp:Math.max(0,Number(profile.xp)||0),
     xpRequired:Math.max(0,Number(profile.xpRequired)||0),
@@ -185,6 +189,7 @@ function authErrorMessage(code){
 async function api(action,payload={},auth=true){
   const headers={"content-type":"application/json"};
   if(auth&&sessionToken)headers["x-rolplay-session"]=sessionToken;
+  if(IS_PLAY_CLIENT)headers["x-arcanum-client"]="google-play";
   try{
     const res=await fetch(AUTH_API,{method:"POST",headers,body:JSON.stringify({action,...payload})});
     let data={};try{data=await res.json()}catch{}
@@ -204,6 +209,7 @@ function setAuthMode(mode){
     :"Entra con tu usuario y contraseña para recuperar tu progreso.";
   if(submit)submit.textContent=state.authMode==="register"?"Crear usuario":"Iniciar sesión";
   if(confirm)confirm.classList.toggle("hidden",state.authMode!=="register");
+  $("registerLegal")?.classList.toggle("hidden",state.authMode!=="register");
 }
 function showAuth(){
   $("appShell")?.classList.add("hidden");$("loginScreen")?.classList.remove("hidden");
@@ -218,17 +224,23 @@ async function authenticateForm(){
   const password=String($("loginPassword")?.value||"");
   const confirm=String($("loginConfirm")?.value||"");
   if(state.authMode==="register"&&password!==confirm){toast("Las contraseñas no coinciden.","bad");return}
+  const legal=state.authMode==="register"?{acceptTerms:!!$("registerTerms")?.checked,termsVersion:ARCANUM_PRIVACY.version,ageGroup:$("registerAge")?.value}:{};
+  if(state.authMode==="register"&&!ARCANUM_PRIVACY.validLegal(legal)){toast("Debes tener al menos 16 años y aceptar los términos.","bad");return}
   state.authBusy=true;if($("authSubmit"))$("authSubmit").disabled=true;
-  const result=await api(state.authMode==="register"?"register":"login",{username,password},false);
+  const result=await api(state.authMode==="register"?"register":"login",{username,password,...legal},false);
   state.authBusy=false;if($("authSubmit"))$("authSubmit").disabled=false;
   if(!result.ok){toast(authErrorMessage(result.error),"bad");return}
   sessionToken=result.token||"";localStorage.setItem(SESSION_KEY,sessionToken);
+  if($("loginPassword"))$("loginPassword").value="";
+  if($("loginConfirm"))$("loginConfirm").value="";
   applyProfile(result.profile);enterGame();
 }
 function enterGame(){
   if(!state.profile)return;
+  if(!ARCANUM_PRIVACY.ensureAccess())return;
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
   updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
+  if(IS_PLAY_CLIENT)ARCANUM_PLAY.restore();
 }
 async function logout(){
   if(sessionToken)void api("logout",{},true);
@@ -282,7 +294,7 @@ async function boot(){
   }catch(e){
     console.error(e);$("bootError")?.classList.remove("hidden");return;
   }
-  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261002-mobile-lobby-v2",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
+  if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js?v=20261003-privacy-v1",{updateViaCache:"none"}).then(reg=>reg.update().catch(()=>{})).catch(()=>{});
   if(sessionToken){
     const result=await api("me",{},true);
     if(result.ok&&result.profile){applyProfile(result.profile);enterGame();return}
@@ -663,7 +675,7 @@ function go(view){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 const CHAT_HISTORY_LIMIT=200;
-function pushChat(m){state.chat.push(m);if(state.chat.length>CHAT_HISTORY_LIMIT)state.chat.splice(0,state.chat.length-CHAT_HISTORY_LIMIT)}
+function pushChat(m){if(m.from&&ARCANUM_PRIVACY.isBlocked(m.from))return;state.chat.push(m);if(state.chat.length>CHAT_HISTORY_LIMIT)state.chat.splice(0,state.chat.length-CHAT_HISTORY_LIMIT)}
 function renderView(){
   const root=$("viewRoot");if(!root||!state.profile)return;
   // Lobby events re-render the whole view; keep the focused field and its caret where they were.
@@ -988,7 +1000,7 @@ function renderUsers(){
 }
 function renderChat(){
   if(!state.chat.length)return'<div class="empty">El salón está tranquilo. Rompe el hielo.</div>';
-  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}${chatChallengeButton(m)}</div>`:`<div class="chat-msg"><b class="${supporterNameClass(m.tier)}">${supporterBadge(m.tier)}${esc(m.from)}:</b> ${esc(m.text)}</div>`).join("");
+  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}${chatChallengeButton(m)}</div>`:`<div class="chat-msg"><b class="${supporterNameClass(m.tier)}">${supporterBadge(m.tier)}${esc(m.from)}:</b> ${esc(m.text)} ${ARCANUM_PRIVACY.chatTools(m)}</div>`).join("");
 }
 
 // "X está esperando duelo" lines get an accept button while that challenge is still open.
@@ -1097,6 +1109,7 @@ async function playerProfile(sock,name){
   const canDuel=online&&u.socketId&&status!=="En combate";
   root.innerHTML=shell(`<div class="player-profile">
       <div class="player-profile-top"><div class="avatar big">${initial(name)}</div><div><h3 class="${supporterNameClass(row?.supporterTier||u.supporterTier)}">${supporterBadge(row?.supporterTier||u.supporterTier)}${esc(name)}</h3><span class="social-status-label ${socialStatusClass(status)}">${esc(status)}</span></div></div>
+      ${ARCANUM_PRIVACY.playerTools(name)}
       <div class="player-profile-stats">
         <div><small>Nivel</small><b>${level}</b></div>
         <div><small>ELO</small><b>${elo}</b></div>
@@ -1200,7 +1213,7 @@ function renderFriendsBlock(compact){
 // microphone is on, and it can be muted at any time. Everything is torn down when the duel ends.
 const VOICE_ICE=[{urls:["stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]}];
 const voice={matchId:"",on:false,starting:false,stream:null,pc:null,sender:null,remoteOn:false,remoteMuted:false,audio:null,polite:false,makingOffer:false,ignoreOffer:false,meter:null,rivalSpeaking:false};
-function voiceSupported(){return!!(window.RTCPeerConnection&&navigator.mediaDevices?.getUserMedia)}
+function voiceSupported(){return !IS_PLAY_CLIENT&&!!(window.RTCPeerConnection&&navigator.mediaDevices?.getUserMedia)}
 function voiceMatchId(){const d=state.duel;return d&&d.online&&!d.gameOver?d.matchId:""}
 function voiceSend(type,payload){const id=voiceMatchId();if(id&&state.socket)state.socket.emit(type,{matchId:id,...payload})}
 function voiceAudio(){
@@ -1332,6 +1345,11 @@ function supporterBadge(tier){
 function supporterNameClass(tier){return tier==="fundador"?"sup-name-gold":tier==="mecenas"||tier==="leyenda"?"sup-name-violet":""}
 async function loadSupport(){
   const r=await api("support_info");
+  if(IS_PLAY_CLIENT&&r.ok){
+    const play=await ARCANUM_PLAY.load();
+    r.configured=!!play.configured;r.testMode=false;r.needsUpdate=!!play.needsUpdate;
+    r.tiers=r.tiers.filter(t=>t.id!=="leyenda");
+  }
   state.support=r.ok?r:{error:r.error||"error"};
   if(state.view==="support")renderView();
 }
@@ -1342,14 +1360,16 @@ function renderSupport(){
   const mine=s.mine,rank={apoyador:1,fundador:2,mecenas:3,leyenda:4};
   const cards=s.tiers.map(t=>{
     const info=SUPPORT_TIERS[t.id],owned=mine&&rank[mine]>=rank[t.id];
+    const playProduct=state.playProducts?.["arcanum_"+t.id];
+    const priceText=IS_PLAY_CLIENT?(playProduct?.price||"No disponible"):t.price+" €";
     const status=!t.available?(t.id==="fundador"?"Cerrado tras el lanzamiento":"Plazas agotadas"):t.spotsLeft!=null?t.spotsLeft+" plazas libres":"";
     const adult=t.id==="leyenda"?`<label class="support-adult"><input type="checkbox" id="supportAdult"> Soy mayor de 18 años y acepto que mi nombre y mi personaje aparezcan en el juego.</label>`:"";
     return `<section class="panel support-tier support-${t.id}">
-      <div class="support-tier-head"><span class="support-icon">${info.icon}</span><div><h2>${info.name}</h2><b class="support-price">${t.price} €</b></div></div>
+      <div class="support-tier-head"><span class="support-icon">${info.icon}</span><div><h2>${info.name}</h2><b class="support-price">${esc(priceText)}</b></div></div>
       <ul>${info.perks.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>
       ${status?`<small class="muted">${esc(status)}</small>`:""}
       ${adult}
-      <button class="btn ${owned?"":"primary"}" data-action="supportCheckout" data-tier="${t.id}" ${!t.available||!s.configured?"disabled":""}>${owned?"Ya eres "+info.name:"Apoyar con "+t.price+" €"}</button>
+      <button class="btn ${owned?"":"primary"}" data-action="supportCheckout" data-tier="${t.id}" ${owned||!t.available||!s.configured||(IS_PLAY_CLIENT&&!playProduct)?"disabled":""}>${owned?"Ya eres "+info.name:"Apoyar · "+esc(priceText)}</button>
     </section>`;
   }).join("");
   const wall=s.wall.length?s.wall.map(w=>`<span class="support-wall-name ${supporterNameClass(w.tier)}">${supporterBadge(w.tier)}${esc(w.name)}</span>`).join(""):'<div class="empty">Sé el primero en apoyar el proyecto.</div>';
@@ -1358,7 +1378,8 @@ function renderSupport(){
       <h1>Apoya ARCANUM</h1>
       <p>ARCANUM es un proyecto independiente. Si te gusta y quieres que siga creciendo, puedes apoyarlo. Todas las recompensas son de reconocimiento: <b>nada da ventaja en combate</b>.</p>
       ${s.testMode?'<p class="support-test">Modo de prueba: los pagos no son reales. Usa la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</p>':""}
-      ${!s.configured?'<p class="support-test">Los pagos aún no están activados.</p>':""}
+      ${!s.configured?`<p class="support-test">${s.needsUpdate?"Actualiza la app para utilizar las compras de Google Play.":"Los pagos aún no están activados."}</p>`:""}
+      ${IS_PLAY_CLIENT?'<p>Las compras se realizan mediante Google Play. Son pagos únicos, sin renovación automática.</p><button type="button" class="btn" data-play-restore>Comprobar mis compras</button>':""}
       ${mine?`<p>Tu nivel actual: ${supporterBadge(mine)} <b>${SUPPORT_TIERS[mine].name}</b>. ¡Gracias!</p>`:""}
     </div></section>
     <div class="support-grid">${cards}</div>
@@ -1368,6 +1389,7 @@ function renderSupport(){
   </div>`;
 }
 async function supportCheckout(tier){
+  if(IS_PLAY_CLIENT){await ARCANUM_PLAY.purchase(tier);return}
   const adult=tier==="leyenda"?!!$("supportAdult")?.checked:false;
   if(tier==="leyenda"&&!adult){toast("Para Leyenda tienes que confirmar que eres mayor de 18 años.","bad");return}
   const r=await api("support_checkout",{tier,adult});
@@ -2020,6 +2042,7 @@ function renderProfile(){
   const total=state.profile.wins+state.profile.draws+state.profile.losses;
   return `<div class="page">
     <section class="panel profile-banner"><div><div class="kicker">${state.profile.supporterTier?SUPPORT_TIERS[state.profile.supporterTier].name:"Aprendiz"}</div><h1 class="${supporterNameClass(state.profile.supporterTier)}">${supporterBadge(state.profile.supporterTier)}${esc(state.profile.name)}</h1><button class="btn small support-cta" data-action="nav" data-view="support">★ Apoya el proyecto</button><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
+    ${ARCANUM_PRIVACY.accountPanel()}
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP ganada durante la carrera: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Las victorias y empates suben la barra. Las derrotas PvP pueden bajarla, pero nunca reducen un nivel ya alcanzado.</p></div>
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
@@ -2072,7 +2095,7 @@ function connectOnline(){
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
-    socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text,tier:m.tier||null});if(state.view==="home")renderView()});
+    socket.on("chat:message",m=>{pushChat({...m});if(state.view==="home")renderView()});
     wireSocialSocket(socket);
     wireVoiceSocket(socket);
     socket.on("chat:system",m=>{pushActivity(m);if(state.view==="home")renderView()});
@@ -3408,5 +3431,8 @@ window.addEventListener("blur",hideCardZoom);
 document.addEventListener("contextmenu",e=>{if(cardZoomSource(e.target))e.preventDefault()});
 document.addEventListener("click",e=>{if(swallowNextClick){swallowNextClick=false;e.preventDefault();e.stopPropagation()}},true);
 
+ARCANUM_PRIVACY.bind({api,state,applyProfile,enterGame,logout,toast,renderView,esc,closeModal,
+  keys:[SESSION_KEY,PROFILE_CACHE_KEY,LAST_USER_KEY,PENDING_REWARDS_KEY]});
+ARCANUM_PLAY.bind({api,state,applyProfile,toast,renderView});
 boot();
 })();

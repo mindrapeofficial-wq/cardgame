@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+dependencies {
+    implementation 'com.android.billingclient:billing:9.1.0'
+}
+
 android {
     namespace 'com.arcanum.classic'
     compileSdk 36
@@ -10,8 +14,8 @@ android {
         applicationId 'com.arcanum.classic'
         minSdk 26
         targetSdk 36
-        versionCode 11
-        versionName '1.2.6'
+        versionCode 12
+        versionName '1.2.7'
     }
 
     buildTypes {
