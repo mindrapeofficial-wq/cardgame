@@ -12,6 +12,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
@@ -38,9 +39,21 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        configureFullscreenWindow();
         root = new FrameLayout(this);
+        root.setFitsSystemWindows(false);
         root.setBackgroundColor(Color.BLACK);
         setContentView(root);
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            root.setOnApplyWindowInsetsListener((view, insets) -> {
+                // System bars never create a gutter. Keep editable fields above the keyboard.
+                int keyboard = insets.isVisible(WindowInsets.Type.ime())
+                        ? insets.getInsets(WindowInsets.Type.ime()).bottom : 0;
+                view.setPadding(0, 0, 0, keyboard);
+                return insets;
+            });
+        }
+        enableImmersiveMode();
         showLoading();
         createWebView(savedInstanceState);
         billing = new PlayBilling(this, event -> runOnUiThread(() -> {
@@ -99,7 +112,7 @@ public class MainActivity extends Activity {
             s.setSupportZoom(false);
             s.setBuiltInZoomControls(false);
             s.setDisplayZoomControls(false);
-            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.7 GooglePlay");
+            s.setUserAgentString(s.getUserAgentString() + " ArcanumTCGAndroid/1.2.8 GooglePlay");
 
             CookieManager cookies = CookieManager.getInstance();
             cookies.setAcceptCookie(true);
@@ -113,12 +126,12 @@ public class MainActivity extends Activity {
                     Uri uri = request.getUrl();
                     String scheme = uri.getScheme();
                     String host = uri.getHost();
-                    // Purchases are not enabled in this Play edition. Legal/support links remain usable.
+                    // Digital purchases in this edition use Google Play Billing.
                     if (host != null && (host.equalsIgnoreCase("checkout.stripe.com") ||
                             host.equalsIgnoreCase("buy.stripe.com"))) return true;
 
                     if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-                        if (host != null &&
+                        if ("https".equalsIgnoreCase(scheme) && host != null &&
                                 (GAME_HOST.equalsIgnoreCase(host) || "arcanumgames.es".equalsIgnoreCase(host))) {
                             return false;
                         }
@@ -133,7 +146,7 @@ public class MainActivity extends Activity {
                         return true;
                     }
 
-                    return false;
+                    return true;
                 }
 
                 @Override
@@ -212,7 +225,7 @@ public class MainActivity extends Activity {
     }
 
     private void injectMobileOptimizations() {
-        if (webView == null) return;
+        if (webView == null || !trustedGamePage()) return;
 
         String js = "(function(){" +
                 "var m=document.querySelector('meta[name=viewport]');" +
@@ -281,6 +294,23 @@ public class MainActivity extends Activity {
         } catch (Throwable ignored) {}
     }
 
+    private void configureFullscreenWindow() {
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode = android.os.Build.VERSION.SDK_INT >= 30
+                    ? WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                    : WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(attributes);
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            getWindow().setStatusBarContrastEnforced(false);
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+    }
+
     private void exitImmersiveMode() {
         try {
             if (android.os.Build.VERSION.SDK_INT >= 30) {
@@ -304,7 +334,7 @@ public class MainActivity extends Activity {
     public final class AndroidBridge {
         @JavascriptInterface
         public void setCombatMode(final boolean active) {
-            runOnUiThread(() -> MainActivity.this.setCombatMode(active));
+            runOnUiThread(() -> { if (trustedGamePage()) MainActivity.this.setCombatMode(active); });
         }
 
         @JavascriptInterface

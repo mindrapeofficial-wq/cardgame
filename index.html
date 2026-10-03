@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="modern.css?v=20261002-mobile-lobby-v2">
   <link rel="stylesheet" href="theme.css?v=20261003-rewards-v1">
   <link rel="stylesheet" href="legal.css?v=20261003-privacy-v1">
+  <link rel="stylesheet" href="audio.css?v=20261003-audio-v1">
 </head>
 <body>
   <div class="app-bg"></div>
@@ -84,6 +85,7 @@
         <button id="globalHomeBtn" class="btn small global-home-btn" data-action="nav" data-view="home" title="Volver al inicio">⌂ Inicio</button>
         <div class="topbar-title"><img class="topbar-logo" src="assets/arcanum-logo-oficial.webp" alt="ARCANUM TCG"></div>
         <div class="topbar-spacer"></div>
+        <button type="button" class="btn icon ghost audio-open" data-audio-open aria-label="Ajustes de audio" title="Ajustes de audio">♪</button>
         <div class="pill connection-label"><span id="connectionDot" class="dot"></span><span id="connectionText">Local</span></div>
         <div class="currency"><button type="button" class="support-header" data-action="nav" data-view="support" title="Apoya el proyecto" aria-label="Apoya el proyecto">★</button><span class="currency-sep" aria-hidden="true"></span><svg class="coin-icon" viewBox="0 0 32 32" aria-hidden="true"><defs><radialGradient id="coinFace" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#fff6cf"/><stop offset=".45" stop-color="#f1c95e"/><stop offset="1" stop-color="#a8741f"/></radialGradient><linearGradient id="coinRim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7dc8a"/><stop offset="1" stop-color="#6e4a12"/></linearGradient></defs><circle cx="16" cy="16" r="15" fill="url(#coinRim)"/><circle cx="16" cy="16" r="12.4" fill="url(#coinFace)"/><circle cx="16" cy="16" r="10.2" fill="none" stroke="#9a6a1c" stroke-width=".9" stroke-opacity=".7"/><path d="M16 8.6 21.2 22.4h-2.6l-1.1-3.1h-3l-1.1 3.1h-2.6L16 8.6Zm0 5.2-1 3.4h2Z" fill="#7a5214"/><path d="M16 9.4 20.6 22h-1.5" fill="none" stroke="#fff3c4" stroke-width=".6" stroke-opacity=".7"/></svg><span id="coins">100</span><span class="sr-only"> de oro</span></div>
       </header>
@@ -108,12 +110,15 @@
     </div>
   </div>
 
+  <audio id="gameBackgroundMusic" loop preload="none" playsinline hidden></audio>
+  <dialog id="audioDialog" class="audio-dialog" aria-labelledby="audioTitle"></dialog>
   <div id="modalRoot"></div>
   <div id="privacyRoot"></div>
   <div id="toasts" class="toast-stack"></div>
   <script src="rules.js?v=20261003-rules-v4"></script>
   <script src="privacy-ui.js?v=20261003-privacy-v1"></script>
   <script src="play-billing-ui.js?v=20261003-privacy-v1"></script>
-  <script src="app.js?v=20261003-privacy-v1"></script>
+  <script src="audio.js?v=20261003-audio-v1"></script>
+  <script src="app.js?v=20261003-audio-v1"></script>
 </body>
 </html>
