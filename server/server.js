@@ -600,6 +600,7 @@ async function settleMatchReward(match) {
   if (!game || !game.gameOver || game.rewardSettled) return;
   const result = await settleMatchProfiles(match);
   if (!result) return;
+  if (!result.duplicate) announceMatchResult(match, result);
 
   const aUser = users.get(match.hostSocketId);
   const bUser = users.get(match.guestSocketId);
@@ -630,6 +631,23 @@ async function settleMatchReward(match) {
     });
   }
   emitUsers();
+}
+// Public channel line for every settled PvP match, e.g.
+// "Galante ha ganado a Kraven92 · ELO: Galante 1016 (+16) · Kraven92 984 (−16)".
+function announceMatchResult(match, result) {
+  const winner = match.duel && match.duel.winner;
+  const nameA = sideName(match, "a"), nameB = sideName(match, "b");
+  const elo = (name, profile, reward) => {
+    const delta = Number(reward && reward.eloDelta) || 0;
+    return name + " " + (Number(profile && profile.elo) || 1000) + " (" + (delta >= 0 ? "+" : "−") + Math.abs(delta) + ")";
+  };
+  const eloA = elo(nameA, result.profileA, result.rewardA), eloB = elo(nameB, result.profileB, result.rewardB);
+  const text = winner === "draw"
+    ? nameA + " y " + nameB + " han empatado · ELO: " + eloA + " · " + eloB
+    : winner === "a"
+      ? nameA + " ha ganado a " + nameB + " · ELO: " + eloA + " · " + eloB
+      : nameB + " ha ganado a " + nameA + " · ELO: " + eloB + " · " + eloA;
+  io.emit("chat:system", { text });
 }
 function sideName(match, side) {
   const user = users.get(socketForSide(match, side));
@@ -1236,6 +1254,7 @@ io.on("connection", socket => {
     });
     emitMatches();
     emitDuel(match);
+    io.emit("chat:system", { text: (host ? host.name : match.player) + " ha empezado una partida contra " + user.name + "." });
   });
 
   socket.on("duel:action", payload => {
