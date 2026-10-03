@@ -659,6 +659,7 @@ function go(view){
   if(view==="deck")void loadDecks();
   if(view==="ranking")void loadRanking();
   if(view==="trade")void loadMarketListings();
+  if(view==="support")void loadSupport();
   window.scrollTo({top:0,behavior:"smooth"});
 }
 const CHAT_HISTORY_LIMIT=200;
@@ -668,7 +669,7 @@ function renderView(){
   // Lobby events re-render the whole view; keep the focused field and its caret where they were.
   const active=document.activeElement,focusId=active&&root.contains(active)&&/^(INPUT|TEXTAREA)$/.test(active.tagName)?active.id:"";
   let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
-  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,support:renderSupport,duel:renderDuel};
   const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
@@ -714,6 +715,7 @@ function renderHome(){
         <button class="btn" data-action="nav" data-view="collection">Colección</button>
         <button class="btn" data-action="nav" data-view="shop">Tienda</button>
         <button class="btn" data-action="nav" data-view="trade">Intercambios</button>
+        <button class="btn support-cta" data-action="nav" data-view="support">★ Apoya el proyecto</button>
         <button class="btn" data-action="nav" data-view="ranking">Ranking</button>
         <button class="btn" data-action="nav" data-view="profile">Perfil</button>
       </div>
@@ -985,7 +987,7 @@ function renderUsers(){
 }
 function renderChat(){
   if(!state.chat.length)return'<div class="empty">El salón está tranquilo. Rompe el hielo.</div>';
-  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}${chatChallengeButton(m)}</div>`:`<div class="chat-msg"><b>${esc(m.from)}:</b> ${esc(m.text)}</div>`).join("");
+  return state.chat.slice(-80).map(m=>m.system?`<div class="chat-msg system">${esc(m.text)}${chatChallengeButton(m)}</div>`:`<div class="chat-msg"><b class="${supporterNameClass(m.tier)}">${supporterBadge(m.tier)}${esc(m.from)}:</b> ${esc(m.text)}</div>`).join("");
 }
 
 // "X está esperando duelo" lines get an accept button while that challenge is still open.
@@ -1032,11 +1034,11 @@ function renderSocial(){
   const me=state.profile,mine=u=>state.socket&&u.socketId===state.socket.id;
   const others=state.users.filter(u=>!mine(u)).sort((a,b)=>(a.status==="Disponible"?0:1)-(b.status==="Disponible"?0:1)||(b.level||1)-(a.level||1)||String(a.name).localeCompare(b.name));
   el.innerHTML=`<div class="social-head"><b>Salón</b><button class="btn icon ghost" data-action="socialClose" aria-label="Cerrar">×</button></div>
-    <button class="social-me" data-action="socialMe"><div class="avatar">${initial(me.name)}</div><div><b>${esc(me.name)}</b><small>Nivel ${playerLevel()} · ELO ${Number(me.elo)||1000}</small></div><span>Perfil ›</span></button>
+    <button class="social-me" data-action="socialMe"><div class="avatar">${initial(me.name)}</div><div><b class="${supporterNameClass(me.supporterTier)}">${supporterBadge(me.supporterTier)}${esc(me.name)}</b><small>Nivel ${playerLevel()} · ELO ${Number(me.elo)||1000}</small></div><span>Perfil ›</span></button>
     <div class="social-title">Amigos <span>${friendsState().friends.length}</span></div>
     ${renderFriendsBlock(true)}
     <div class="social-title">Conectados <span>${others.length}</span></div>
-    <div class="social-list">${others.map(u=>`<button class="social-user" data-action="playerProfile" data-socket="${esc(u.socketId)}" data-name="${esc(u.name)}"><div class="avatar">${initial(u.name)}</div><div><b>${esc(u.name)}</b><small>Nivel ${u.level||1} · ELO ${u.elo||1000} · ${esc(u.status||"Disponible")}</small></div><i class="social-status ${socialStatusClass(u.status)}"></i></button>`).join("")||'<div class="empty">No hay nadie más conectado.</div>'}</div>
+    <div class="social-list">${others.map(u=>`<button class="social-user" data-action="playerProfile" data-socket="${esc(u.socketId)}" data-name="${esc(u.name)}"><div class="avatar">${initial(u.name)}</div><div><b class="${supporterNameClass(u.supporterTier)}">${supporterBadge(u.supporterTier)}${esc(u.name)}</b><small>Nivel ${u.level||1} · ELO ${u.elo||1000} · ${esc(u.status||"Disponible")}</small></div><i class="social-status ${socialStatusClass(u.status)}"></i></button>`).join("")||'<div class="empty">No hay nadie más conectado.</div>'}</div>
     <p class="social-hint">Clic derecho o mantén pulsado sobre un jugador para retarlo o agregarlo.</p>`;
 }
 
@@ -1093,7 +1095,7 @@ async function playerProfile(sock,name){
   const games=row?(row.wins+row.losses+row.draws):0,rate=games?Math.round(row.wins/games*100):0;
   const canDuel=online&&u.socketId&&status!=="En combate";
   root.innerHTML=shell(`<div class="player-profile">
-      <div class="player-profile-top"><div class="avatar big">${initial(name)}</div><div><h3>${esc(name)}</h3><span class="social-status-label ${socialStatusClass(status)}">${esc(status)}</span></div></div>
+      <div class="player-profile-top"><div class="avatar big">${initial(name)}</div><div><h3 class="${supporterNameClass(row?.supporterTier||u.supporterTier)}">${supporterBadge(row?.supporterTier||u.supporterTier)}${esc(name)}</h3><span class="social-status-label ${socialStatusClass(status)}">${esc(status)}</span></div></div>
       <div class="player-profile-stats">
         <div><small>Nivel</small><b>${level}</b></div>
         <div><small>ELO</small><b>${elo}</b></div>
@@ -1311,6 +1313,86 @@ function wireVoiceSocket(socket){
     if(!voice.remoteOn){voice.rivalSpeaking=false}
     if(state.view==="duel")renderView();
   });
+}
+// ---- Supporters ------------------------------------------------------------------------------
+// Tiers are paid through Stripe Checkout (rolplay-api support_checkout); stripe-webhook stores
+// the payment and raises the account's supporter_tier. Recognition only: badge, coloured name,
+// title, wall and a few hand-delivered rewards. Nothing that helps in combat.
+const SUPPORT_TIERS={
+  apoyador:{name:"Apoyador",icon:"★",perks:["Insignia ★ bronce junto a tu nombre","Título «Apoyador» en tu perfil","Tu nombre en el muro de apoyadores"]},
+  fundador:{name:"Fundador",icon:"★",perks:["Todo lo de Apoyador","Insignia ★ dorada y nombre dorado en el chat","Carta exclusiva de Fundador (mismas estadísticas que las de su nivel)","Acceso anticipado a las nuevas expansiones","Solo disponible hasta el lanzamiento oficial"]},
+  mecenas:{name:"Mecenas",icon:"◆",perks:["Todo lo de Fundador","Insignia ◆ violeta y nombre violeta en el chat","Aviso especial cuando entras al salón","Votas las nuevas cartas y mecánicas","Pones nombre a una carta de la próxima expansión"]},
+  leyenda:{name:"Leyenda",icon:"◆",perks:["Todo lo de Mecenas","Tu personaje se convierte en una carta del juego","Diseño aprobado contigo; estadísticas equilibradas por el equipo","Plazas limitadas · solo mayores de 18"]}
+};
+function supporterBadge(tier){
+  const t=SUPPORT_TIERS[tier];
+  return t?`<span class="sup-badge sup-${tier}" title="${t.name}">${t.icon}</span>`:"";
+}
+function supporterNameClass(tier){return tier==="fundador"?"sup-name-gold":tier==="mecenas"||tier==="leyenda"?"sup-name-violet":""}
+async function loadSupport(){
+  const r=await api("support_info");
+  state.support=r.ok?r:{error:r.error||"error"};
+  if(state.view==="support")renderView();
+}
+function renderSupport(){
+  const s=state.support;
+  if(!s){loadSupport();return'<div class="page"><div class="empty">Cargando…</div></div>'}
+  if(s.error||!Array.isArray(s.tiers))return'<div class="page"><div class="empty">No se pudo cargar la información de apoyo. Inténtalo más tarde.</div></div>';
+  const mine=s.mine,rank={apoyador:1,fundador:2,mecenas:3,leyenda:4};
+  const cards=s.tiers.map(t=>{
+    const info=SUPPORT_TIERS[t.id],owned=mine&&rank[mine]>=rank[t.id];
+    const status=!t.available?(t.id==="fundador"?"Cerrado tras el lanzamiento":"Plazas agotadas"):t.spotsLeft!=null?t.spotsLeft+" plazas libres":"";
+    const adult=t.id==="leyenda"?`<label class="support-adult"><input type="checkbox" id="supportAdult"> Soy mayor de 18 años y acepto que mi nombre y mi personaje aparezcan en el juego.</label>`:"";
+    return `<section class="panel support-tier support-${t.id}">
+      <div class="support-tier-head"><span class="support-icon">${info.icon}</span><div><h2>${info.name}</h2><b class="support-price">${t.price} €</b></div></div>
+      <ul>${info.perks.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>
+      ${status?`<small class="muted">${esc(status)}</small>`:""}
+      ${adult}
+      <button class="btn ${owned?"":"primary"}" data-action="supportCheckout" data-tier="${t.id}" ${!t.available||!s.configured?"disabled":""}>${owned?"Ya eres "+info.name:"Apoyar con "+t.price+" €"}</button>
+    </section>`;
+  }).join("");
+  const wall=s.wall.length?s.wall.map(w=>`<span class="support-wall-name ${supporterNameClass(w.tier)}">${supporterBadge(w.tier)}${esc(w.name)}</span>`).join(""):'<div class="empty">Sé el primero en apoyar el proyecto.</div>';
+  return `<div class="page support-page">
+    <section class="panel support-intro"><div class="panel-body">
+      <h1>Apoya ARCANUM</h1>
+      <p>ARCANUM es un proyecto independiente. Si te gusta y quieres que siga creciendo, puedes apoyarlo. Todas las recompensas son de reconocimiento: <b>nada da ventaja en combate</b>.</p>
+      ${s.testMode?'<p class="support-test">Modo de prueba: los pagos no son reales. Usa la tarjeta 4242 4242 4242 4242, cualquier fecha futura y cualquier CVC.</p>':""}
+      ${!s.configured?'<p class="support-test">Los pagos aún no están activados.</p>':""}
+      ${mine?`<p>Tu nivel actual: ${supporterBadge(mine)} <b>${SUPPORT_TIERS[mine].name}</b>. ¡Gracias!</p>`:""}
+    </div></section>
+    <div class="support-grid">${cards}</div>
+    <section class="panel"><div class="panel-head"><h2>Muro de apoyadores</h2><span class="pill">${s.wall.length}</span></div><div class="panel-body support-wall">${wall}</div></section>
+    <p class="muted support-legal">Los pagos los procesa Stripe de forma segura; ARCANUM no ve ni guarda los datos de tu tarjeta. Las recompensas manuales (carta exclusiva, nombrar una carta, ser una carta) se entregan cuando estén listas y se gestionan desde el equipo.</p>
+  </div>`;
+}
+async function supportCheckout(tier){
+  const adult=tier==="leyenda"?!!$("supportAdult")?.checked:false;
+  if(tier==="leyenda"&&!adult){toast("Para Leyenda tienes que confirmar que eres mayor de 18 años.","bad");return}
+  const r=await api("support_checkout",{tier,adult});
+  if(!r.ok){
+    toast(r.error==="tier_closed"?"Ese nivel ya no está disponible.":r.error==="tier_sold_out"?"No quedan plazas de Leyenda.":r.error==="payments_not_configured"?"Los pagos aún no están activados.":"No se pudo iniciar el pago. Inténtalo de nuevo.","bad");
+    return;
+  }
+  location.href=r.url;
+}
+// Back from Stripe Checkout: thank the player and refresh the profile once the webhook landed.
+function handleSupportReturn(){
+  const q=new URLSearchParams(location.search),result=q.get("support");
+  if(!result)return;
+  history.replaceState(null,"",location.pathname);
+  if(result==="ok"){
+    toast("¡Gracias por apoyar ARCANUM! Tu insignia aparecerá en unos segundos.","good");
+    let tries=0;
+    const poll=async()=>{
+      const r=await api("me");
+      if(r.ok&&r.profile.supporterTier&&r.profile.supporterTier!==state.profile?.supporterTier){
+        state.profile.supporterTier=r.profile.supporterTier;state.support=null;
+        state.socket?.emit("profile:refresh");renderView();
+        toast("Ya eres "+SUPPORT_TIERS[r.profile.supporterTier].name+". ¡Gracias!","good");
+      }else if(++tries<10)setTimeout(poll,3000);
+    };
+    setTimeout(poll,2500);
+  }else toast("Pago cancelado. No se ha cobrado nada.");
 }
 function renderPlay(){
   const waiting=state.matches.filter(m=>m.status==="waiting");
@@ -1843,7 +1925,7 @@ function renderRanking(){
     const total=(Number(p.wins)||0)+(Number(p.draws)||0)+(Number(p.losses)||0);
     const wr=total?Math.round((Number(p.wins)||0)/total*100):0;
     const mine=p.id===state.profile?.id;
-    return `<div class="ranking-row ${mine?"me":""}"><div class="rank-pos">#${p.position}</div><div class="rank-player"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b><small>Nivel ${Number(p.level)||1}${mine?" · Tú":""}</small></div></div><div class="rank-elo">${Number(p.elo)||1000}</div><div class="rank-record">${Number(p.wins)||0}-${Number(p.draws)||0}-${Number(p.losses)||0}<small>${wr}% victorias</small></div><div class="rank-games">${Number(p.rankedMatches)||0}</div></div>`;
+    return `<div class="ranking-row ${mine?"me":""}"><div class="rank-pos">#${p.position}</div><div class="rank-player"><div class="avatar">${initial(p.name)}</div><div><b class="${supporterNameClass(p.supporterTier)}">${supporterBadge(p.supporterTier)}${esc(p.name)}</b><small>Nivel ${Number(p.level)||1}${mine?" · Tú":""}</small></div></div><div class="rank-elo">${Number(p.elo)||1000}</div><div class="rank-record">${Number(p.wins)||0}-${Number(p.draws)||0}-${Number(p.losses)||0}<small>${wr}% victorias</small></div><div class="rank-games">${Number(p.rankedMatches)||0}</div></div>`;
   }).join("");
   return `<div class="page">
     ${pageHead("Competición","Ranking","",'<button class="btn" data-action="refreshRanking">Actualizar</button>')}
@@ -1865,7 +1947,7 @@ function renderRanking(){
 function renderProfile(){
   const total=state.profile.wins+state.profile.draws+state.profile.losses;
   return `<div class="page">
-    <section class="panel profile-banner"><div><div class="kicker">Aprendiz</div><h1>${esc(state.profile.name)}</h1><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
+    <section class="panel profile-banner"><div><div class="kicker">${state.profile.supporterTier?SUPPORT_TIERS[state.profile.supporterTier].name:"Aprendiz"}</div><h1 class="${supporterNameClass(state.profile.supporterTier)}">${supporterBadge(state.profile.supporterTier)}${esc(state.profile.name)}</h1><button class="btn small support-cta" data-action="nav" data-view="support">★ Apoya el proyecto</button><p class="muted">Nivel ${playerLevel()} · ELO ${state.profile.elo||1000} · ${state.profile.wins} victorias · ${state.profile.draws} empates · ${state.profile.losses} derrotas</p></div></section>
     <div class="xp-card" style="margin-top:14px"><div class="xp-row"><div><b>Experiencia de Nivel ${playerLevel()}</b><div class="muted">XP ganada durante la carrera: ${state.profile.totalXp||0}</div></div><strong>${playerLevel()>=50?"MAX":state.profile.xp+" / "+state.profile.xpRequired}</strong></div><div class="xp-bar"><span style="width:${xpPercent()}%"></span></div><p class="muted" style="margin:7px 0 0">Las victorias y empates suben la barra. Las derrotas PvP pueden bajarla, pero nunca reducen un nivel ya alcanzado.</p></div>
     <div class="grid five" style="margin-top:14px"><div class="stat-card"><small>Victorias</small><strong>${state.profile.wins}</strong></div><div class="stat-card"><small>Empates</small><strong>${state.profile.draws}</strong></div><div class="stat-card"><small>Derrotas</small><strong>${state.profile.losses}</strong></div><div class="stat-card"><small>Win rate</small><strong>${winrate()}%</strong></div><div class="stat-card"><small>Oro</small><strong>${state.profile.coins}</strong></div></div>
     <div class="grid two" style="margin-top:14px">
@@ -1884,6 +1966,7 @@ function cardDetail(id){
 function openMobileMenu(){
   $("modalRoot").innerHTML=`<div class="modal-backdrop" data-modal-backdrop><div class="modal" style="max-width:420px"><div class="modal-head"><b>Más secciones</b><button class="btn icon ghost" data-action="closeModal">×</button></div><div class="modal-body"><div class="quick-list">
     <button class="quick-row btn" data-action="nav" data-view="collection"><span class="quick-icon">◇</span><span><b>Colección</b><small class="muted" style="display:block">Tus cartas</small></span></button>
+    <button class="quick-row btn" data-action="nav" data-view="support"><span class="quick-icon">★</span><span><b>Apoya el proyecto</b><small class="muted" style="display:block">Insignias y recompensas</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="trade"><span class="quick-icon">⇄</span><span><b>Intercambios</b><small class="muted" style="display:block">Cartas y oro</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="manual"><span class="quick-icon">?</span><span><b>Manual</b><small class="muted" style="display:block">Reglas y referencia</small></span></button>
     <button class="quick-row btn" data-action="nav" data-view="ranking"><span class="quick-icon">♜</span><span><b>Ranking</b><small class="muted" style="display:block">Clasificación por ELO</small></span></button>
@@ -1904,7 +1987,7 @@ function connectOnline(){
       socket.emit("hello",{sessionToken});
     });
     socket.on("server:ready",()=>{
-      state.connected=true;state.connecting=false;updateChrome();loadFriends();
+      state.connected=true;state.connecting=false;updateChrome();loadFriends();handleSupportReturn();
       if(["home","play","trade"].includes(state.view))renderView();
     });
     socket.on("auth:error",async m=>{
@@ -1916,7 +1999,7 @@ function connectOnline(){
     socket.on("connect_error",()=>{state.connected=false;state.connecting=false;updateChrome()});
     socket.on("lobby:users",list=>{state.users=dedupeLobbyUsers(list);updateChrome();if(["home","trade"].includes(state.view))renderView()});
     socket.on("matches:list",list=>{state.matches=Array.isArray(list)?list:[];updateChrome();if(["home","play"].includes(state.view))renderView()});
-    socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text});if(state.view==="home")renderView()});
+    socket.on("chat:message",m=>{pushChat({from:m.from,text:m.text,tier:m.tier||null});if(state.view==="home")renderView()});
     wireSocialSocket(socket);
     wireVoiceSocket(socket);
     socket.on("chat:system",m=>{pushActivity(m);if(state.view==="home")renderView()});
@@ -3055,6 +3138,7 @@ document.addEventListener("click",e=>{
   else if(a==="cardDetail")cardDetail(Number(el.dataset.id));
   else if(a==="closeModal")closeModal();
   else if(a==="socialToggle")toggleSocial();
+  else if(a==="supportCheckout")supportCheckout(el.dataset.tier);
   else if(a==="voiceToggle")voiceToggle();
   else if(a==="voiceMuteRival")voiceMuteRival();
   else if(a==="socialClose")toggleSocial(false);

@@ -152,8 +152,27 @@ function publicProfile(a: any) {
     collection: a.collection || {},
     deck: Array.isArray(a.deck) ? a.deck : [],
     packs: a.packs || 0,
+    supporterTier: a.supporter_tier || null,
     createdAt: a.created_at,
   };
+}
+
+// Supporter tiers sold through Stripe Checkout. Recognition only: no gold and nothing that
+// helps in combat. Fundador closes at launch (SUPPORT_FOUNDER_OPEN=false); Leyenda has a
+// fixed number of places because each one becomes a hand-made card.
+const SUPPORT_TIERS: Record<string, { name: string; cents: number; rank: number }> = {
+  apoyador: { name: "Apoyador", cents: 300, rank: 1 },
+  fundador: { name: "Fundador", cents: 1000, rank: 2 },
+  mecenas: { name: "Mecenas", cents: 2500, rank: 3 },
+  leyenda: { name: "Leyenda", cents: 7500, rank: 4 },
+};
+const LEYENDA_SPOTS = 10;
+const SITE_URL = Deno.env.get("ROLPLAY_SITE_URL") || "https://cardgame-l9ld.onrender.com";
+const founderOpen = () => (Deno.env.get("SUPPORT_FOUNDER_OPEN") || "true") !== "false";
+async function leyendaTaken() {
+  const { count, error } = await db.from("rolplay_support_payments").select("session_id", { count: "exact", head: true }).eq("tier", "leyenda");
+  if (error) throw error;
+  return count || 0;
 }
 async function createSession(accountId: string) {
   const raw = "rp_" + tokenString(randomBytes(32));
@@ -866,6 +885,70 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, profile: publicProfile(auth.account) });
     }
 
+    if (action === "support_info") {
+      const taken = await leyendaTaken();
+      const { data: wall, error } = await db
+        .from("rolplay_accounts")
+        .select("username,supporter_tier,supporter_since")
+        .not("supporter_tier", "is", null)
+        .order("supporter_since", { ascending: true })
+        .limit(500);
+      if (error) throw error;
+      const key = Deno.env.get("STRIPE_SECRET_KEY") || "";
+      return json({
+        ok: true,
+        configured: !!key,
+        testMode: key.startsWith("sk_test_"),
+        mine: auth.account.supporter_tier || null,
+        tiers: Object.entries(SUPPORT_TIERS).map(([id, t]) => ({
+          id, name: t.name, price: t.cents / 100,
+          available: id === "fundador" ? founderOpen() : id === "leyenda" ? taken < LEYENDA_SPOTS : true,
+          spotsLeft: id === "leyenda" ? Math.max(0, LEYENDA_SPOTS - taken) : null,
+        })),
+        wall: (wall || [])
+          .map((w: any) => ({ name: w.username, tier: w.supporter_tier }))
+          .sort((a: any, b: any) => SUPPORT_TIERS[b.tier].rank - SUPPORT_TIERS[a.tier].rank),
+      });
+    }
+
+    if (action === "support_checkout") {
+      const tierId = String(body.tier || "");
+      const tier = SUPPORT_TIERS[tierId];
+      if (!tier) return fail("tier_invalid");
+      const key = Deno.env.get("STRIPE_SECRET_KEY") || "";
+      if (!key) return fail("payments_not_configured", 503);
+      if (tierId === "fundador" && !founderOpen()) return fail("tier_closed");
+      if (tierId === "leyenda") {
+        if (body.adult !== true) return fail("adult_required");
+        if (await leyendaTaken() >= LEYENDA_SPOTS) return fail("tier_sold_out");
+      }
+      const form = new URLSearchParams({
+        mode: "payment",
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "eur",
+        "line_items[0][price_data][unit_amount]": String(tier.cents),
+        "line_items[0][price_data][product_data][name]": "ARCANUM TCG · " + tier.name,
+        "line_items[0][price_data][product_data][description]": "Apoyo al proyecto ARCANUM TCG. Recompensas de reconocimiento, sin ventajas en combate.",
+        client_reference_id: auth.account.id,
+        "metadata[account_id]": auth.account.id,
+        "metadata[tier]": tierId,
+        "metadata[username]": auth.account.username,
+        success_url: SITE_URL + "/?support=ok",
+        cancel_url: SITE_URL + "/?support=cancel",
+      });
+      const res = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: { authorization: "Bearer " + key, "content-type": "application/x-www-form-urlencoded" },
+        body: form,
+      });
+      const session = await res.json().catch(() => ({}));
+      if (!res.ok || !session.url) {
+        console.error("stripe checkout", res.status, session && session.error && session.error.message);
+        return fail("checkout_failed", 502);
+      }
+      return json({ ok: true, url: session.url });
+    }
+
     // Friends: list, request (accepts automatically if they already asked you), respond, remove.
     if (action === "friends_list" || action === "friend_request" || action === "friend_respond" || action === "friend_remove") {
       const me = auth.account.id;
@@ -928,7 +1011,7 @@ Deno.serve(async (req: Request) => {
       const limit = Math.max(10, Math.min(100, Math.floor(Number(body.limit) || 50)));
       const { data: leaders, error } = await db
         .from("rolplay_accounts")
-        .select("id,username,level,wins,draws,losses,elo,ranked_matches,elo_ever_2400,username_key")
+        .select("id,username,level,wins,draws,losses,elo,ranked_matches,elo_ever_2400,username_key,supporter_tier")
         .order("elo", { ascending: false })
         .order("wins", { ascending: false })
         .order("username_key", { ascending: true })
@@ -946,6 +1029,7 @@ Deno.serve(async (req: Request) => {
         elo: Number(p.elo) || 1000,
         rankedMatches: Number(p.ranked_matches) || 0,
         eloEver2400: !!p.elo_ever_2400,
+        supporterTier: p.supporter_tier || null,
       }));
 
       let myRank = ranking.find((p: any) => p.id === auth.account.id)?.position || null;

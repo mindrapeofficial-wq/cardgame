@@ -153,7 +153,7 @@ function shuffle(a) {
   return a;
 }
 function publicUser(socketId, user) {
-  return { socketId, name: user.name, level: user.level, elo: Number(user.elo) || 1000, status: user.status, wins: user.wins };
+  return { socketId, name: user.name, level: user.level, elo: Number(user.elo) || 1000, status: user.status, wins: user.wins, supporterTier: user.supporterTier || null };
 }
 function uniqueUserEntries() {
   const byAccount = new Map();
@@ -1112,6 +1112,7 @@ io.on("connection", socket => {
       wins: Math.max(0, Number(profile.wins) || 0),
       elo: Number(profile.elo) || 1000,
       deck: Array.isArray(profile.deck) ? profile.deck.map(Number) : [],
+      supporterTier: profile.supporterTier || null,
       status: "Disponible"
     };
     users.set(socket.id, user);
@@ -1124,7 +1125,7 @@ io.on("connection", socket => {
       socket.emit("match:ready", { id: resumedMatch.id, resumed: true });
       emitDuel(resumedMatch);
     }
-    socket.broadcast.emit("chat:system", { text: user.name + " se ha unido al canal." });
+    socket.broadcast.emit("chat:system", { text: user.supporterTier === "leyenda" ? "◆ La leyenda " + user.name + " ha entrado al salón." : user.supporterTier === "mecenas" ? "◆ El mecenas " + user.name + " ha entrado al salón." : user.name + " se ha unido al canal." });
   });
 
   socket.on("profile:refresh", async () => {
@@ -1137,6 +1138,7 @@ io.on("connection", socket => {
     user.wins = Math.max(0, Number(profile.wins) || 0);
     user.elo = Number(profile.elo) || 1000;
     user.deck = Array.isArray(profile.deck) ? profile.deck.map(Number) : [];
+    user.supporterTier = profile.supporterTier || null;
     emitUsers();
   });
 
@@ -1152,7 +1154,7 @@ io.on("connection", socket => {
     if (!user) return;
     const text = cleanText(payload && payload.text);
     if (!text) return;
-    io.emit("chat:message", { id: id("msg"), from: user.name, socketId: socket.id, text, at: Date.now() });
+    io.emit("chat:message", { id: id("msg"), from: user.name, socketId: socket.id, tier: user.supporterTier || null, text, at: Date.now() });
   });
 
   socket.on("match:create", async payload => {
@@ -1167,6 +1169,7 @@ io.on("connection", socket => {
     user.wins = Math.max(0, Number(fresh.wins) || 0);
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
+    user.supporterTier = fresh.supporterTier || null;
     removeSocketMatches(socket.id);
     const deckError = playDeckError(user.deck, user.level);
     if (deckError) {
@@ -1318,6 +1321,7 @@ io.on("connection", socket => {
     user.wins = Math.max(0, Number(fresh.wins) || 0);
     user.elo = Number(fresh.elo) || 1000;
     user.deck = Array.isArray(fresh.deck) ? fresh.deck.map(Number) : [];
+    user.supporterTier = fresh.supporterTier || null;
     const deckError = playDeckError(user.deck, user.level);
     if (deckError) {
       socket.emit("match:error", { message: deckError });

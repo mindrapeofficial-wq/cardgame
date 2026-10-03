@@ -546,3 +546,33 @@
 .duel-voice-button.on{border-color:rgba(127,208,138,.7)!important;color:#bff0c8}
 .duel-voice-rival.muted{opacity:.6}
 .deck-player-meta.voice-speaking{box-shadow:0 0 0 2px rgba(127,208,138,.85),0 0 16px rgba(127,208,138,.5);border-radius:8px}
+
+/* Supporters: badges, coloured names and the "Apoya el proyecto" page. */
+.sup-badge{display:inline-block;margin-right:4px;font-size:.9em;line-height:1;vertical-align:baseline}
+.sup-apoyador{color:#c98a52;text-shadow:0 0 6px rgba(201,138,82,.5)}
+.sup-fundador{color:#f2cf73;text-shadow:0 0 8px rgba(242,207,115,.65)}
+.sup-mecenas,.sup-leyenda{color:#c49bff;text-shadow:0 0 8px rgba(196,155,255,.7)}
+.sup-name-gold{color:#f2cf73!important}
+.sup-name-violet{color:#cfa9ff!important}
+.support-cta{border-color:rgba(242,207,115,.55)!important;color:#f2cf73!important}
+.profile-banner .support-cta{margin-top:10px}
+.support-page h1{margin:0 0 8px;font-family:var(--arc-display,Cinzel,serif)}
+.support-test{padding:8px 12px;border:1px dashed rgba(242,207,115,.5);border-radius:10px;color:#f2cf73;font-size:13px}
+.support-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:14px 0}
+.support-tier{display:flex;flex-direction:column;gap:10px;padding:16px!important}
+.support-tier-head{display:flex;align-items:center;gap:12px}
+.support-tier-head h2{margin:0;font-family:var(--arc-display,Cinzel,serif);font-size:18px}
+.support-icon{font-size:30px;line-height:1}
+.support-apoyador .support-icon{color:#c98a52}.support-fundador .support-icon{color:#f2cf73}
+.support-mecenas .support-icon,.support-leyenda .support-icon{color:#c49bff}
+.support-leyenda{border-color:rgba(196,155,255,.55)!important;box-shadow:0 0 24px rgba(196,155,255,.12)}
+.support-price{font-size:20px;color:var(--arc-gold-hi,#e7c47a)}
+.support-tier ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--arc-muted,#b9b09e);flex:1}
+.support-tier .btn{margin-top:auto}
+.support-adult{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--arc-muted,#b9b09e)}
+.support-wall{display:flex;flex-wrap:wrap;gap:8px 14px}
+.support-wall-name{font-size:14px}
+.support-legal{font-size:12px;margin:10px 2px 0}
+.support-header{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin:0;padding:0;border:0;background:none;color:#f2cf73;font-size:15px;cursor:pointer;text-shadow:0 0 8px rgba(242,207,115,.65);transition:transform .15s}
+.support-header:hover{transform:scale(1.15)}
+.currency-sep{width:1px;height:18px;margin:0 6px 0 2px;background:rgba(242,207,115,.3)}
