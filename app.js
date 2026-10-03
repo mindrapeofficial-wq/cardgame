@@ -248,9 +248,11 @@ function enterGame(){
   $("loginScreen")?.classList.add("hidden");$("appShell")?.classList.remove("hidden");
   updateChrome();connectOnline();go("home");void syncPendingRewards();void loadDecks();
   window.setTimeout(maybeOfferTutorial,1200);
+  void checkAdmin();
   if(IS_PLAY_CLIENT)ARCANUM_PLAY.restore();
 }
 async function logout(){
+  state.admin=null;state.adminView=null;document.querySelector(".currency .admin-open")?.remove();
   ARCANUM_MESSAGES.stop();ARCANUM_SOCIAL.clear();await ARCANUM_NOTIFICATIONS.stop();
   if(sessionToken)void api("logout",{},true);
   if(state.socket){state.socket.disconnect();state.socket=null}
@@ -686,7 +688,7 @@ function renderView(){
   // Lobby events re-render the whole view; keep the focused field and its caret where they were.
   const active=document.activeElement,focusId=active&&root.contains(active)&&/^(INPUT|TEXTAREA)$/.test(active.tagName)?active.id:"";
   let caret=null;if(focusId){try{caret=[active.selectionStart,active.selectionEnd]}catch{}}
-  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,support:renderSupport,spectate:renderSpectate,duel:renderDuel};
+  const renderers={home:renderHome,play:renderPlay,ranking:renderRanking,collection:renderCollection,deck:renderDeck,shop:renderShop,trade:renderTrade,manual:renderManual,profile:renderProfile,support:renderSupport,admin:renderAdmin,spectate:renderSpectate,duel:renderDuel};
   const fxBefore=state.view==="duel"?duelFxCapture():null;
   root.innerHTML=(renderers[state.view]||renderHome)();
   if(state.view==="duel"){animateHandDraws();duelFxApply(fxBefore)}
@@ -699,6 +701,138 @@ function renderView(){
 function pageHead(kicker,title,desc,actions=""){
   return `<div class="page-head"><div><div class="kicker">${kicker}</div><h1>${title}</h1>${desc?`<p>${desc}</p>`:""}</div><div class="actions">${actions}</div></div>`;
 }
+// ---- Admin panel ------------------------------------------------------------------------------
+// Only accounts in rolplay_admins get state.admin (checked by the rolplay-admin function on every
+// call). The entry point is a small ⚙ in the gold HUD pill, invisible to everyone else.
+const ADMIN_API=AUTH_API.replace("rolplay-api","rolplay-admin");
+const ADMIN_TIERS={"":"Sin apoyo",apoyador:"Apoyador",fundador:"Fundador",mecenas:"Mecenas",leyenda:"Leyenda"};
+const ADMIN_ACTION_NAMES={gold:"Oro",elo:"ELO",level:"Nivel",card:"Carta",supporter:"Apoyo",suspend:"Suspensión",unsuspend:"Suspensión levantada",kick:"Expulsión",daily_pack:"Sobre diario regalado"};
+async function adminApi(action,payload={}){
+  try{
+    const res=await fetch(ADMIN_API,{method:"POST",headers:{"content-type":"application/json","x-rolplay-session":sessionToken||""},signal:AbortSignal.timeout(20000),body:JSON.stringify({action,...payload})});
+    let data={};try{data=await res.json()}catch{}
+    return res.ok&&data.ok?data:{ok:false,error:data.error||"server_error"};
+  }catch{return{ok:false,error:"network_error"}}
+}
+async function checkAdmin(){
+  state.admin=null;
+  const r=await adminApi("whoami");
+  if(!r.ok)return;
+  state.admin=r.admin;
+  state.adminView=state.adminView||{q:"",bots:false,filter:"",sort:"created_at",players:[],stats:null,total:0,selected:null,log:null,tab:"players"};
+  const icons=document.querySelector(".currency .hud-icons");
+  if(icons&&!icons.querySelector(".admin-open"))icons.insertAdjacentHTML("beforeend",'<button type="button" class="support-header hud-icon admin-open" data-action="nav" data-view="admin" title="Administración" aria-label="Administración">⚙</button>');
+}
+async function adminLoadPlayers(){
+  const v=state.adminView;v.loading=true;if(state.view==="admin")renderView();
+  const r=await adminApi("players",{q:v.q,bots:v.bots,filter:v.filter,sort:v.sort,limit:150});
+  v.loading=false;
+  if(!r.ok){toast("No se pudo cargar la lista de jugadores.","bad");if(state.view==="admin")renderView();return}
+  v.players=r.players;v.stats=r.stats;v.total=r.total;
+  if(state.view==="admin")renderView();
+}
+async function adminSelect(id){
+  const v=state.adminView;
+  const r=await adminApi("player",{id});
+  if(!r.ok){toast("No se pudo abrir ese jugador.","bad");return}
+  v.selected=r.player;v.selectedLog=r.log;
+  renderView();
+}
+async function adminLoadLog(){
+  const r=await adminApi("log");
+  state.adminView.log=r.ok?r.log:[];
+  renderView();
+}
+const ADMIN_ERRORS={amount_invalid:"Cantidad no válida.",level_invalid:"El nivel debe estar entre 1 y 50.",card_not_found:"Esa carta no existe.",tier_invalid:"Nivel de apoyo no válido.",days_invalid:"Días no válidos (0–3650).",cannot_target_self:"No puedes aplicarte eso a ti mismo.",forbidden:"No tienes permisos de administración."};
+async function adminAct(kind,el){
+  const v=state.adminView,p=v.selected;if(!p)return;
+  const num=id=>Math.trunc(Number($(id)?.value)||0);
+  const sign=Number(el?.dataset.sign||1);
+  let data={},confirmText="";
+  if(kind==="gold"){data={delta:sign*Math.abs(num("adminGold"))};if(!data.delta)return toast("Indica una cantidad de oro.","bad")}
+  else if(kind==="elo"){data={delta:sign*Math.abs(num("adminElo"))};if(!data.delta)return toast("Indica cuántos puntos de ELO.","bad")}
+  else if(kind==="level"){data={level:num("adminLevel")}}
+  else if(kind==="card"){
+    const raw=String($("adminCard")?.value||""),id=Number(raw.split("·")[0])||Number(raw);
+    const c=card(id)||state.catalog.find(x=>norm(x.name)===norm(raw));
+    if(!c)return toast("Elige una carta de la lista.","bad");
+    data={cardId:c.id,qty:sign*Math.max(1,Math.abs(num("adminQty"))||1)};
+    if(sign<0)confirmText="¿Quitar "+Math.abs(data.qty)+" × "+c.name+" a "+p.name+"? Si las tiene en el mazo, también salen del mazo.";
+  }
+  else if(kind==="supporter"){data={tier:$("adminTier")?.value||""}}
+  else if(kind==="suspend"){
+    const days=Math.max(0,num("adminDays"));data={days,reason:String($("adminReason")?.value||"").slice(0,300)};
+    confirmText="¿Suspender a "+p.name+(days?" durante "+days+" día(s)":" de forma indefinida")+"? Se cerrará su sesión.";
+  }
+  else if(kind==="kick")confirmText="¿Expulsar a "+p.name+"? Se cerrará su sesión (en menos de 30 s si está jugando).";
+  if(confirmText&&!window.confirm(confirmText))return;
+  const r=await adminApi("act",{target:p.id,kind,data});
+  if(!r.ok){toast(ADMIN_ERRORS[r.error]||"No se pudo aplicar la acción.","bad");return}
+  toast(ADMIN_ACTION_NAMES[kind]+" · "+p.name+": hecho.","good");
+  const i=v.players.findIndex(x=>x.id===p.id);if(i>=0)v.players[i]=r.player;
+  await adminSelect(p.id);
+}
+function adminDetailText(l){
+  const d=l.details||{},sign=v=>(v>0?"+":"")+v;
+  if(l.action==="gold")return sign(d.delta)+" oro";
+  if(l.action==="elo")return sign(d.delta)+" ELO";
+  if(l.action==="level")return "nivel "+d.level;
+  if(l.action==="card")return sign(d.qty)+" × "+(card(d.cardId)?.name||"carta "+d.cardId);
+  if(l.action==="supporter")return ADMIN_TIERS[d.tier||""]||"—";
+  if(l.action==="suspend")return (d.days?d.days+" día(s)":"indefinida")+(d.reason?" · "+d.reason:"");
+  return "";
+}
+function adminStatus(p){
+  if(p.suspendedAt)return`<span class="pill bad">Suspendido${p.suspendedUntil?" hasta "+new Date(p.suspendedUntil).toLocaleDateString("es-ES"):""}</span>`;
+  return p.bot?'<span class="pill">Bot</span>':'<span class="pill good">Activo</span>';
+}
+function adminOnline(name){return (state.users||[]).some(u=>u.name===name)}
+function renderAdminDetail(p){
+  if(!p)return'<div class="empty">Elige un jugador de la lista.</div>';
+  const owned=Object.entries(p.collection||{}).filter(([,n])=>n>0).map(([id,n])=>({c:card(id),n})).filter(x=>x.c).sort((a,b)=>a.c.level-b.c.level);
+  const log=state.adminView.selectedLog||[];
+  return`<div class="admin-detail">
+    <div class="admin-detail-head"><div class="avatar">${initial(p.name)}</div><div><b>${esc(p.name)}</b> ${supporterBadge(p.tier)}<div class="muted">${adminOnline(p.name)?"● Conectado":"Desconectado"} · alta ${new Date(p.createdAt).toLocaleDateString("es-ES")}${p.discord?" · Discord: "+esc(p.discord):""}</div></div>${adminStatus(p)}</div>
+    <div class="admin-facts"><span>Nivel <b>${p.level}</b></span><span>ELO <b>${p.elo}</b></span><span>Oro <b>${p.gold}</b></span><span>V/E/D <b>${p.wins}/${p.draws}/${p.losses}</b></span><span>Mazo <b>${p.deckSize}</b></span><span>Edad <b>${esc(p.ageGroup||"—")}</b></span></div>
+    ${p.suspensionReason?`<p class="muted">Motivo de la suspensión: ${esc(p.suspensionReason)}</p>`:""}
+    <div class="admin-actions">
+      <div class="admin-row"><label>Oro</label><input class="input" id="adminGold" type="number" min="1" placeholder="Cantidad"><button class="btn small" data-action="adminAct" data-kind="gold" data-sign="1">Dar</button><button class="btn small" data-action="adminAct" data-kind="gold" data-sign="-1">Quitar</button></div>
+      <div class="admin-row"><label>ELO</label><input class="input" id="adminElo" type="number" min="1" placeholder="Puntos"><button class="btn small" data-action="adminAct" data-kind="elo" data-sign="1">Sumar</button><button class="btn small" data-action="adminAct" data-kind="elo" data-sign="-1">Restar</button></div>
+      <div class="admin-row"><label>Nivel</label><input class="input" id="adminLevel" type="number" min="1" max="50" value="${p.level}"><button class="btn small" data-action="adminAct" data-kind="level">Fijar</button></div>
+      <div class="admin-row"><label>Carta</label><input class="input" id="adminCard" list="adminCardList" placeholder="Busca una carta"><input class="input admin-qty" id="adminQty" type="number" min="1" max="50" value="1"><button class="btn small" data-action="adminAct" data-kind="card" data-sign="1">Dar</button><button class="btn small" data-action="adminAct" data-kind="card" data-sign="-1">Quitar</button></div>
+      <datalist id="adminCardList">${state.catalog.filter(c=>!isBasicPower(c)).map(c=>`<option value="${c.id} · ${esc(c.name)} (Nv ${c.level})">`).join("")}</datalist>
+      <div class="admin-row"><label>Apoyo</label><select class="select" id="adminTier">${Object.entries(ADMIN_TIERS).map(([id,n])=>`<option value="${id}" ${(p.tier||"")===id?"selected":""}>${n}</option>`).join("")}</select><button class="btn small" data-action="adminAct" data-kind="supporter">Guardar</button></div>
+      <div class="admin-row"><label>Regalos</label><button class="btn small" data-action="adminAct" data-kind="daily_pack">Regalar sobre diario</button></div>
+      <div class="admin-row admin-danger"><label>Sanciones</label><button class="btn small" data-action="adminAct" data-kind="kick">Expulsar</button>${p.suspendedAt?`<button class="btn small primary" data-action="adminAct" data-kind="unsuspend">Levantar suspensión</button>`:`<input class="input admin-qty" id="adminDays" type="number" min="0" max="3650" value="1" title="Días (0 = indefinida)"><input class="input" id="adminReason" maxlength="300" placeholder="Motivo"><button class="btn small danger" data-action="adminAct" data-kind="suspend">Suspender</button>`}</div>
+    </div>
+    <details class="admin-collapse"><summary>Colección (${owned.reduce((s,x)=>s+x.n,0)} cartas)</summary><div class="admin-collection">${owned.map(x=>`<span>${esc(x.c.name)} <b>×${x.n}</b></span>`).join("")||'<span class="muted">Sin cartas.</span>'}</div></details>
+    <details class="admin-collapse" ${log.length?"open":""}><summary>Historial de administración (${log.length})</summary>${log.map(l=>`<div class="admin-log-row"><span>${new Date(l.at).toLocaleString("es-ES")}</span><b>${ADMIN_ACTION_NAMES[l.action]||esc(l.action)}</b><span>${esc(adminDetailText(l))}</span><span class="muted">por ${esc(l.by)}</span></div>`).join("")||'<div class="muted">Sin acciones.</div>'}</details>
+  </div>`;
+}
+function renderAdmin(){
+  if(!state.admin)return'<div class="page"><div class="empty">No tienes acceso a esta sección.</div></div>';
+  const v=state.adminView;
+  if(!v.stats&&!v.loading)void adminLoadPlayers();
+  const s=v.stats||{humans:"…",suspended:"…",supporters:"…"};
+  const rows=v.players.map(p=>`<tr class="${v.selected&&v.selected.id===p.id?"selected":""}" data-action="adminSelect" data-id="${p.id}"><td><span class="admin-dot ${adminOnline(p.name)?"on":""}"></span>${esc(p.name)} ${supporterBadge(p.tier)}</td><td>${p.level}</td><td>${p.elo}</td><td>${p.gold}</td><td>${p.wins}/${p.losses}</td><td>${adminStatus(p)}</td></tr>`).join("");
+  return`<div class="page admin-page">
+    <div class="admin-top"><div><div class="kicker">Administración</div><h1>Jugadores</h1></div>
+      <div class="admin-stats"><span class="pill">${s.humans} jugadores</span><span class="pill">${(state.users||[]).length} conectados</span><span class="pill">${s.supporters} donadores</span><span class="pill">${s.suspended} suspendidos</span><button class="btn small ${v.tab==="log"?"primary":""}" data-action="adminTab" data-tab="${v.tab==="log"?"players":"log"}">${v.tab==="log"?"Ver jugadores":"Registro global"}</button></div></div>
+    ${v.tab==="log"?`<section class="panel"><div class="panel-body">${(v.log||[]).map(l=>`<div class="admin-log-row"><span>${new Date(l.at).toLocaleString("es-ES")}</span><b>${ADMIN_ACTION_NAMES[l.action]||esc(l.action)}</b><span>${esc(l.target||"")} · ${esc(adminDetailText(l))}</span><span class="muted">por ${esc(l.by)}</span></div>`).join("")||(v.log?'<div class="empty">Todavía no hay acciones.</div>':'<div class="empty">Cargando…</div>')}</div></section>`:`
+    <form class="admin-filters" id="adminFilters"><input class="input" id="adminSearch" placeholder="Buscar jugador" value="${esc(v.q)}"><select class="select" id="adminFilter"><option value="">Todos</option><option value="supporters" ${v.filter==="supporters"?"selected":""}>Donadores</option><option value="suspended" ${v.filter==="suspended"?"selected":""}>Suspendidos</option></select><select class="select" id="adminSort"><option value="created_at">Más recientes</option><option value="elo" ${v.sort==="elo"?"selected":""}>ELO</option><option value="level" ${v.sort==="level"?"selected":""}>Nivel</option><option value="gold" ${v.sort==="gold"?"selected":""}>Oro</option><option value="username_key" ${v.sort==="username_key"?"selected":""}>Nombre</option></select><label class="admin-check"><input type="checkbox" id="adminBots" ${v.bots?"checked":""}> Bots</label><button class="btn small primary">Buscar</button></form>
+    <div class="admin-grid">
+      <section class="panel admin-list"><div class="panel-head"><h2>${v.loading?"Cargando…":v.total+" resultados"}</h2></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Jugador</th><th>Nv</th><th>ELO</th><th>Oro</th><th>V/D</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">Sin resultados.</td></tr>'}</tbody></table></div></section>
+      <section class="panel">${renderAdminDetail(v.selected)}</section>
+    </div>`}
+  </div>`;
+}
+document.addEventListener("submit",e=>{
+  if(e.target&&e.target.id==="adminFilters"){
+    e.preventDefault();
+    const v=state.adminView;v.q=$("adminSearch").value;v.filter=$("adminFilter").value;v.sort=$("adminSort").value;v.bots=$("adminBots").checked;
+    void adminLoadPlayers();
+  }
+});
 function renderHome(){
   const deckReady=deckValid(),matches=state.matches.filter(m=>m.status==="waiting").length,empty=collectionTotal()===0;
   const duelDeadline=duelLobbyAway&&state.duel&&!state.duel.gameOver?playerLeaveDeadline():0;
@@ -3557,6 +3691,9 @@ document.addEventListener("click",e=>{
   else if(a==="training")training();
   else if(a==="tutorial")startTutorial();
   else if(a==="phaseMode")togglePhaseMode();
+  else if(a==="adminSelect")void adminSelect(el.dataset.id);
+  else if(a==="adminAct")void adminAct(el.dataset.kind,el);
+  else if(a==="adminTab"){state.adminView.tab=el.dataset.tab;if(el.dataset.tab==="log")void adminLoadLog();else renderView()}
   else if(a==="tutorialAck")tutorialAck(el.dataset.id);
   else if(a==="tutorialSkip")tutorialSkip();
   else if(a==="firstStepsHide"){tutorialStore.set(FIRST_STEPS_KEY,"1");renderView()}
